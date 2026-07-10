@@ -1,8 +1,30 @@
 "use client";
-import { use } from "react";
-import { TripProvider } from "@/lib/trip-context";
+import { use, useState } from "react";
+import { useRouter } from "next/navigation";
+import { TripProvider, useTrip } from "@/lib/trip-context";
 import { TabBar } from "@/components/TabBar";
-import { Toaster, toast } from "@/components/ui/Toast";
+import { QuickExpenseSheet } from "@/components/QuickExpenseSheet";
+import { Toaster } from "@/components/ui/Toast";
+
+function TripLayoutInner({ tripId, children }: { tripId: string; children: React.ReactNode }) {
+  const { trip } = useTrip();
+  const router = useRouter();
+  const [fabOpen, setFabOpen] = useState(false);
+
+  return (
+    <>
+      <main className="pb-24">{children}</main>
+      <TabBar tripId={tripId} onFab={() => setFabOpen(true)} />
+      <QuickExpenseSheet
+        trip={trip}
+        open={fabOpen}
+        onClose={() => setFabOpen(false)}
+        onSaved={() => router.refresh()}
+      />
+      <Toaster />
+    </>
+  );
+}
 
 export default function TripLayout({
   children,
@@ -13,13 +35,9 @@ export default function TripLayout({
 }) {
   const { id } = use(params);
 
-  const handleFab = () => toast("เร็วๆ นี้");
-
   return (
     <TripProvider tripId={id}>
-      <main className="pb-24">{children}</main>
-      <TabBar tripId={id} onFab={handleFab} />
-      <Toaster />
+      <TripLayoutInner tripId={id}>{children}</TripLayoutInner>
     </TripProvider>
   );
 }
