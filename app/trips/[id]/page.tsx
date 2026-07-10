@@ -49,23 +49,31 @@ const MODE_OPTIONS: { key: Trip["status"]; label: string }[] = [
 ];
 
 function ModeToggle({ trip, onChange }: { trip: Trip; onChange: (status: Trip["status"]) => void }) {
+  const isDone = trip.status === "done";
   const activeIndex = trip.status === "active" ? 1 : 0;
   return (
-    <div className="relative h-10 grid grid-cols-2 rounded-full bg-muted/10 p-1">
+    <div
+      className={`relative h-11 grid grid-cols-2 rounded-full bg-muted/10 p-0.5 ${
+        isDone ? "opacity-50 pointer-events-none" : ""
+      }`}
+    >
       {MODE_OPTIONS.map((o, i) => (
         <button
           key={o.key}
-          onClick={() => onChange(o.key)}
+          onClick={() => !isDone && onChange(o.key)}
+          disabled={isDone}
           className="relative h-full rounded-full text-sm font-medium cursor-pointer"
         >
-          {activeIndex === i && (
+          {!isDone && activeIndex === i && (
             <motion.div
               layoutId="mode"
               className="absolute inset-0 rounded-full bg-primary"
               transition={{ type: "spring", duration: 0.2 }}
             />
           )}
-          <span className={`relative z-10 ${activeIndex === i ? "text-white" : "text-muted"}`}>{o.label}</span>
+          <span className={`relative z-10 ${!isDone && activeIndex === i ? "text-white" : "text-muted"}`}>
+            {o.label}
+          </span>
         </button>
       ))}
     </div>
@@ -100,7 +108,7 @@ const SHORTCUTS: { href: string; icon: LucideIcon; label: string }[] = [
   { href: "itinerary", icon: CalendarDays, label: "แผนการเดินทาง" },
   { href: "transport", icon: TrainFront, label: "เดินทาง" },
   { href: "bookings", icon: Ticket, label: "การจอง" },
-  { href: "checklist", icon: ListChecks, label: "Checklist" },
+  { href: "checklist", icon: ListChecks, label: "เช็คลิสต์" },
 ];
 
 export default function TripDashboardPage() {
