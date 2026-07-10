@@ -56,7 +56,7 @@ function ItineraryCard({
           onClick={onToggleDone}
           className="relative inline-flex before:absolute before:inset-[-10px] before:content-['']"
         >
-          <Checkbox checked={item.status === "done"} onChange={onToggleDone} />
+          <Checkbox checked={item.status === "done"} onChange={() => {}} />
         </span>
         <div className="min-w-0 flex-1">
           {item.time && <p className="text-xs text-muted">{item.time}</p>}
