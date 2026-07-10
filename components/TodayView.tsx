@@ -52,7 +52,10 @@ function ItineraryCard({
       ].join(" ")}
     >
       <div className="flex items-start gap-3">
-        <span className="relative inline-flex before:absolute before:inset-[-10px] before:content-['']">
+        <span
+          onClick={onToggleDone}
+          className="relative inline-flex before:absolute before:inset-[-10px] before:content-['']"
+        >
           <Checkbox checked={item.status === "done"} onChange={onToggleDone} />
         </span>
         <div className="min-w-0 flex-1">
