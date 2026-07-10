@@ -151,9 +151,13 @@ export function TransportFormSheet({
           <label className="text-sm text-muted">รูปแบบการเดินทาง</label>
           <div className="flex gap-2 flex-wrap mt-1">
             {MODES.map((m) => (
-              <Chip key={m} selected={values.mode === m} onClick={() => set({ mode: m })}>
-                {m}
-              </Chip>
+              <span
+                key={m}
+                onClick={() => set({ mode: m })}
+                className="relative inline-flex before:absolute before:inset-[-4px] before:content-['']"
+              >
+                <Chip selected={values.mode === m}>{m}</Chip>
+              </span>
             ))}
           </div>
         </div>
@@ -229,15 +233,19 @@ export function TransportFormSheet({
           <label className="text-sm text-muted">ใครจ่าย</label>
           <div className="flex gap-2 flex-wrap mt-1">
             {PAYERS.map((p) => (
-              <Chip key={p} selected={values.payer === p} onClick={() => set({ payer: p })}>
-                {p}
-              </Chip>
+              <span
+                key={p}
+                onClick={() => set({ payer: p })}
+                className="relative inline-flex before:absolute before:inset-[-4px] before:content-['']"
+              >
+                <Chip selected={values.payer === p}>{p}</Chip>
+              </span>
             ))}
             <input
               value={PAYERS.includes(values.payer) ? "" : values.payer}
               onChange={(e) => set({ payer: e.target.value })}
               placeholder="อื่นๆ"
-              className="h-9 w-24 rounded-full border border-muted/30 bg-surface px-3 text-sm"
+              className="h-12 w-24 rounded-full border border-muted/30 bg-surface px-3 text-sm"
             />
           </div>
         </div>
@@ -246,14 +254,29 @@ export function TransportFormSheet({
           <label className="text-sm text-muted">จังหวะจ่ายเงิน</label>
           <div className="flex gap-2 flex-wrap mt-1">
             {TIMINGS.map((t) => (
-              <Chip key={t.value} selected={values.pay_timing === t.value} onClick={() => set({ pay_timing: t.value })}>
-                {t.label}
-              </Chip>
+              <span
+                key={t.value}
+                onClick={() => set({ pay_timing: t.value })}
+                className="relative inline-flex before:absolute before:inset-[-4px] before:content-['']"
+              >
+                <Chip selected={values.pay_timing === t.value}>{t.label}</Chip>
+              </span>
             ))}
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={() => set({ paid: !values.paid })}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              set({ paid: !values.paid });
+            }
+          }}
+          className="flex items-center gap-3 min-h-11 py-1 cursor-pointer select-none"
+        >
           <Checkbox checked={values.paid} onChange={(paid) => set({ paid })} />
           <span className="text-sm">จ่ายแล้ว</span>
         </div>
