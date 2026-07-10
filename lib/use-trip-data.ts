@@ -4,6 +4,13 @@ import { apiList } from "@/lib/api";
 import type { Expense, Booking, Transport, ItineraryItem } from "@/lib/models/types";
 import { summarize } from "@/lib/summary";
 
+const TRIP_DATA_CHANGED_EVENT = "trip-data-changed";
+
+export function notifyTripDataChanged() {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new CustomEvent(TRIP_DATA_CHANGED_EVENT));
+}
+
 export function useTripData(tripId: string) {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -28,6 +35,11 @@ export function useTripData(tripId: string) {
 
   useEffect(() => {
     reload();
+  }, [reload]);
+
+  useEffect(() => {
+    window.addEventListener(TRIP_DATA_CHANGED_EVENT, reload);
+    return () => window.removeEventListener(TRIP_DATA_CHANGED_EVENT, reload);
   }, [reload]);
 
   const summary = summarize(expenses, bookings, transports);
