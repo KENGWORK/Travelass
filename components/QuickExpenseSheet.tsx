@@ -7,13 +7,8 @@ import { MoneyInput, type MoneyValue } from "@/components/ui/MoneyInput";
 import { PhotoPicker } from "@/components/PhotoPicker";
 import { toast } from "@/components/ui/Toast";
 import { apiCreate } from "@/lib/api";
+import { CATS } from "@/lib/categories";
 import type { Trip, Expense, Category } from "@/lib/models/types";
-
-const CATS: { name: Category; color: string }[] = [
-  { name: "อาหาร", color: "var(--color-cat-food)" }, { name: "เดินทาง", color: "var(--color-cat-transport)" },
-  { name: "ที่พัก", color: "var(--color-cat-lodging)" }, { name: "ช้อป", color: "var(--color-cat-shopping)" },
-  { name: "ตั๋ว", color: "var(--color-cat-tickets)" }, { name: "อื่นๆ", color: "var(--color-cat-other)" },
-];
 
 export function QuickExpenseSheet({ trip, open, onClose, onSaved }: { trip: Trip; open: boolean; onClose: () => void; onSaved: () => void }) {
   const blank = (): MoneyValue => ({ amount: 0, currency: trip.trip_currency, fx_rate: 0, amount_thb: 0 });
