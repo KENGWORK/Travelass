@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { apiCreate, apiUpdate } from "@/lib/api";
 import { PhotoPicker } from "@/components/PhotoPicker";
+import { toast } from "@/components/ui/Toast";
 import { tripDays } from "@/lib/days";
 import type { Note, Trip } from "@/lib/models/types";
 
@@ -41,6 +42,14 @@ export function DiarySection({ trip, initialNotes }: { trip: Trip; initialNotes:
   const photoIdsRef = useRef(photoIds);
   const debounceTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const savedFadeTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  // Tracks the in-flight saveDay() promise per date. A new saveDay(date) call always
+  // waits for the previous one for that SAME date to settle before issuing its own
+  // apiCreate/apiUpdate — this serializes create-then-update ordering so a fast
+  // photo-change save can never race an in-flight text-debounce save (or vice versa)
+  // and hit apiUpdate before the row created by apiCreate is actually visible in the
+  // sheet. The prior promise's rejection is swallowed here so one date's earlier
+  // failure doesn't propagate into (or block) the next save for that date.
+  const saveChains = useRef<Record<string, Promise<void>>>({});
 
   useEffect(() => {
     return () => {
@@ -49,7 +58,17 @@ export function DiarySection({ trip, initialNotes }: { trip: Trip; initialNotes:
     };
   }, []);
 
-  const saveDay = async (date: string) => {
+  const saveDay = (date: string) => {
+    const previous = saveChains.current[date] ?? Promise.resolve();
+    const run = previous.catch(() => {}).then(() => performSave(date));
+    saveChains.current[date] = run;
+    return run.catch((err) => {
+      console.error(`Failed to save diary entry for ${date}`, err);
+      toast("บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง");
+    });
+  };
+
+  const performSave = async (date: string) => {
     const text = textsRef.current[date] ?? "";
     const ids = photoIdsRef.current[date] ?? [];
 
