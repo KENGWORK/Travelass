@@ -3,6 +3,7 @@ import { useRef, useState } from "react";
 import { Camera, X } from "lucide-react";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { PhotoViewer } from "@/components/PhotoViewer";
+import { toast } from "@/components/ui/Toast";
 
 export interface PhotoPickerProps {
   tripName: string;
@@ -20,6 +21,7 @@ export function PhotoPicker({ tripName, kind, fileIds, onChange }: PhotoPickerPr
     if (!files || files.length === 0) return;
     const list = Array.from(files);
     setUploadingCount((n) => n + list.length);
+    const accumulated = [...fileIds];
     for (const file of list) {
       try {
         const form = new FormData();
@@ -29,9 +31,10 @@ export function PhotoPicker({ tripName, kind, fileIds, onChange }: PhotoPickerPr
         const res = await fetch("/api/upload", { method: "POST", body: form });
         if (!res.ok) throw new Error(`upload failed: ${res.status}`);
         const { fileId } = (await res.json()) as { fileId: string };
-        onChange([...fileIds, fileId]);
+        accumulated.push(fileId);
+        onChange([...accumulated]);
       } catch {
-        // ignore failed upload; skip adding it
+        toast("อัปโหลดรูปไม่สำเร็จ");
       } finally {
         setUploadingCount((n) => Math.max(0, n - 1));
       }
@@ -77,7 +80,7 @@ export function PhotoPicker({ tripName, kind, fileIds, onChange }: PhotoPickerPr
             type="button"
             aria-label="ลบรูป"
             onClick={() => remove(id)}
-            className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-danger text-white flex items-center justify-center cursor-pointer"
+            className="absolute -top-2 -right-2 h-8 w-8 rounded-full bg-danger text-white flex items-center justify-center cursor-pointer"
           >
             <X size={12} />
           </button>
