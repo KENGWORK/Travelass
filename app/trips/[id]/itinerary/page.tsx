@@ -154,7 +154,7 @@ export default function ItineraryPage() {
                             target="_blank"
                             rel="noreferrer"
                             onClick={(e) => e.stopPropagation()}
-                            className="text-primary"
+                            className="text-primary inline-flex items-center justify-center p-2.5"
                           >
                             <MapPin size={14} />
                           </a>

@@ -23,7 +23,7 @@ export function DayChips({
             type="button"
             onClick={() => onSelect(d.date)}
             className={[
-              "shrink-0 h-9 px-4 rounded-full border text-sm font-medium whitespace-nowrap cursor-pointer transition",
+              "shrink-0 h-11 px-4 rounded-full border text-sm font-medium whitespace-nowrap cursor-pointer transition flex items-center justify-center",
               d.date === selected
                 ? "bg-primary text-white border-transparent"
                 : "border-muted/30 text-muted",
