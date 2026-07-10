@@ -1,0 +1,88 @@
+"use client";
+import { useState } from "react";
+import { apiCreate } from "@/lib/api";
+import type { Trip } from "@/lib/models/types";
+import { SUPPORTED_CURRENCIES } from "@/lib/fx";
+import { BottomSheet } from "@/components/ui/BottomSheet";
+import { Button } from "@/components/ui/Button";
+
+const EMPTY = { name: "", destination: "", start_date: "", end_date: "", trip_currency: "THB" };
+
+export function TripFormSheet({ open, onClose, onSaved }: { open: boolean; onClose: () => void; onSaved: () => void }) {
+  const [form, setForm] = useState(EMPTY);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const set = (patch: Partial<typeof EMPTY>) => setForm((f) => ({ ...f, ...patch }));
+
+  const valid = form.name.trim() && form.destination.trim() && form.start_date && form.end_date && form.start_date <= form.end_date;
+
+  const submit = async () => {
+    if (!valid || saving) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const trip: Trip = {
+        id: crypto.randomUUID(),
+        name: form.name.trim(),
+        destination: form.destination.trim(),
+        start_date: form.start_date,
+        end_date: form.end_date,
+        home_currency: "THB",
+        trip_currency: form.trip_currency,
+        status: "planning",
+      };
+      await apiCreate("trips", trip);
+      setForm(EMPTY);
+      onSaved();
+    } catch {
+      setError("สร้างทริปไม่สำเร็จ ลองอีกครั้ง");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <BottomSheet open={open} onClose={onClose} title="สร้างทริปใหม่">
+      <div className="flex flex-col gap-3">
+        <input
+          className="h-12 rounded-2xl border border-muted/30 bg-surface px-4"
+          placeholder="ชื่อทริป"
+          value={form.name}
+          onChange={(e) => set({ name: e.target.value })}
+        />
+        <input
+          className="h-12 rounded-2xl border border-muted/30 bg-surface px-4"
+          placeholder="จุดหมาย"
+          value={form.destination}
+          onChange={(e) => set({ destination: e.target.value })}
+        />
+        <div className="flex gap-2">
+          <input
+            type="date"
+            className="h-12 rounded-2xl border border-muted/30 bg-surface px-4 flex-1"
+            value={form.start_date}
+            onChange={(e) => set({ start_date: e.target.value })}
+          />
+          <input
+            type="date"
+            className="h-12 rounded-2xl border border-muted/30 bg-surface px-4 flex-1"
+            value={form.end_date}
+            onChange={(e) => set({ end_date: e.target.value })}
+          />
+        </div>
+        <select
+          className="h-12 rounded-2xl border border-muted/30 bg-surface px-4 cursor-pointer"
+          value={form.trip_currency}
+          onChange={(e) => set({ trip_currency: e.target.value })}
+        >
+          {SUPPORTED_CURRENCIES.map((c) => <option key={c}>{c}</option>)}
+        </select>
+        {error && <p className="text-sm text-danger">{error}</p>}
+        <Button variant="primary" full disabled={!valid} loading={saving} onClick={submit}>
+          สร้างทริป
+        </Button>
+      </div>
+    </BottomSheet>
+  );
+}
