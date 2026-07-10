@@ -116,11 +116,12 @@ export default function MoneyPage() {
       <div className="flex flex-col items-center gap-1 py-2">
         <CountUpMoney value={bigTotal} />
         <p className="text-sm text-muted">
-          จ่ายล่วงหน้า ฿{summary.prepaidTHB.toLocaleString()} · หน้างาน ฿{summary.onsiteTHB.toLocaleString()}
+          จ่ายล่วงหน้า ฿{summary.prepaidTHB.toLocaleString()} · หน้างาน ฿{summary.onsiteTHB.toLocaleString()}{" "}
+          <span className="text-xs">(ทั้งทริป)</span>
         </p>
       </div>
 
-      <CategoryDonut data={filteredByCategory} total={filteredTotal} selected={category} onSelect={setCategory} />
+      <CategoryDonut data={filteredByCategory} total={bigTotal} selected={category} onSelect={setCategory} />
 
       {Object.keys(summary.byPayer).length > 0 && (
         <div className="flex flex-col gap-2">

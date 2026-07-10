@@ -1,21 +1,10 @@
 "use client";
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { MapPin, Clock, Timer, ChevronDown, TrainFront, Bus, Plane, Ship, Footprints, Navigation, type LucideIcon } from "lucide-react";
+import { MapPin, Clock, Timer, ChevronDown } from "lucide-react";
 import { PhotoViewer } from "@/components/PhotoViewer";
+import { transportIcon } from "@/lib/transport-icon";
 import type { Transport, PayTiming } from "@/lib/models/types";
-
-const MODE_ICONS: Record<string, LucideIcon> = {
-  รถไฟ: TrainFront,
-  บัส: Bus,
-  เครื่องบิน: Plane,
-  เรือ: Ship,
-  เดิน: Footprints,
-};
-
-function modeIcon(mode: string): LucideIcon {
-  return MODE_ICONS[mode] ?? Navigation;
-}
 
 const TIMING_LABEL: Record<PayTiming, string> = {
   prepaid: "จ่ายล่วงหน้า",
@@ -26,7 +15,7 @@ const TIMING_LABEL: Record<PayTiming, string> = {
 export function TransportCard({ transport, onEdit }: { transport: Transport; onEdit: () => void }) {
   const [viewerOpen, setViewerOpen] = useState(false);
   const [altOpen, setAltOpen] = useState(false);
-  const Icon = modeIcon(transport.mode);
+  const Icon = transportIcon(transport.mode);
   const hasPickupPhoto = transport.pickup_photo_ids.length > 0;
 
   return (

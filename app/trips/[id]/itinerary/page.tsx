@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { Reorder } from "framer-motion";
-import { MapPin, Plus, Train, Bus, Plane, Anchor, Footprints, Navigation, type LucideIcon } from "lucide-react";
+import { MapPin, Plus } from "lucide-react";
 import { useTrip } from "@/lib/trip-context";
 import { useTripData } from "@/lib/use-trip-data";
 import { apiCreate, apiUpdate, apiDelete } from "@/lib/api";
@@ -10,20 +10,12 @@ import { DayChips } from "@/components/DayChips";
 import { ItineraryFormSheet, type ItineraryFormValues } from "@/components/ItineraryFormSheet";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { toast } from "@/components/ui/Toast";
+import { transportIcon } from "@/lib/transport-icon";
 import type { ItineraryItem } from "@/lib/models/types";
 
 function todayISO(): string {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
-function transportIcon(mode: string): LucideIcon {
-  if (mode.includes("รถไฟ")) return Train;
-  if (mode.includes("บัส") || mode.includes("รถ")) return Bus;
-  if (mode.includes("เครื่องบิน")) return Plane;
-  if (mode.includes("เรือ")) return Anchor;
-  if (mode.includes("เดิน")) return Footprints;
-  return Navigation;
 }
 
 function initialSelectedDate(startDate: string, endDate: string): string {
