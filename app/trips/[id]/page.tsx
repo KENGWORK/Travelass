@@ -7,6 +7,7 @@ import { useTrip } from "@/lib/trip-context";
 import { useTripData } from "@/lib/use-trip-data";
 import { apiUpdate } from "@/lib/api";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { TodayView } from "@/components/TodayView";
 import type { Trip } from "@/lib/models/types";
 
 const fmtDate = (d: string) => new Date(d).toLocaleDateString("th-TH", { day: "numeric", month: "short" });
@@ -158,10 +159,7 @@ export default function TripDashboardPage() {
       )}
 
       {trip.status === "active" ? (
-        <div className="flex flex-col gap-3">
-          <h2 className="font-heading text-lg font-semibold">วันนี้</h2>
-          <ShortcutCard tripId={trip.id} href="itinerary" icon={CalendarDays} label="ดูแผนวันนี้" />
-        </div>
+        <TodayView tripId={trip.id} />
       ) : (
         <div className="flex flex-col gap-3">
           {SHORTCUTS.map((s) => (
