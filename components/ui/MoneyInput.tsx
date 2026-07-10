@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { convertToTHB, SUPPORTED_CURRENCIES } from "@/lib/fx";
 import { apiRate } from "@/lib/api";
 
@@ -7,6 +7,7 @@ export interface MoneyValue { amount: number; currency: string; fx_rate: number;
 
 export function MoneyInput({ value, onChange, tripCurrency }: { value: MoneyValue; onChange: (v: MoneyValue) => void; tripCurrency: string }) {
   const [editingRate, setEditingRate] = useState(false);
+  const lastFetchedCurrency = useRef<string | null>(null);
 
   const emit = (patch: Partial<MoneyValue>) => {
     const next = { ...value, ...patch };
@@ -14,11 +15,33 @@ export function MoneyInput({ value, onChange, tripCurrency }: { value: MoneyValu
     onChange(next);
   };
 
-  const setCurrency = async (currency: string) => {
+  const setCurrency = (currency: string) => {
     if (currency === "THB") return emit({ currency, fx_rate: 1 });
     emit({ currency });
-    try { const { rate } = await apiRate(currency); emit({ currency, fx_rate: rate }); } catch {}
   };
+
+  // Fetch the FX rate whenever a non-THB currency is showing and we haven't
+  // fetched a rate for it yet. This covers both the case where the user
+  // actively picks a currency from the dropdown AND the case where a
+  // non-THB currency is already selected on mount (e.g. QuickExpenseSheet
+  // seeding `currency: trip.trip_currency`), which never fires onChange.
+  useEffect(() => {
+    if (value.currency === "THB") {
+      lastFetchedCurrency.current = null;
+      return;
+    }
+    if (lastFetchedCurrency.current === value.currency) return;
+    lastFetchedCurrency.current = value.currency;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { rate } = await apiRate(value.currency);
+        if (!cancelled) emit({ fx_rate: rate });
+      } catch {}
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value.currency]);
 
   return (
     <div>
