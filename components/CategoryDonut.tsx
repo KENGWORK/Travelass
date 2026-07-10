@@ -32,6 +32,25 @@ export function CategoryDonut({
           {arcs.map((a) => {
             const dash = a.frac * CIRC;
             const isSelected = selected === a.key;
+            return (
+              <circle
+                key={`${a.key}-hitslop`}
+                cx={SIZE / 2}
+                cy={SIZE / 2}
+                r={R}
+                fill="none"
+                stroke="transparent"
+                strokeWidth={44}
+                strokeDasharray={`${dash} ${CIRC - dash}`}
+                strokeDashoffset={-a.start * CIRC}
+                className="cursor-pointer"
+                onClick={() => onSelect(isSelected ? null : a.key)}
+              />
+            );
+          })}
+          {arcs.map((a) => {
+            const dash = a.frac * CIRC;
+            const isSelected = selected === a.key;
             const isDimmed = selected !== null && !isSelected;
             return (
               <circle

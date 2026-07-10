@@ -124,7 +124,9 @@ export default function MoneyPage() {
 
       {Object.keys(summary.byPayer).length > 0 && (
         <div className="flex flex-col gap-2">
-          <h2 className="font-heading text-sm font-semibold text-muted">แบ่งตามคนจ่าย</h2>
+          <h2 className="font-heading text-sm font-semibold text-muted">
+            แบ่งตามคนจ่าย <span className="font-normal text-xs">(ทั้งทริป)</span>
+          </h2>
           <div className="flex h-3 rounded-full overflow-hidden bg-muted/10">
             {Object.entries(summary.byPayer).map(([payer, amount], i) => (
               <div
