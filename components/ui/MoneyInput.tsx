@@ -7,7 +7,8 @@ export interface MoneyValue { amount: number; currency: string; fx_rate: number;
 
 export function MoneyInput({ value, onChange, tripCurrency }: { value: MoneyValue; onChange: (v: MoneyValue) => void; tripCurrency: string }) {
   const [editingRate, setEditingRate] = useState(false);
-  const lastFetchedCurrency = useRef<string | null>(null);
+  const valueRef = useRef(value);
+  valueRef.current = value;
 
   const emit = (patch: Partial<MoneyValue>) => {
     const next = { ...value, ...patch };
@@ -17,31 +18,36 @@ export function MoneyInput({ value, onChange, tripCurrency }: { value: MoneyValu
 
   const setCurrency = (currency: string) => {
     if (currency === "THB") return emit({ currency, fx_rate: 1 });
-    emit({ currency });
+    // Switching to a different non-THB currency invalidates the old rate;
+    // reset to the placeholder (0) so the fetch effect below picks it up.
+    // Re-selecting the same currency keeps the rate already fetched/saved.
+    if (currency === value.currency) return emit({ currency });
+    emit({ currency, fx_rate: 0 });
   };
 
-  // Fetch the FX rate whenever a non-THB currency is showing and we haven't
-  // fetched a rate for it yet. This covers both the case where the user
-  // actively picks a currency from the dropdown AND the case where a
-  // non-THB currency is already selected on mount (e.g. QuickExpenseSheet
-  // seeding `currency: trip.trip_currency`), which never fires onChange.
+  // Fetch the FX rate whenever a non-THB currency is showing and the value
+  // still carries the placeholder rate (0), meaning no real rate has been
+  // fetched or loaded for it yet. A genuine historical/fetched rate is never
+  // exactly 0, so this never re-fetches for an already-correct saved rate
+  // (e.g. when editing an existing booking/expense).
   useEffect(() => {
-    if (value.currency === "THB") {
-      lastFetchedCurrency.current = null;
-      return;
-    }
-    if (lastFetchedCurrency.current === value.currency) return;
-    lastFetchedCurrency.current = value.currency;
+    if (value.currency === "THB" || value.fx_rate > 0) return;
     let cancelled = false;
     (async () => {
       try {
         const { rate } = await apiRate(value.currency);
-        if (!cancelled) emit({ fx_rate: rate });
+        if (cancelled) return;
+        const current = valueRef.current;
+        onChange({
+          ...current,
+          fx_rate: rate,
+          amount_thb: convertToTHB(current.amount, rate),
+        });
       } catch {}
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [value.currency]);
+  }, [value.currency, value.fx_rate]);
 
   return (
     <div>

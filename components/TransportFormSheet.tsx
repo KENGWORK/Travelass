@@ -43,7 +43,7 @@ function emptyValues(tripCurrency: string): TransportFormValues {
     pickup_photo_ids: [],
     departure_times: [],
     duration_min: 0,
-    money: { amount: 0, currency: tripCurrency, fx_rate: 1, amount_thb: 0 },
+    money: { amount: 0, currency: tripCurrency, fx_rate: 0, amount_thb: 0 },
     payer: "เรา",
     pay_timing: "pay_before",
     paid: false,
