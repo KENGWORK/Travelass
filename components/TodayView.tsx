@@ -5,6 +5,7 @@ import { useTrip } from "@/lib/trip-context";
 import { useTripData } from "@/lib/use-trip-data";
 import { apiUpdate, apiCreate } from "@/lib/api";
 import { tripDays } from "@/lib/days";
+import { formatTimeRange } from "@/lib/time";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { Chip } from "@/components/ui/Chip";
 import { BottomSheet } from "@/components/ui/BottomSheet";
@@ -59,7 +60,7 @@ function ItineraryCard({
           <Checkbox checked={item.status === "done"} onChange={() => {}} />
         </span>
         <div className="min-w-0 flex-1">
-          {item.time && <p className="text-xs text-muted">{item.time}</p>}
+          {item.time && <p className="text-xs text-muted">{formatTimeRange(item.time, item.end_time)}</p>}
           <p className={`text-base font-medium ${item.status === "done" ? "line-through" : ""}`}>{item.title}</p>
           {item.place && (
             <p className="text-sm text-muted flex items-center gap-1 truncate">

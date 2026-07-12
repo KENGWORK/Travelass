@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { uploadImage } from "@/lib/google/drive";
+import { saveImage, PREVIEW } from "@/lib/store";
 
 export async function POST(req: NextRequest) {
-  if (!(await auth())?.user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  if (!PREVIEW && !(await auth())?.user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const form = await req.formData();
   const file = form.get("file") as File | null;
   const tripName = String(form.get("tripName") ?? "trip");
@@ -16,6 +16,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "only image uploads allowed" }, { status: 400 });
   }
   const buf = Buffer.from(await file.arrayBuffer());
-  const fileId = await uploadImage(buf, file.type || "image/jpeg", tripName, kind, `${Date.now()}-${file.name}`);
+  const fileId = await saveImage(buf, file.type || "image/jpeg", tripName, kind, `${Date.now()}-${file.name}`);
   return NextResponse.json({ fileId });
 }

@@ -36,7 +36,7 @@ export function PhotoViewer({ fileIds, initialIndex, onClose }: PhotoViewerProps
         }}
       >
         <img
-          src={`/api/img/${fileIds[index]}`}
+          src={fileIds[index]}
           alt=""
           className="max-h-full max-w-full m-auto"
           style={{ touchAction: "pinch-zoom" }}

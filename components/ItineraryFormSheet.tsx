@@ -2,17 +2,19 @@
 import { useEffect, useState } from "react";
 import { BottomSheet } from "@/components/ui/BottomSheet";
 import { Button } from "@/components/ui/Button";
+import { TimeInput } from "@/components/ui/TimeInput";
 import type { ItineraryItem } from "@/lib/models/types";
 
 export interface ItineraryFormValues {
   time: string;
+  end_time: string;
   title: string;
   place: string;
   maps_link: string;
   notes: string;
 }
 
-const EMPTY: ItineraryFormValues = { time: "", title: "", place: "", maps_link: "", notes: "" };
+const EMPTY: ItineraryFormValues = { time: "", end_time: "", title: "", place: "", maps_link: "", notes: "" };
 
 export function ItineraryFormSheet({
   open,
@@ -34,7 +36,7 @@ export function ItineraryFormSheet({
     if (open) {
       setValues(
         item
-          ? { time: item.time, title: item.title, place: item.place, maps_link: item.maps_link, notes: item.notes }
+          ? { time: item.time, end_time: item.end_time ?? "", title: item.title, place: item.place, maps_link: item.maps_link, notes: item.notes }
           : EMPTY
       );
     }
@@ -42,8 +44,10 @@ export function ItineraryFormSheet({
 
   const set = (patch: Partial<ItineraryFormValues>) => setValues((v) => ({ ...v, ...patch }));
 
+  const canSave = values.title.trim() !== "" && values.time.trim() !== "";
+
   const save = async () => {
-    if (!values.title.trim()) return;
+    if (!canSave) return;
     setSaving(true);
     try {
       await onSave(values);
@@ -56,14 +60,23 @@ export function ItineraryFormSheet({
   return (
     <BottomSheet open={open} onClose={onClose} title={item ? "แก้ไขกิจกรรม" : "เพิ่มกิจกรรม"}>
       <div className="flex flex-col gap-3">
-        <div>
-          <label className="text-sm text-muted">เวลา</label>
-          <input
-            type="time"
-            value={values.time}
-            onChange={(e) => set({ time: e.target.value })}
-            className="w-full h-12 rounded-2xl border border-muted/30 bg-surface px-4 mt-1"
-          />
+        <div className="flex gap-2">
+          <div className="flex-1">
+            <label className="text-sm text-muted">เวลาเริ่ม *</label>
+            <TimeInput
+              value={values.time}
+              onChange={(time) => set({ time })}
+              className="w-full mt-1"
+            />
+          </div>
+          <div className="flex-1">
+            <label className="text-sm text-muted">เวลาจบ (ไม่บังคับ)</label>
+            <TimeInput
+              value={values.end_time}
+              onChange={(end_time) => set({ end_time })}
+              className="w-full mt-1"
+            />
+          </div>
         </div>
         <div>
           <label className="text-sm text-muted">ชื่อกิจกรรม</label>
@@ -109,7 +122,7 @@ export function ItineraryFormSheet({
               ลบ
             </Button>
           )}
-          <Button full variant="primary" loading={saving} onClick={save}>
+          <Button full variant="primary" loading={saving} disabled={!canSave} onClick={save}>
             บันทึก
           </Button>
         </div>

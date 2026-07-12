@@ -95,7 +95,7 @@ export function TransportCard({ transport, onEdit }: { transport: Transport; onE
           }}
           className="absolute top-3 right-3 w-16 h-16 rounded-xl overflow-hidden cursor-pointer"
         >
-          <img src={`/api/img/${transport.pickup_photo_ids[0]}`} alt="" className="w-full h-full object-cover" />
+          <img src={transport.pickup_photo_ids[0]} alt="" className="w-full h-full object-cover" />
         </button>
       )}
 

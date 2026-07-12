@@ -1,38 +1,48 @@
 @import "tailwindcss";
 
+/* Pastel Pop — built from the 5 pastels (#F2C4C6 pink, #F2D9C4 peach,
+   #F2F0C4 cream, #C4F2F0 mint, #C4C6F2 periwinkle). Raw pastels are too light
+   for text/buttons, so those roles use deeper shades of the same hues while
+   the soft tints (chips, category fills, bg) stay pastel. */
 @theme {
-  --color-primary: #0d9488;
-  --color-primary-soft: #ccfbf1;
-  --color-accent: #f97316;
-  --color-bg: #f8fafc;
+  --color-primary: #6366f1;
+  --color-primary-soft: #ececfb;
+  --color-accent: #e86b84;
+  --color-bg: #fbf7f9;
   --color-surface: #ffffff;
-  --color-text: #0f172a;
-  --color-muted: #475569;
+  --color-text: #302a3d;
+  --color-muted: #6e6780;
   --color-success: #16a34a;
   --color-warning: #d97706;
-  --color-danger: #dc2626;
-  --color-cat-food: #f59e0b;
-  --color-cat-transport: #0ea5e9;
-  --color-cat-lodging: #8b5cf6;
-  --color-cat-shopping: #ec4899;
-  --color-cat-tickets: #10b981;
-  --color-cat-other: #64748b;
-  --font-heading: var(--font-prompt);
-  --font-body: var(--font-sarabun);
+  --color-danger: #e24b62;
+  --color-cat-food: #d98e5a;
+  --color-cat-transport: #3fa9a0;
+  --color-cat-lodging: #6e72d9;
+  --color-cat-shopping: #d96b85;
+  --color-cat-tickets: #b0a23c;
+  --color-cat-other: #9b8fb5;
+  --font-heading: var(--font-kanit);
+  --font-body: var(--font-plex);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --color-primary: #2dd4bf;
-    --color-primary-soft: rgb(19 78 74 / 0.4);
-    --color-accent: #fb923c;
-    --color-bg: #0f172a;
-    --color-surface: #1e293b;
-    --color-text: #f1f5f9;
-    --color-muted: #94a3b8;
+    --color-primary: #a9abf7;
+    --color-primary-soft: rgb(99 102 241 / 0.24);
+    --color-accent: #f2a6b3;
+    --color-bg: #17131e;
+    --color-surface: #241f2e;
+    --color-text: #f3eff7;
+    --color-muted: #a79fb6;
     --color-success: #4ade80;
     --color-warning: #fbbf24;
     --color-danger: #f87171;
+    --color-cat-food: #e8a56a;
+    --color-cat-transport: #5dc6bc;
+    --color-cat-lodging: #9a9cf0;
+    --color-cat-shopping: #ec8ba0;
+    --color-cat-tickets: #cfc066;
+    --color-cat-other: #b4a9c9;
   }
 }
 

@@ -1,5 +1,7 @@
 "use client";
 import { use, useState } from "react";
+import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
 import { TripProvider, useTrip } from "@/lib/trip-context";
 import { TabBar } from "@/components/TabBar";
 import { QuickExpenseSheet } from "@/components/QuickExpenseSheet";
@@ -12,6 +14,15 @@ function TripLayoutInner({ tripId, children }: { tripId: string; children: React
 
   return (
     <>
+      <div className="sticky top-0 z-20 flex items-center h-12 px-2 bg-bg/80 backdrop-blur">
+        <Link
+          href="/"
+          aria-label="กลับหน้าทริปทั้งหมด"
+          className="inline-flex h-11 w-11 items-center justify-center rounded-full text-text cursor-pointer transition active:scale-95"
+        >
+          <ArrowLeft size={24} />
+        </Link>
+      </div>
       <main className="pb-24">{children}</main>
       <TabBar tripId={tripId} onFab={() => setFabOpen(true)} />
       <QuickExpenseSheet

@@ -6,6 +6,7 @@ import { useTrip } from "@/lib/trip-context";
 import { useTripData } from "@/lib/use-trip-data";
 import { apiCreate, apiUpdate, apiDelete } from "@/lib/api";
 import { tripDays } from "@/lib/days";
+import { formatTimeRange } from "@/lib/time";
 import { DayChips } from "@/components/DayChips";
 import { ItineraryFormSheet, type ItineraryFormValues } from "@/components/ItineraryFormSheet";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -135,7 +136,7 @@ export default function ItineraryPage() {
                     onClick={() => openEdit(item)}
                     className="w-full text-left rounded-2xl bg-surface border border-muted/20 p-3 flex flex-col gap-1 cursor-pointer"
                   >
-                    {item.time && <p className="text-xs text-muted">{item.time}</p>}
+                    {item.time && <p className="text-xs text-muted">{formatTimeRange(item.time, item.end_time)}</p>}
                     <p className="text-base font-medium">{item.title}</p>
                     {item.place && (
                       <p className="text-sm text-muted flex items-center gap-1">

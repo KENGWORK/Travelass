@@ -37,6 +37,9 @@ yarn-error.log*
 # vercel
 .vercel
 
+# local preview data store (no Google credentials)
+.data
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

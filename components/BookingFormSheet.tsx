@@ -6,6 +6,7 @@ import { Chip } from "@/components/ui/Chip";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { MoneyInput, type MoneyValue } from "@/components/ui/MoneyInput";
 import { PhotoPicker } from "@/components/PhotoPicker";
+import { defaultEndDate } from "@/lib/dates";
 import type { Booking, BookingType, PayTiming } from "@/lib/models/types";
 
 const TYPES: { value: BookingType; label: string }[] = [
@@ -152,11 +153,14 @@ export function BookingFormSheet({
 
         <div className="flex gap-2">
           <div className="flex-1">
-            <label className="text-sm text-muted">วันที่เริ่ม</label>
+            <label className="text-sm text-muted">วันที่เริ่ม *</label>
             <input
               type="date"
               value={values.date_from}
-              onChange={(e) => set({ date_from: e.target.value })}
+              onChange={(e) => {
+                const from = e.target.value;
+                setValues((v) => ({ ...v, date_from: from, date_to: defaultEndDate(from, v.date_to) }));
+              }}
               className="w-full h-12 rounded-2xl border border-muted/30 bg-surface px-4 mt-1"
             />
           </div>
@@ -165,6 +169,7 @@ export function BookingFormSheet({
             <input
               type="date"
               value={values.date_to}
+              min={values.date_from || undefined}
               onChange={(e) => set({ date_to: e.target.value })}
               className="w-full h-12 rounded-2xl border border-muted/30 bg-surface px-4 mt-1"
             />

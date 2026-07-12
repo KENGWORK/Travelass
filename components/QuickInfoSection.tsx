@@ -21,7 +21,7 @@ function PhotoStrip({ fileIds }: { fileIds: string[] }) {
           onClick={() => setViewerIndex(i)}
           className="h-24 w-24 rounded-xl overflow-hidden shrink-0 cursor-pointer"
         >
-          <img src={`/api/img/${id}`} alt="" className="w-full h-full object-cover" />
+          <img src={id} alt="" className="w-full h-full object-cover" />
         </button>
       ))}
       {viewerIndex !== null && (

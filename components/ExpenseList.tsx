@@ -58,7 +58,7 @@ export function ExpenseList({
                   <p className="money text-sm font-semibold shrink-0">฿{Math.round(e.amount_thb).toLocaleString()}</p>
                   {e.slip_photo_ids.length > 0 ? (
                     <img
-                      src={`/api/img/${e.slip_photo_ids[0]}`}
+                      src={e.slip_photo_ids[0]}
                       alt=""
                       className="h-10 w-10 rounded-lg object-cover shrink-0"
                     />

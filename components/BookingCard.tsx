@@ -50,7 +50,7 @@ export function BookingCard({ booking, onEdit }: { booking: Booking; onEdit: () 
                 }}
                 className="relative h-14 w-14 rounded-xl overflow-hidden cursor-pointer shrink-0"
               >
-                <img src={`/api/img/${id}`} alt="" className="w-full h-full object-cover" />
+                <img src={id} alt="" className="w-full h-full object-cover" />
                 {i === thumbs.length - 1 && extra > 0 && (
                   <span className="absolute inset-0 bg-black/50 text-white text-sm font-medium flex items-center justify-center">
                     +{extra}

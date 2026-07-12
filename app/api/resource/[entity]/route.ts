@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { ENTITIES, type EntityName } from "@/lib/models/mappers";
-import { listRows, appendRow, updateRow, deleteRow, ensureTabs } from "@/lib/google/sheets";
+import { listRows, appendRow, updateRow, deleteRow, ensureTabs, PREVIEW } from "@/lib/store";
 
 let tabsReady: Promise<void> | null = null;
 const ready = () => (tabsReady ??= ensureTabs());
 
 async function guard(entity: string) {
-  if (!(await auth())?.user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  if (!PREVIEW && !(await auth())?.user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   if (!(entity in ENTITIES)) return NextResponse.json({ error: "unknown entity" }, { status: 404 });
   await ready();
   return null;
