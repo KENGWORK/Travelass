@@ -32,6 +32,9 @@ export const apiCreate = <T,>(entity: EntityName, obj: T): Promise<{ ok: true }>
   return Promise.resolve({ ok: true });
 };
 
+// `obj` must be the complete entity, not a partial patch: Google mode does a
+// full-row overwrite (any field missing from `obj` gets defaulted to empty/
+// zero/false), while local mode merges the partial into the existing row.
 export const apiUpdate = <T,>(entity: EntityName, id: string, obj: T): Promise<{ ok: true }> => {
   if (isGoogleBackend()) {
     return fetch(resourceItemUrl(entity, id), {

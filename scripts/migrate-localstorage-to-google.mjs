@@ -5,11 +5,15 @@
 // 1. In the OLD (local-mode) deployed app, open devtools console and run:
 //      copy(localStorage.getItem("travelass:db"))
 //    Paste the result into a file, e.g. old-data.json.
-// 2. Run: npx tsx --conditions=react-server scripts/migrate-localstorage-to-google.mjs old-data.json
+// 2. Run: npx tsx --env-file=.env.local --conditions=react-server scripts/migrate-localstorage-to-google.mjs old-data.json
 //
 // This uses the same lib/store.ts (and therefore the same env vars) the
 // running app uses, so run it with the exact same .env.local the deployed
-// app has.
+// app has. Unlike Next.js (which auto-loads .env.local), this script runs
+// under bare `tsx`, which does NOT auto-load it — hence the explicit
+// `--env-file=.env.local` flag above. Omitting it means the Google
+// credentials env vars are all undefined and the script fails with a
+// confusing Google API error instead of a clear one.
 //
 // Why `tsx` + `--conditions=react-server`:
 //   - lib/store.ts is TypeScript and imports other modules via the `@/`
@@ -30,7 +34,7 @@ import { isDataUrl, decodeDataUrl } from "../lib/data-url.ts";
 
 const path = process.argv[2];
 if (!path) {
-  console.error("Usage: npx tsx --conditions=react-server scripts/migrate-localstorage-to-google.mjs <exported-localstorage.json>");
+  console.error("Usage: npx tsx --env-file=.env.local --conditions=react-server scripts/migrate-localstorage-to-google.mjs <exported-localstorage.json>");
   process.exit(1);
 }
 
