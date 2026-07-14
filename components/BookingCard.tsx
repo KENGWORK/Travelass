@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { PhotoViewer } from "@/components/PhotoViewer";
+import { photoUrl } from "@/lib/photo-url";
 import type { Booking } from "@/lib/models/types";
 
 export function BookingCard({ booking, onEdit }: { booking: Booking; onEdit: () => void }) {
@@ -58,7 +59,7 @@ export function BookingCard({ booking, onEdit }: { booking: Booking; onEdit: () 
                 }}
                 className="press relative h-14 w-14 rounded-2xl overflow-hidden cursor-pointer shrink-0 shadow-card"
               >
-                <img src={id} alt="" className="w-full h-full object-cover" />
+                <img src={photoUrl(id)} alt="" className="w-full h-full object-cover" />
                 {i === thumbs.length - 1 && extra > 0 && (
                   <span className="absolute inset-0 bg-black/50 text-white text-sm font-medium flex items-center justify-center">
                     +{extra}

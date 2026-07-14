@@ -3,6 +3,7 @@ import { useState } from "react";
 import { createPortal } from "react-dom";
 import { motion } from "framer-motion";
 import { X } from "lucide-react";
+import { photoUrl } from "@/lib/photo-url";
 
 export interface PhotoViewerProps {
   fileIds: string[];
@@ -36,7 +37,7 @@ export function PhotoViewer({ fileIds, initialIndex, onClose }: PhotoViewerProps
         }}
       >
         <img
-          src={fileIds[index]}
+          src={photoUrl(fileIds[index])}
           alt=""
           className="max-h-full max-w-full m-auto"
           style={{ touchAction: "pinch-zoom" }}

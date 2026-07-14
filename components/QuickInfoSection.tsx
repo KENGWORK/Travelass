@@ -7,6 +7,7 @@ import { QuickInfoFormSheet, type QuickInfoFormValues } from "@/components/Quick
 import { Skeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { toast } from "@/components/ui/Toast";
+import { photoUrl } from "@/lib/photo-url";
 import type { Booking, QuickInfo, Transport, Trip } from "@/lib/models/types";
 
 function PhotoStrip({ fileIds }: { fileIds: string[] }) {
@@ -22,7 +23,7 @@ function PhotoStrip({ fileIds }: { fileIds: string[] }) {
           onClick={() => setViewerIndex(i)}
           className="h-24 w-24 rounded-xl overflow-hidden shrink-0 cursor-pointer"
         >
-          <img src={id} alt="" className="w-full h-full object-cover" />
+          <img src={photoUrl(id)} alt="" className="w-full h-full object-cover" />
         </button>
       ))}
       {viewerIndex !== null && (

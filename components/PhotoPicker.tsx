@@ -5,6 +5,7 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { PhotoViewer } from "@/components/PhotoViewer";
 import { toast } from "@/components/ui/Toast";
 import { fileToDataUrl } from "@/lib/image";
+import { photoUrl } from "@/lib/photo-url";
 
 export interface PhotoPickerProps {
   // tripName/kind are kept for interface compatibility; images are stored inline
@@ -68,7 +69,7 @@ export function PhotoPicker({ fileIds, onChange }: PhotoPickerProps) {
       {fileIds.map((id, i) => (
         <div key={id} className="relative h-14 w-14">
           <img
-            src={id}
+            src={photoUrl(id)}
             alt=""
             className="w-14 h-14 rounded-xl object-cover cursor-pointer"
             onClick={() => setViewerIndex(i)}

@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { MapPin, Clock, Timer, ChevronDown } from "lucide-react";
 import { PhotoViewer } from "@/components/PhotoViewer";
 import { transportIcon } from "@/lib/transport-icon";
+import { photoUrl } from "@/lib/photo-url";
 import type { Transport, PayTiming } from "@/lib/models/types";
 
 const TIMING_LABEL: Record<PayTiming, string> = {
@@ -113,7 +114,7 @@ export function TransportCard({ transport, onEdit }: { transport: Transport; onE
           }}
           className="absolute top-3 right-3 w-16 h-16 rounded-xl overflow-hidden cursor-pointer"
         >
-          <img src={transport.pickup_photo_ids[0]} alt="" className="w-full h-full object-cover" />
+          <img src={photoUrl(transport.pickup_photo_ids[0])} alt="" className="w-full h-full object-cover" />
         </button>
       )}
 
