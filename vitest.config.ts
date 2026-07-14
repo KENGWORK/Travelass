@@ -10,7 +10,9 @@ export default defineConfig({
     },
   },
   test: {
-    environment: "node",
+    environment: "jsdom",
+    // @ts-ignore - environmentMatchGlobs is available in vitest 4.1.10 at runtime
+    environmentMatchGlobs: [["lib/**/*.test.ts", "node"]],
     include: ["lib/**/*.test.ts", "components/**/*.test.tsx"],
   },
-});
+} as any);
