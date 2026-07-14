@@ -909,7 +909,7 @@ Expected: PASS (3 tests)
 // 1. In the OLD (local-mode) deployed app, open devtools console and run:
 //      copy(localStorage.getItem("travelass:db"))
 //    Paste the result into a file, e.g. old-data.json.
-// 2. Run: node scripts/migrate-localstorage-to-google.mjs old-data.json
+// 2. Run: npx tsx --conditions=react-server scripts/migrate-localstorage-to-google.mjs old-data.json
 //
 // This uses the same lib/store.ts (and therefore the same env vars) the
 // running app uses, so run it with the exact same .env.local the deployed
@@ -922,7 +922,7 @@ import { isDataUrl, decodeDataUrl } from "../lib/data-url.ts";
 
 const path = process.argv[2];
 if (!path) {
-  console.error("Usage: node scripts/migrate-localstorage-to-google.mjs <exported-localstorage.json>");
+  console.error("Usage: npx tsx --conditions=react-server scripts/migrate-localstorage-to-google.mjs <exported-localstorage.json>");
   process.exit(1);
 }
 
@@ -1030,7 +1030,7 @@ Nothing in Part A can execute any of these — they require clicking through Goo
 - [ ] **8. Generate an `AUTH_SECRET`**: run `npx auth secret` (comes with `next-auth`) or `openssl rand -base64 32`, use the output.
 - [ ] **9. Set every env var** — locally in `.env.local` for testing, and in the Vercel project (Settings → Environment Variables) for the real deploy: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN`, `SPREADSHEET_ID`, `DRIVE_ROOT_FOLDER_ID`, `ALLOWED_EMAILS` (comma-separated, e.g. `you@gmail.com,partner@gmail.com`), `AUTH_SECRET`, `AUTH_URL` (your production URL, e.g. `https://travelass.vercel.app`), `NEXT_PUBLIC_BACKEND=google`.
 - [ ] **10. Redeploy** (Vercel redeploys automatically on env var changes if "Redeploy" is confirmed, or push any commit).
-- [ ] **11. If migrating existing data**: on the OLD deployment (still local-mode), open devtools console, run `copy(localStorage.getItem("travelass:db"))`, paste into a local file. After the NEW (Google-mode) deployment is live, run `node scripts/migrate-localstorage-to-google.mjs <that-file>` (Task 8) with the same `.env.local` the deployed app uses.
+- [ ] **11. If migrating existing data**: on the OLD deployment (still local-mode), open devtools console, run `copy(localStorage.getItem("travelass:db"))`, paste into a local file. After the NEW (Google-mode) deployment is live, run `npx tsx --conditions=react-server scripts/migrate-localstorage-to-google.mjs <that-file>` (Task 8) with the same `.env.local` the deployed app uses.
 - [ ] **12. Manual end-to-end verification on the live Google-mode deployment**: visit the site → redirected to `/login` → sign in with an allowed email → denied for a non-allowed email (test with a throwaway second Google account if you have one, or just trust the `signIn` callback logic already covered by `auth.ts`) → create a trip → add an expense with a photo → confirm the row appears in the Google Sheet and the photo appears in the Drive folder → refresh the page → data persists (proves it's really reading from Sheets, not a cached client state).
 
 ---

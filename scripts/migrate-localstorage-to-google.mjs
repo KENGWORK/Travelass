@@ -5,11 +5,23 @@
 // 1. In the OLD (local-mode) deployed app, open devtools console and run:
 //      copy(localStorage.getItem("travelass:db"))
 //    Paste the result into a file, e.g. old-data.json.
-// 2. Run: node scripts/migrate-localstorage-to-google.mjs old-data.json
+// 2. Run: npx tsx --conditions=react-server scripts/migrate-localstorage-to-google.mjs old-data.json
 //
 // This uses the same lib/store.ts (and therefore the same env vars) the
 // running app uses, so run it with the exact same .env.local the deployed
 // app has.
+//
+// Why `tsx` + `--conditions=react-server`:
+//   - lib/store.ts is TypeScript and imports other modules via the `@/`
+//     tsconfig path alias; plain `node` can't execute either. `tsx` handles
+//     both out of the box.
+//   - lib/store.ts also has `import "server-only"` at the top, which throws
+//     unless the `react-server` module-resolution condition is active (the
+//     condition Next.js's server runtime sets internally). Passing
+//     `--conditions=react-server` to tsx makes Node's resolver pick
+//     server-only's `react-server` export (a no-op empty module) instead of
+//     the default export (which throws), so the import chain resolves the
+//     same way it does inside Next's server runtime.
 
 import { readFileSync } from "node:fs";
 import { ENTITIES } from "../lib/models/mappers.ts";
@@ -18,7 +30,7 @@ import { isDataUrl, decodeDataUrl } from "../lib/data-url.ts";
 
 const path = process.argv[2];
 if (!path) {
-  console.error("Usage: node scripts/migrate-localstorage-to-google.mjs <exported-localstorage.json>");
+  console.error("Usage: npx tsx --conditions=react-server scripts/migrate-localstorage-to-google.mjs <exported-localstorage.json>");
   process.exit(1);
 }
 
