@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { normalizeTime, formatTimeRange } from "./time";
+import { normalizeTime, formatTimeRange, computeDurationMin } from "./time";
 
 describe("normalizeTime (24hr)", () => {
   it("returns '' for empty or non-numeric input", () => {
@@ -42,5 +42,20 @@ describe("formatTimeRange", () => {
   });
   it("returns '' when start is missing", () => {
     expect(formatTimeRange("", "")).toBe("");
+  });
+});
+
+describe("computeDurationMin", () => {
+  it("returns minutes between depart and arrive", () => {
+    expect(computeDurationMin("10:00", "11:30")).toBe(90);
+    expect(computeDurationMin("10:00", "10:00")).toBe(0);
+  });
+  it("treats an earlier arrive time as overnight (+1 day)", () => {
+    expect(computeDurationMin("23:30", "00:15")).toBe(45);
+  });
+  it("returns 0 when either time is missing", () => {
+    expect(computeDurationMin("10:00", "")).toBe(0);
+    expect(computeDurationMin("", "11:00")).toBe(0);
+    expect(computeDurationMin("", "")).toBe(0);
   });
 });

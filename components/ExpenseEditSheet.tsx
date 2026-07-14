@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/Button";
 import { Chip } from "@/components/ui/Chip";
 import { MoneyInput, type MoneyValue } from "@/components/ui/MoneyInput";
 import { PhotoPicker } from "@/components/PhotoPicker";
+import { PayerChips } from "@/components/PayerChips";
 import { toast } from "@/components/ui/Toast";
 import { apiUpdate, apiDelete } from "@/lib/api";
 import { notifyTripDataChanged } from "@/lib/use-trip-data";
@@ -88,20 +89,14 @@ export function ExpenseEditSheet({
         <MoneyInput value={money} onChange={setMoney} tripCurrency={trip.trip_currency} />
         <div className="flex gap-2 overflow-x-auto pb-1">
           {CATS.map((c) => (
-            <span key={c.name} onClick={() => setCategory(c.name)} className="relative inline-flex before:absolute before:inset-[-4px] before:content-['']">
-              <Chip selected={category === c.name} color={c.color}>{c.name}</Chip>
-            </span>
+            <Chip key={c.name} selected={category === c.name} color={c.color} onClick={() => setCategory(c.name)}>
+              {c.name}
+            </Chip>
           ))}
         </div>
-        <div className="flex gap-2">
-          {["เรา", "แฟน"].map((p) => (
-            <span key={p} onClick={() => setPayer(p)} className="relative inline-flex before:absolute before:inset-[-4px] before:content-['']">
-              <Chip selected={payer === p}>{p}</Chip>
-            </span>
-          ))}
-        </div>
+        <PayerChips tripId={trip.id} value={payer} onChange={setPayer} />
         <input
-          className="h-12 rounded-2xl border border-muted/30 bg-surface px-4"
+          className="field"
           placeholder="โน๊ตสั้นๆ (ไม่บังคับ)"
           value={description}
           onChange={(e) => setDescription(e.target.value)}

@@ -2,13 +2,18 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { motion, animate } from "framer-motion";
-import { CalendarDays, TrainFront, Ticket, ListChecks, type LucideIcon } from "lucide-react";
+import { CalendarDays, TrainFront, Ticket, ListChecks, ChevronRight, type LucideIcon } from "lucide-react";
 import { useTrip } from "@/lib/trip-context";
 import { useTripData } from "@/lib/use-trip-data";
 import { apiUpdate } from "@/lib/api";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { ProgressRing } from "@/components/ui/ProgressRing";
+import { Mascot } from "@/components/ui/Mascot";
 import { TodayView } from "@/components/TodayView";
+import { MembersCard } from "@/components/MembersCard";
 import type { Trip } from "@/lib/models/types";
+
+const MotionLink = motion.create(Link);
 
 const fmtDate = (d: string) => new Date(d).toLocaleDateString("th-TH", { day: "numeric", month: "short" });
 
@@ -19,7 +24,7 @@ function CountUpMoney({ value }: { value: number }) {
     return () => controls.stop();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value]);
-  return <p className="money text-lg font-semibold text-accent">฿{Math.round(display).toLocaleString()}</p>;
+  return <p className="money text-xl font-semibold text-white">฿{Math.round(display).toLocaleString()}</p>;
 }
 
 function daysValue(trip: Trip): string {
@@ -35,12 +40,28 @@ function daysValue(trip: Trip): string {
   return `${days} วัน`;
 }
 
+// Decorative sweep for the hero ring: trip-progress fraction while active,
+// otherwise how close the start date is within a 30-day horizon.
+function ringProgress(trip: Trip): number {
+  const now = Date.now();
+  const start = Date.parse(trip.start_date);
+  const end = Date.parse(trip.end_date);
+  if (trip.status === "done") return 1;
+  if (trip.status === "active") return (now - start) / (end - start || 1);
+  const daysLeft = Math.ceil((start - now) / 864e5);
+  return 1 - Math.min(1, Math.max(0, daysLeft) / 30);
+}
+
 function StatCard({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-2xl bg-surface border border-muted/20 p-3 flex flex-col gap-1">
-      <p className="text-xs text-muted">{label}</p>
+    <motion.div
+      whileHover={{ y: -2, rotate: -1 }}
+      transition={{ type: "spring", stiffness: 320, damping: 16 }}
+      className="rounded-3xl bg-surface shadow-card hover:shadow-card-hover p-3.5 flex flex-col gap-1"
+    >
+      <p className="text-xs text-muted font-medium">{label}</p>
       {children}
-    </div>
+    </motion.div>
   );
 }
 
@@ -86,30 +107,41 @@ function ShortcutCard({
   href,
   icon: Icon,
   label,
+  tint,
 }: {
   tripId: string;
   href: string;
   icon: LucideIcon;
   label: string;
+  tint: string;
 }) {
   return (
-    <Link
+    <MotionLink
       href={`/trips/${tripId}/${href}`}
-      className="flex items-center gap-3 rounded-2xl bg-surface border border-muted/20 p-4"
+      whileHover={{ y: -4, rotate: -0.5 }}
+      whileTap={{ scale: 0.96, y: 0, rotate: 0 }}
+      transition={{ type: "spring", stiffness: 320, damping: 16 }}
+      className="group flex items-center gap-3 rounded-3xl bg-surface shadow-card hover:shadow-card-hover p-4"
     >
-      <span className="w-10 h-10 rounded-full bg-primary-soft text-primary grid place-items-center">
-        <Icon size={20} />
-      </span>
-      <span className="font-medium">{label}</span>
-    </Link>
+      <motion.span
+        whileHover={{ rotate: [0, -12, 12, -6, 0], scale: 1.08 }}
+        transition={{ duration: 0.5 }}
+        className="w-12 h-12 rounded-2xl grid place-items-center shadow-card"
+        style={{ background: `${tint}22`, color: tint }}
+      >
+        <Icon size={22} />
+      </motion.span>
+      <span className="font-medium flex-1 group-hover:text-primary transition-colors">{label}</span>
+      <ChevronRight size={18} className="text-muted/50 group-hover:text-primary group-hover:translate-x-0.5 transition-all" />
+    </MotionLink>
   );
 }
 
-const SHORTCUTS: { href: string; icon: LucideIcon; label: string }[] = [
-  { href: "itinerary", icon: CalendarDays, label: "แผนการเดินทาง" },
-  { href: "transport", icon: TrainFront, label: "เดินทาง" },
-  { href: "bookings", icon: Ticket, label: "การจอง" },
-  { href: "checklist", icon: ListChecks, label: "เช็คลิสต์" },
+const SHORTCUTS: { href: string; icon: LucideIcon; label: string; tint: string }[] = [
+  { href: "itinerary", icon: CalendarDays, label: "แผนการเดินทาง", tint: "var(--color-primary)" },
+  { href: "transport", icon: TrainFront, label: "เดินทาง", tint: "var(--color-cat-transport)" },
+  { href: "bookings", icon: Ticket, label: "การจอง", tint: "var(--color-cat-tickets)" },
+  { href: "checklist", icon: ListChecks, label: "เช็คลิสต์", tint: "var(--color-accent)" },
 ];
 
 export default function TripDashboardPage() {
@@ -126,27 +158,40 @@ export default function TripDashboardPage() {
 
   return (
     <div className="p-4 max-w-3xl mx-auto flex flex-col gap-4">
-      <header className="flex flex-col gap-3">
-        <div>
-          <h1 className="font-heading text-[28px] font-bold">{trip.name}</h1>
-          <p className="text-sm text-muted mt-0.5">
-            {fmtDate(trip.start_date)} - {fmtDate(trip.end_date)}
-          </p>
+      <header className="flex items-start justify-between gap-3">
+        <div className="flex flex-col gap-3 min-w-0">
+          <div>
+            <h1 className="font-heading text-[28px] font-bold">{trip.name}</h1>
+            <p className="text-sm text-muted mt-0.5">
+              {fmtDate(trip.start_date)} - {fmtDate(trip.end_date)}
+            </p>
+          </div>
+          <ModeToggle trip={trip} onChange={setStatus} />
         </div>
-        <ModeToggle trip={trip} onChange={setStatus} />
+        <Mascot size={56} className="shrink-0 -mt-1" />
       </header>
 
       {loading ? (
-        <div className="grid grid-cols-3 gap-3">
-          {[1, 2, 3].map((i) => (
-            <Skeleton key={i} className="h-16" />
-          ))}
+        <div className="grid grid-cols-3 grid-rows-2 gap-3 h-[136px]">
+          <Skeleton className="col-span-2 row-span-2" />
+          <Skeleton />
+          <Skeleton />
         </div>
       ) : (
-        <div className="grid grid-cols-3 gap-3">
-          <StatCard label="ใช้ไป">
-            <CountUpMoney value={summary.totalTHB} />
-          </StatCard>
+        <div className="grid grid-cols-3 grid-rows-2 gap-3">
+          <motion.div
+            whileHover={{ y: -2, rotate: -0.5 }}
+            transition={{ type: "spring", stiffness: 320, damping: 16 }}
+            className="col-span-2 row-span-2 rounded-3xl gradient-primary text-white shadow-card hover:shadow-card-hover p-4 flex items-center justify-between gap-3"
+          >
+            <div>
+              <p className="text-xs text-white/75 font-medium">ใช้ไปแล้ว</p>
+              <CountUpMoney value={summary.totalTHB} />
+            </div>
+            <ProgressRing progress={ringProgress(trip)} size={64}>
+              <span className="text-xs font-semibold text-white">{daysValue(trip)}</span>
+            </ProgressRing>
+          </motion.div>
           <StatCard label="จองแล้ว">
             <p className="text-lg font-semibold">
               {bookedCount}/{bookings.length}
@@ -165,6 +210,7 @@ export default function TripDashboardPage() {
           {SHORTCUTS.map((s) => (
             <ShortcutCard key={s.href} tripId={trip.id} {...s} />
           ))}
+          <MembersCard tripId={trip.id} />
         </div>
       )}
     </div>

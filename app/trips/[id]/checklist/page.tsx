@@ -106,7 +106,7 @@ export default function ChecklistPage() {
             const open = openGroups[group] ?? true;
 
             return (
-              <div key={group} className="rounded-2xl bg-surface border border-muted/20 overflow-hidden">
+              <div key={group} className="rounded-2xl bg-surface shadow-card overflow-hidden">
                 <button
                   type="button"
                   onClick={() => toggleGroup(group)}
@@ -139,7 +139,7 @@ export default function ChecklistPage() {
                             onClick={() => toggleDone(item)}
                           >
                             <span onClick={(e) => e.stopPropagation()}>
-                              <Checkbox checked={item.done} onChange={() => toggleDone(item)} />
+                              <Checkbox checked={item.done} onChange={() => toggleDone(item)} aria-label={item.item} />
                             </span>
                             <span className={`text-sm flex-1 ${item.done ? "line-through text-muted" : ""}`}>
                               {item.item}

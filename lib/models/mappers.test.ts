@@ -11,7 +11,7 @@ const expense: Expense = {
 const transport: Transport = {
   id: "tr1", trip_id: "t1", day_date: "2026-07-12", from: "NRT", to: "โรงแรม",
   mode: "รถไฟ", pickup_point: "ชานชาลา 2", pickup_photo_ids: [],
-  departure_times: ["09:15", "10:40"], duration_min: 52,
+  departure_times: ["09:15", "10:40"], depart_time: "09:15", arrive_time: "10:07", duration_min: 52,
   alt_option: "บัส airport limousine ¥3600", price_amount: 3200, price_currency: "JPY",
   fx_rate: 0.23, price_thb: 736, payer: "แฟน", pay_timing: "prepaid",
   paid: true, slip_photo_ids: ["f9"], notes: "",

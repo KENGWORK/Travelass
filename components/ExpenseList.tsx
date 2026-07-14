@@ -48,7 +48,7 @@ export function ExpenseList({
                   key={e.id}
                   type="button"
                   onClick={() => onSelect(e)}
-                  className="flex items-center gap-3 rounded-2xl bg-surface border border-muted/20 p-3 text-left cursor-pointer"
+                  className="press flex items-center gap-3 rounded-2xl bg-surface shadow-card p-3 text-left cursor-pointer"
                 >
                   <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: colorFor(e.category) }} />
                   <div className="min-w-0 flex-1">

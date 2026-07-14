@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { Reorder } from "framer-motion";
-import { MapPin, Plus } from "lucide-react";
+import { MapPin, Plus, Download, CalendarDays } from "lucide-react";
 import { useTrip } from "@/lib/trip-context";
 import { useTripData } from "@/lib/use-trip-data";
 import { apiCreate, apiUpdate, apiDelete } from "@/lib/api";
@@ -9,7 +9,9 @@ import { tripDays } from "@/lib/days";
 import { formatTimeRange } from "@/lib/time";
 import { DayChips } from "@/components/DayChips";
 import { ItineraryFormSheet, type ItineraryFormValues } from "@/components/ItineraryFormSheet";
+import { PullIntoPlanSheet } from "@/components/PullIntoPlanSheet";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { toast } from "@/components/ui/Toast";
 import { transportIcon } from "@/lib/transport-icon";
 import type { ItineraryItem } from "@/lib/models/types";
@@ -32,6 +34,7 @@ export default function ItineraryPage() {
   const [selectedDate, setSelectedDate] = useState(() => initialSelectedDate(trip.start_date, trip.end_date));
   const [items, setItems] = useState<ItineraryItem[]>([]);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [pullOpen, setPullOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<ItineraryItem | null>(null);
 
   useEffect(() => {
@@ -90,6 +93,12 @@ export default function ItineraryPage() {
     await reload();
   };
 
+  const handlePull = async (item: ItineraryItem) => {
+    await apiCreate<ItineraryItem>("itinerary", { ...item, day_date: selectedDate, sort_order: items.length });
+    toast("เพิ่มเข้าแผนแล้ว");
+    await reload();
+  };
+
   const days = tripDays(trip.start_date, trip.end_date);
 
   return (
@@ -113,8 +122,12 @@ export default function ItineraryPage() {
             <Skeleton className="h-20" />
             <Skeleton className="h-20" />
           </>
-        ) : items.length === 0 && days.length > 0 ? (
-          <p className="text-muted text-sm py-6 text-center">ยังไม่มีแผนสำหรับวันนี้</p>
+        ) : items.length === 0 ? (
+          <EmptyState
+            icon={CalendarDays}
+            title="ยังไม่มีแผนสำหรับวันนี้"
+            subtitle={days.length === 0 ? "ทริปนี้ยังไม่มีวันที่เริ่ม-สิ้นสุด ไปตั้งค่าที่หน้าแก้ไขทริปก่อน" : "เพิ่มกิจกรรมหรือดึงจากการเดินทาง/ที่อยากไป"}
+          />
         ) : (
           <Reorder.Group axis="y" values={items} onReorder={setItems} className="flex flex-col gap-4 list-none">
             {items.map((item) => {
@@ -134,7 +147,7 @@ export default function ItineraryPage() {
                   <button
                     type="button"
                     onClick={() => openEdit(item)}
-                    className="w-full text-left rounded-2xl bg-surface border border-muted/20 p-3 flex flex-col gap-1 cursor-pointer"
+                    className="press w-full text-left rounded-2xl bg-surface shadow-card p-3 flex flex-col gap-1 cursor-pointer"
                   >
                     {item.time && <p className="text-xs text-muted">{formatTimeRange(item.time, item.end_time)}</p>}
                     <p className="text-base font-medium">{item.title}</p>
@@ -167,15 +180,33 @@ export default function ItineraryPage() {
           </Reorder.Group>
         )}
 
-        <button
-          type="button"
-          onClick={openCreate}
-          className="h-14 rounded-2xl border-2 border-dashed border-muted/30 text-muted flex items-center justify-center gap-2 cursor-pointer"
-        >
-          <Plus size={18} />
-          เพิ่มกิจกรรม
-        </button>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={openCreate}
+            className="flex-1 h-14 rounded-2xl border-2 border-dashed border-muted/30 text-muted flex items-center justify-center gap-2 cursor-pointer"
+          >
+            <Plus size={18} />
+            เพิ่มกิจกรรม
+          </button>
+          <button
+            type="button"
+            onClick={() => setPullOpen(true)}
+            className="h-14 px-4 rounded-2xl bg-primary-soft text-primary font-medium flex items-center justify-center gap-2 cursor-pointer shrink-0"
+          >
+            <Download size={18} />
+            ดึงเข้าแผน
+          </button>
+        </div>
       </div>
+
+      <PullIntoPlanSheet
+        open={pullOpen}
+        onClose={() => setPullOpen(false)}
+        tripId={trip.id}
+        day={selectedDate}
+        onPick={handlePull}
+      />
 
       <ItineraryFormSheet
         open={sheetOpen}

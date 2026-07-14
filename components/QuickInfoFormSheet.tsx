@@ -2,7 +2,8 @@
 import { useEffect, useState } from "react";
 import { BottomSheet } from "@/components/ui/BottomSheet";
 import { Button } from "@/components/ui/Button";
-import { Checkbox } from "@/components/ui/Checkbox";
+import { FormField } from "@/components/ui/FormField";
+import { ToggleRow } from "@/components/ui/ToggleRow";
 import { PhotoPicker } from "@/components/PhotoPicker";
 import type { QuickInfo } from "@/lib/models/types";
 
@@ -61,55 +62,36 @@ export function QuickInfoFormSheet({
   return (
     <BottomSheet open={open} onClose={onClose} title={quickInfo ? "แก้ไขข้อมูลด่วน" : "เพิ่มข้อมูลด่วน"}>
       <div className="flex flex-col gap-3">
-        <div>
-          <label className="text-sm text-muted">ป้ายชื่อ</label>
+        <FormField label="ป้ายชื่อ">
           <input
             autoFocus
             value={values.label}
             onChange={(e) => set({ label: e.target.value })}
             placeholder="เช่น เบอร์ฉุกเฉิน, เลขที่ห้อง"
-            className="w-full h-12 rounded-2xl border border-muted/30 bg-surface px-4 mt-1"
+            className="field"
           />
-        </div>
+        </FormField>
 
-        <div>
-          <label className="text-sm text-muted">ข้อมูล</label>
+        <FormField label="ข้อมูล">
           <textarea
             value={values.value}
             onChange={(e) => set({ value: e.target.value })}
             rows={3}
             placeholder="รายละเอียด"
-            className="w-full rounded-2xl border border-muted/30 bg-surface px-4 py-3 mt-1"
+            className="field"
           />
-        </div>
+        </FormField>
 
-        <div>
-          <label className="text-sm text-muted">รูป</label>
-          <div className="mt-1">
-            <PhotoPicker
-              tripName={tripName}
-              kind="photos"
-              fileIds={values.photo_ids}
-              onChange={(ids) => set({ photo_ids: ids })}
-            />
-          </div>
-        </div>
+        <FormField label="รูป">
+          <PhotoPicker
+            tripName={tripName}
+            kind="photos"
+            fileIds={values.photo_ids}
+            onChange={(ids) => set({ photo_ids: ids })}
+          />
+        </FormField>
 
-        <div
-          role="button"
-          tabIndex={0}
-          onClick={() => set({ pinned: !values.pinned })}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") {
-              e.preventDefault();
-              set({ pinned: !values.pinned });
-            }
-          }}
-          className="flex items-center gap-3 min-h-11 py-1 cursor-pointer select-none"
-        >
-          <Checkbox checked={values.pinned} onChange={(pinned) => set({ pinned })} />
-          <span className="text-sm">ปักหมุด</span>
-        </div>
+        <ToggleRow checked={values.pinned} onChange={(pinned) => set({ pinned })} label="ปักหมุด" />
 
         <div className="flex gap-2 mt-2">
           {quickInfo && onDelete && (

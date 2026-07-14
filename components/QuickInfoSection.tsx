@@ -1,10 +1,11 @@
 "use client";
 import { useState } from "react";
-import { BedDouble, MoreHorizontal, Navigation, Pin, Plus } from "lucide-react";
+import { BedDouble, MoreHorizontal, Navigation, Pin, Plus, Info } from "lucide-react";
 import { apiCreate, apiDelete, apiUpdate } from "@/lib/api";
 import { PhotoViewer } from "@/components/PhotoViewer";
 import { QuickInfoFormSheet, type QuickInfoFormValues } from "@/components/QuickInfoFormSheet";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { toast } from "@/components/ui/Toast";
 import type { Booking, QuickInfo, Transport, Trip } from "@/lib/models/types";
 
@@ -101,7 +102,7 @@ export function QuickInfoSection({
   return (
     <div className="flex flex-col gap-3">
       {hotelBookings.map((b) => (
-        <div key={b.id} className="rounded-2xl bg-surface border border-muted/20 p-4 flex flex-col gap-1">
+        <div key={b.id} className="rounded-2xl bg-surface shadow-card p-4 flex flex-col gap-1">
           <div className="flex items-center gap-1.5 text-xs text-muted">
             <BedDouble size={14} />
             <span>ที่พัก</span>
@@ -113,7 +114,7 @@ export function QuickInfoSection({
       ))}
 
       {pickupTransports.map((t) => (
-        <div key={t.id} className="rounded-2xl bg-surface border border-muted/20 p-4 flex flex-col gap-2">
+        <div key={t.id} className="rounded-2xl bg-surface shadow-card p-4 flex flex-col gap-2">
           <div className="flex items-center gap-1.5 text-xs text-muted">
             <Navigation size={14} />
             <span>จุดนัดพบ</span>
@@ -126,7 +127,7 @@ export function QuickInfoSection({
       ))}
 
       {rows.length === 0 && hotelBookings.length === 0 && pickupTransports.length === 0 && (
-        <p className="text-muted text-sm py-2">ยังไม่มีข้อมูลด่วน</p>
+        <EmptyState icon={Info} title="ยังไม่มีข้อมูลด่วน" subtitle="เก็บที่อยู่โรงแรม, เบอร์ฉุกเฉิน, wifi ไว้ที่นี่" />
       )}
 
       {rows.map((item) => (
@@ -141,7 +142,7 @@ export function QuickInfoSection({
               copyValue(item.value);
             }
           }}
-          className="rounded-2xl bg-surface border border-muted/20 p-4 flex flex-col gap-2 relative cursor-pointer"
+          className="press rounded-2xl bg-surface shadow-card p-4 flex flex-col gap-2 relative cursor-pointer"
         >
           <div className="flex items-center gap-1.5 pr-9">
             {item.pinned && <Pin size={12} className="text-primary shrink-0" />}

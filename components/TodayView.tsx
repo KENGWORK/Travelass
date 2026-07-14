@@ -47,7 +47,7 @@ function ItineraryCard({
   return (
     <div
       className={[
-        "rounded-2xl bg-surface border border-muted/20 p-3 flex flex-col gap-2",
+        "rounded-2xl bg-surface shadow-card p-3 flex flex-col gap-2",
         expanded ? "ring-2 ring-primary" : "",
         finished ? "opacity-60" : "",
       ].join(" ")}
@@ -57,7 +57,7 @@ function ItineraryCard({
           onClick={onToggleDone}
           className="relative inline-flex before:absolute before:inset-[-10px] before:content-['']"
         >
-          <Checkbox checked={item.status === "done"} onChange={() => {}} />
+          <Checkbox checked={item.status === "done"} onChange={() => {}} aria-label={item.title} />
         </span>
         <div className="min-w-0 flex-1">
           {item.time && <p className="text-xs text-muted">{formatTimeRange(item.time, item.end_time)}</p>}

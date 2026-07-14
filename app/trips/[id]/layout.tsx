@@ -1,6 +1,8 @@
 "use client";
 import { use, useState } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { motion, AnimatePresence } from "framer-motion";
 import { ArrowLeft } from "lucide-react";
 import { TripProvider, useTrip } from "@/lib/trip-context";
 import { TabBar } from "@/components/TabBar";
@@ -11,6 +13,7 @@ import { notifyTripDataChanged } from "@/lib/use-trip-data";
 function TripLayoutInner({ tripId, children }: { tripId: string; children: React.ReactNode }) {
   const { trip } = useTrip();
   const [fabOpen, setFabOpen] = useState(false);
+  const path = usePathname();
 
   return (
     <>
@@ -23,7 +26,18 @@ function TripLayoutInner({ tripId, children }: { tripId: string; children: React
           <ArrowLeft size={24} />
         </Link>
       </div>
-      <main className="pb-24">{children}</main>
+      <AnimatePresence mode="wait">
+        <motion.main
+          key={path}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -6 }}
+          transition={{ duration: 0.2, ease: "easeOut" }}
+          className="pb-24"
+        >
+          {children}
+        </motion.main>
+      </AnimatePresence>
       <TabBar tripId={tripId} onFab={() => setFabOpen(true)} />
       <QuickExpenseSheet
         trip={trip}

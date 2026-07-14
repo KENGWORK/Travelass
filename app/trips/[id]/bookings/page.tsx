@@ -139,6 +139,7 @@ export default function BookingsPage() {
         onClose={() => setSheetOpen(false)}
         booking={editingBooking}
         defaultType={createType}
+        tripId={trip.id}
         tripName={trip.name}
         tripCurrency={trip.trip_currency}
         onSave={handleSave}

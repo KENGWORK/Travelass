@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { Plus } from "lucide-react";
+import { Plus, TrainFront } from "lucide-react";
 import { useTrip } from "@/lib/trip-context";
 import { useTripData } from "@/lib/use-trip-data";
 import { apiCreate, apiUpdate, apiDelete } from "@/lib/api";
@@ -9,6 +9,7 @@ import { PlanBookSegment } from "@/components/PlanBookSegment";
 import { TransportCard } from "@/components/TransportCard";
 import { TransportFormSheet, type TransportFormValues } from "@/components/TransportFormSheet";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { toast } from "@/components/ui/Toast";
 import type { Transport } from "@/lib/models/types";
 
@@ -84,7 +85,7 @@ export default function TransportPage() {
               <section key={day.date} className="flex flex-col gap-3">
                 <h2 className="font-heading text-lg font-semibold">{day.label}</h2>
                 {dayTransports.length === 0 ? (
-                  <p className="text-muted text-sm py-2">ยังไม่มีข้อมูลการเดินทาง</p>
+                  <EmptyState icon={TrainFront} title="ยังไม่มีข้อมูลการเดินทาง" />
                 ) : (
                   <div className="flex flex-col gap-3">
                     {dayTransports.map((t) => (
@@ -110,6 +111,7 @@ export default function TransportPage() {
         open={sheetOpen}
         onClose={() => setSheetOpen(false)}
         transport={editingTransport}
+        tripId={trip.id}
         tripName={trip.name}
         tripCurrency={trip.trip_currency}
         onSave={handleSave}

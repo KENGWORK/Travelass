@@ -3,9 +3,13 @@ import { useEffect, useState } from "react";
 import { BottomSheet } from "@/components/ui/BottomSheet";
 import { Button } from "@/components/ui/Button";
 import { Chip } from "@/components/ui/Chip";
-import { Checkbox } from "@/components/ui/Checkbox";
+import { FormField } from "@/components/ui/FormField";
 import { MoneyInput, type MoneyValue } from "@/components/ui/MoneyInput";
+import { Disclosure } from "@/components/ui/Disclosure";
+import { ToggleRow } from "@/components/ui/ToggleRow";
 import { PhotoPicker } from "@/components/PhotoPicker";
+import { PayerChips } from "@/components/PayerChips";
+import { toast } from "@/components/ui/Toast";
 import { defaultEndDate } from "@/lib/dates";
 import type { Booking, BookingType, PayTiming } from "@/lib/models/types";
 
@@ -15,7 +19,6 @@ const TYPES: { value: BookingType; label: string }[] = [
   { value: "car", label: "รถ" },
   { value: "activity", label: "กิจกรรม" },
 ];
-const PAYERS = ["เรา", "แฟน"];
 const TIMINGS: { value: PayTiming; label: string }[] = [
   { value: "prepaid", label: "จ่ายล่วงหน้า" },
   { value: "pay_before", label: "จ่ายก่อน" },
@@ -46,7 +49,7 @@ function emptyValues(tripCurrency: string, type: BookingType): BookingFormValues
     date_to: "",
     detail: "",
     money: { amount: 0, currency: tripCurrency, fx_rate: 0, amount_thb: 0 },
-    payer: "เรา",
+    payer: "ฉัน",
     pay_timing: "pay_before",
     paid: false,
     slip_photo_ids: [],
@@ -76,6 +79,7 @@ export function BookingFormSheet({
   onClose,
   booking,
   defaultType,
+  tripId,
   tripName,
   tripCurrency,
   onSave,
@@ -85,6 +89,7 @@ export function BookingFormSheet({
   onClose: () => void;
   booking: Booking | null;
   defaultType: BookingType;
+  tripId: string;
   tripName: string;
   tripCurrency: string;
   onSave: (values: BookingFormValues) => void | Promise<void>;
@@ -101,8 +106,14 @@ export function BookingFormSheet({
 
   const set = (patch: Partial<BookingFormValues>) => setValues((v) => ({ ...v, ...patch }));
 
+  const hasSecondaryContent =
+    !!booking && (values.detail !== "" || values.paid || values.slip_photo_ids.length > 0 || values.notes !== "");
+
   const save = async () => {
-    if (!values.vendor.trim()) return;
+    if (!values.vendor.trim()) {
+      toast("กรอกผู้ให้บริการก่อน");
+      return;
+    }
     setSaving(true);
     try {
       await onSave(values);
@@ -115,45 +126,37 @@ export function BookingFormSheet({
   return (
     <BottomSheet open={open} onClose={onClose} title={booking ? "แก้ไขการจอง" : "เพิ่มการจอง"}>
       <div className="flex flex-col gap-3">
-        <div>
-          <label className="text-sm text-muted">ประเภท</label>
-          <div className="flex gap-2 flex-wrap mt-1">
+        <FormField label="ประเภท">
+          <div className="flex gap-2 flex-wrap">
             {TYPES.map((t) => (
-              <span
-                key={t.value}
-                onClick={() => set({ type: t.value })}
-                className="relative inline-flex before:absolute before:inset-[-4px] before:content-['']"
-              >
-                <Chip selected={values.type === t.value}>{t.label}</Chip>
-              </span>
+              <Chip key={t.value} selected={values.type === t.value} onClick={() => set({ type: t.value })}>
+                {t.label}
+              </Chip>
             ))}
           </div>
-        </div>
+        </FormField>
 
-        <div>
-          <label className="text-sm text-muted">ผู้ให้บริการ</label>
+        <FormField label="ผู้ให้บริการ">
           <input
             autoFocus
             value={values.vendor}
             onChange={(e) => set({ vendor: e.target.value })}
             placeholder="เช่น Thai Airways, Agoda"
-            className="w-full h-12 rounded-2xl border border-muted/30 bg-surface px-4 mt-1"
+            className="field"
           />
-        </div>
+        </FormField>
 
-        <div>
-          <label className="text-sm text-muted">เลขที่อ้างอิง</label>
+        <FormField label="เลขที่อ้างอิง">
           <input
             value={values.ref_no}
             onChange={(e) => set({ ref_no: e.target.value })}
             placeholder="เลขที่จอง / booking ref"
-            className="w-full h-12 rounded-2xl border border-muted/30 bg-surface px-4 mt-1 font-mono"
+            className="field font-mono"
           />
-        </div>
+        </FormField>
 
         <div className="flex gap-2">
-          <div className="flex-1">
-            <label className="text-sm text-muted">วันที่เริ่ม *</label>
+          <FormField label="วันที่เริ่ม *" className="flex-1">
             <input
               type="date"
               value={values.date_from}
@@ -161,112 +164,69 @@ export function BookingFormSheet({
                 const from = e.target.value;
                 setValues((v) => ({ ...v, date_from: from, date_to: defaultEndDate(from, v.date_to) }));
               }}
-              className="w-full h-12 rounded-2xl border border-muted/30 bg-surface px-4 mt-1"
+              className="field"
             />
-          </div>
-          <div className="flex-1">
-            <label className="text-sm text-muted">วันที่สิ้นสุด</label>
+          </FormField>
+          <FormField label="วันที่สิ้นสุด" className="flex-1">
             <input
               type="date"
               value={values.date_to}
               min={values.date_from || undefined}
               onChange={(e) => set({ date_to: e.target.value })}
-              className="w-full h-12 rounded-2xl border border-muted/30 bg-surface px-4 mt-1"
+              className="field"
             />
-          </div>
+          </FormField>
         </div>
 
-        <div>
-          <label className="text-sm text-muted">รายละเอียด</label>
-          <textarea
-            value={values.detail}
-            onChange={(e) => set({ detail: e.target.value })}
-            rows={2}
-            placeholder="เช่น เที่ยวบิน เลขที่นั่ง ชั้นห้อง"
-            className="w-full rounded-2xl border border-muted/30 bg-surface px-4 py-3 mt-1"
-          />
-        </div>
+        <FormField label="ราคา">
+          <MoneyInput value={values.money} onChange={(money) => set({ money })} tripCurrency={tripCurrency} />
+        </FormField>
 
-        <div>
-          <label className="text-sm text-muted">ราคา</label>
-          <div className="mt-1">
-            <MoneyInput value={values.money} onChange={(money) => set({ money })} tripCurrency={tripCurrency} />
-          </div>
-        </div>
+        <FormField label="ใครจ่าย">
+          <PayerChips tripId={tripId} value={values.payer} onChange={(payer) => set({ payer })} />
+        </FormField>
 
-        <div>
-          <label className="text-sm text-muted">ใครจ่าย</label>
-          <div className="flex gap-2 flex-wrap mt-1">
-            {PAYERS.map((p) => (
-              <span
-                key={p}
-                onClick={() => set({ payer: p })}
-                className="relative inline-flex before:absolute before:inset-[-4px] before:content-['']"
-              >
-                <Chip selected={values.payer === p}>{p}</Chip>
-              </span>
-            ))}
-            <input
-              value={PAYERS.includes(values.payer) ? "" : values.payer}
-              onChange={(e) => set({ payer: e.target.value })}
-              placeholder="อื่นๆ"
-              className="h-12 w-24 rounded-full border border-muted/30 bg-surface px-3 text-sm"
+        <Disclosure label="รายละเอียดเพิ่มเติม" defaultOpen={hasSecondaryContent}>
+          <FormField label="รายละเอียด">
+            <textarea
+              value={values.detail}
+              onChange={(e) => set({ detail: e.target.value })}
+              rows={2}
+              placeholder="เช่น เที่ยวบิน เลขที่นั่ง ชั้นห้อง"
+              className="field"
             />
-          </div>
-        </div>
+          </FormField>
 
-        <div>
-          <label className="text-sm text-muted">จังหวะจ่ายเงิน</label>
-          <div className="flex gap-2 flex-wrap mt-1">
-            {TIMINGS.map((t) => (
-              <span
-                key={t.value}
-                onClick={() => set({ pay_timing: t.value })}
-                className="relative inline-flex before:absolute before:inset-[-4px] before:content-['']"
-              >
-                <Chip selected={values.pay_timing === t.value}>{t.label}</Chip>
-              </span>
-            ))}
-          </div>
-        </div>
+          <FormField label="จังหวะจ่ายเงิน">
+            <div className="flex gap-2 flex-wrap">
+              {TIMINGS.map((t) => (
+                <Chip key={t.value} selected={values.pay_timing === t.value} onClick={() => set({ pay_timing: t.value })}>
+                  {t.label}
+                </Chip>
+              ))}
+            </div>
+          </FormField>
 
-        <div
-          role="button"
-          tabIndex={0}
-          onClick={() => set({ paid: !values.paid })}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") {
-              e.preventDefault();
-              set({ paid: !values.paid });
-            }
-          }}
-          className="flex items-center gap-3 min-h-11 py-1 cursor-pointer select-none"
-        >
-          <Checkbox checked={values.paid} onChange={(paid) => set({ paid })} />
-          <span className="text-sm">จ่ายแล้ว</span>
-        </div>
+          <ToggleRow checked={values.paid} onChange={(paid) => set({ paid })} label="จ่ายแล้ว" />
 
-        <div>
-          <label className="text-sm text-muted">สลิปการโอน</label>
-          <div className="mt-1">
+          <FormField label="สลิปการโอน">
             <PhotoPicker
               tripName={tripName}
               kind="slips"
               fileIds={values.slip_photo_ids}
               onChange={(ids) => set({ slip_photo_ids: ids })}
             />
-          </div>
-        </div>
+          </FormField>
 
-        <div>
-          <label className="text-sm text-muted">โน้ต</label>
-          <textarea
-            value={values.notes}
-            onChange={(e) => set({ notes: e.target.value })}
-            rows={3}
-            className="w-full rounded-2xl border border-muted/30 bg-surface px-4 py-3 mt-1"
-          />
-        </div>
+          <FormField label="โน้ต">
+            <textarea
+              value={values.notes}
+              onChange={(e) => set({ notes: e.target.value })}
+              rows={3}
+              className="field"
+            />
+          </FormField>
+        </Disclosure>
 
         <div className="flex gap-2 mt-2">
           {booking && onDelete && (

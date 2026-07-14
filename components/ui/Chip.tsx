@@ -14,13 +14,15 @@ export function Chip({ selected, onClick, color, children }: ChipProps) {
   return (
     <motion.button
       type="button"
+      aria-pressed={selected}
       whileTap={{ scale: 1.05 }}
       onClick={onClick}
       style={selectedStyle}
       className={[
-        "h-9 px-4 rounded-full border border-muted/30 text-sm cursor-pointer transition inline-flex items-center gap-1",
+        "relative h-9 px-4 rounded-full border border-muted/30 text-sm cursor-pointer transition inline-flex items-center gap-1",
+        "before:absolute before:inset-[-4px] before:content-['']",
         selected ? "border-transparent font-medium" : "",
-        selected && !color ? "bg-primary-soft text-primary" : "",
+        selected && !color ? "tint-primary" : "",
       ].filter(Boolean).join(" ")}
     >
       {children}

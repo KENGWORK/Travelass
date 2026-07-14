@@ -116,7 +116,7 @@ export function DiarySection({ trip, initialNotes }: { trip: Trip; initialNotes:
   return (
     <div className="flex flex-col gap-4">
       {days.map((d) => (
-        <div key={d.date} className="rounded-2xl bg-surface border border-muted/20 p-4 flex flex-col gap-2">
+        <div key={d.date} className="rounded-2xl bg-surface shadow-card p-4 flex flex-col gap-2">
           <div className="flex items-center justify-between gap-2">
             <h2 className="font-heading text-base font-semibold">{d.label}</h2>
             <AnimatePresence>

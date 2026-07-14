@@ -19,11 +19,13 @@ export function TransportCard({ transport, onEdit }: { transport: Transport; onE
   const hasPickupPhoto = transport.pickup_photo_ids.length > 0;
 
   return (
-    <div className="rounded-2xl bg-surface border border-muted/20 p-3 flex flex-col gap-2 relative">
+    <div className="press rounded-3xl bg-surface shadow-card hover:shadow-card-hover p-3 flex flex-col gap-2 relative">
       <div className="cursor-pointer flex flex-col gap-2" onClick={onEdit}>
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0">
-            <Icon size={18} className="text-primary shrink-0" />
+            <span className="w-8 h-8 rounded-full bg-primary-soft grid place-items-center shrink-0 wiggle-idle">
+              <Icon size={16} className="text-primary" />
+            </span>
             <p className="text-base font-medium truncate">
               {transport.from} → {transport.to}
             </p>
@@ -32,6 +34,15 @@ export function TransportCard({ transport, onEdit }: { transport: Transport; onE
         </div>
 
         <div className="flex flex-col gap-1.5">
+          {transport.depart_time && (
+            <div className="flex items-center gap-1.5 text-sm">
+              <Clock size={16} className="shrink-0 text-primary" />
+              <span className="font-medium">
+                ออก {transport.depart_time}
+                {transport.arrive_time && <span className="text-muted"> · ถึง {transport.arrive_time}</span>}
+              </span>
+            </div>
+          )}
           {transport.pickup_point && (
             <div className="flex items-center gap-1.5 text-sm text-muted">
               <MapPin size={16} className="shrink-0" />
@@ -69,7 +80,7 @@ export function TransportCard({ transport, onEdit }: { transport: Transport; onE
         </div>
 
         {transport.payer && (
-          <div className="flex items-center gap-2 text-sm">
+          <div className="flex items-center gap-2 text-sm pt-1 border-t border-muted/10">
             <span className="w-6 h-6 rounded-full bg-primary-soft text-primary text-xs font-semibold flex items-center justify-center shrink-0">
               {transport.payer.charAt(0)}
             </span>
@@ -77,9 +88,16 @@ export function TransportCard({ transport, onEdit }: { transport: Transport; onE
               {transport.payer}จ่าย · {TIMING_LABEL[transport.pay_timing]}
             </span>
             {transport.paid ? (
-              <span className="ml-auto rounded-full bg-success/15 text-success text-xs font-medium px-2 py-0.5">จ่ายแล้ว</span>
+              <motion.span
+                initial={{ scale: 0, rotate: -15 }}
+                animate={{ scale: 1, rotate: -6 }}
+                transition={{ type: "spring", stiffness: 260, damping: 10 }}
+                className="sticker tint-success text-xs ml-auto"
+              >
+                ✓ จ่ายแล้ว
+              </motion.span>
             ) : (
-              <span className="ml-auto rounded-full bg-warning/15 text-warning text-xs font-medium px-2 py-0.5">ยังไม่จ่าย</span>
+              <span className="sticker tint-warning text-xs ml-auto rotate-2">ยังไม่จ่าย</span>
             )}
           </div>
         )}
@@ -103,6 +121,7 @@ export function TransportCard({ transport, onEdit }: { transport: Transport; onE
         <div>
           <button
             type="button"
+            aria-expanded={altOpen}
             onClick={(e) => {
               e.stopPropagation();
               setAltOpen((o) => !o);

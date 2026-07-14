@@ -4,17 +4,24 @@ import { motion } from "framer-motion";
 export interface CheckboxProps {
   checked: boolean;
   onChange: (checked: boolean) => void;
+  id?: string;
+  "aria-label"?: string;
 }
 
-export function Checkbox({ checked, onChange }: CheckboxProps) {
+export function Checkbox({ checked, onChange, id, "aria-label": ariaLabel }: CheckboxProps) {
   return (
-    <button
+    <motion.button
       type="button"
+      id={id}
       role="checkbox"
       aria-checked={checked}
+      aria-label={ariaLabel}
       onClick={() => onChange(!checked)}
+      whileTap={{ scale: 0.85 }}
+      animate={{ scale: checked ? [1, 1.2, 1] : 1 }}
+      transition={{ duration: 0.28, ease: [0.34, 1.56, 0.64, 1] }}
       className={[
-        "h-6 w-6 rounded-full border flex items-center justify-center cursor-pointer transition shrink-0",
+        "h-6 w-6 rounded-full border flex items-center justify-center cursor-pointer shrink-0",
         checked ? "bg-primary border-primary" : "border-muted/30 bg-surface",
       ].join(" ")}
     >
@@ -28,6 +35,6 @@ export function Checkbox({ checked, onChange }: CheckboxProps) {
           />
         </motion.svg>
       )}
-    </button>
+    </motion.button>
   );
 }

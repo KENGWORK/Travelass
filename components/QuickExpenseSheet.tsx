@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/Button";
 import { Chip } from "@/components/ui/Chip";
 import { MoneyInput, type MoneyValue } from "@/components/ui/MoneyInput";
 import { PhotoPicker } from "@/components/PhotoPicker";
+import { PayerChips } from "@/components/PayerChips";
 import { toast } from "@/components/ui/Toast";
 import { apiCreate } from "@/lib/api";
 import { CATS } from "@/lib/categories";
@@ -14,7 +15,7 @@ export function QuickExpenseSheet({ trip, open, onClose, onSaved }: { trip: Trip
   const blank = (): MoneyValue => ({ amount: 0, currency: trip.trip_currency, fx_rate: 0, amount_thb: 0 });
   const [money, setMoney] = useState<MoneyValue>(blank);
   const [category, setCategory] = useState<Category>("อาหาร");
-  const [payer, setPayer] = useState("เรา");
+  const [payer, setPayer] = useState("ฉัน");
   const [description, setDescription] = useState("");
   const [slips, setSlips] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
@@ -41,10 +42,8 @@ export function QuickExpenseSheet({ trip, open, onClose, onSaved }: { trip: Trip
         <div className="flex gap-2 overflow-x-auto pb-1">
           {CATS.map((c) => <Chip key={c.name} selected={category === c.name} color={c.color} onClick={() => setCategory(c.name)}>{c.name}</Chip>)}
         </div>
-        <div className="flex gap-2">
-          {["เรา", "แฟน"].map((p) => <Chip key={p} selected={payer === p} onClick={() => setPayer(p)}>{p}</Chip>)}
-        </div>
-        <input className="h-11 rounded-2xl border border-muted/30 bg-surface px-4" placeholder="โน๊ตสั้นๆ (ไม่บังคับ)"
+        <PayerChips tripId={trip.id} value={payer} onChange={setPayer} />
+        <input className="field h-11" placeholder="โน๊ตสั้นๆ (ไม่บังคับ)"
           value={description} onChange={(e) => setDescription(e.target.value)} />
         <PhotoPicker tripName={trip.name} kind="slips" fileIds={slips} onChange={setSlips} />
         <Button variant="primary" full loading={saving} onClick={save} disabled={money.amount <= 0}>บันทึก</Button>

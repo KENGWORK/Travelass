@@ -3,14 +3,19 @@ import { useEffect, useState } from "react";
 import { BottomSheet } from "@/components/ui/BottomSheet";
 import { Button } from "@/components/ui/Button";
 import { Chip } from "@/components/ui/Chip";
-import { Checkbox } from "@/components/ui/Checkbox";
+import { FormField } from "@/components/ui/FormField";
 import { MoneyInput, type MoneyValue } from "@/components/ui/MoneyInput";
+import { TimeInput } from "@/components/ui/TimeInput";
+import { Disclosure } from "@/components/ui/Disclosure";
+import { ToggleRow } from "@/components/ui/ToggleRow";
 import { PhotoPicker } from "@/components/PhotoPicker";
+import { PayerChips } from "@/components/PayerChips";
+import { toast } from "@/components/ui/Toast";
+import { computeDurationMin } from "@/lib/time";
 import { X } from "lucide-react";
 import type { Transport, PayTiming } from "@/lib/models/types";
 
 const MODES = ["รถไฟ", "บัส", "เครื่องบิน", "เรือ", "เดิน"];
-const PAYERS = ["เรา", "แฟน"];
 const TIMINGS: { value: PayTiming; label: string }[] = [
   { value: "prepaid", label: "จ่ายล่วงหน้า" },
   { value: "pay_before", label: "จ่ายก่อน" },
@@ -24,6 +29,8 @@ export interface TransportFormValues {
   pickup_point: string;
   pickup_photo_ids: string[];
   departure_times: string[];
+  depart_time: string;
+  arrive_time: string;
   duration_min: number;
   money: MoneyValue;
   payer: string;
@@ -42,9 +49,11 @@ function emptyValues(tripCurrency: string): TransportFormValues {
     pickup_point: "",
     pickup_photo_ids: [],
     departure_times: [],
+    depart_time: "",
+    arrive_time: "",
     duration_min: 0,
     money: { amount: 0, currency: tripCurrency, fx_rate: 0, amount_thb: 0 },
-    payer: "เรา",
+    payer: "ฉัน",
     pay_timing: "pay_before",
     paid: false,
     slip_photo_ids: [],
@@ -61,6 +70,8 @@ function fromTransport(t: Transport): TransportFormValues {
     pickup_point: t.pickup_point,
     pickup_photo_ids: t.pickup_photo_ids,
     departure_times: t.departure_times,
+    depart_time: t.depart_time ?? "",
+    arrive_time: t.arrive_time ?? "",
     duration_min: t.duration_min,
     money: { amount: t.price_amount, currency: t.price_currency, fx_rate: t.fx_rate, amount_thb: t.price_thb },
     payer: t.payer,
@@ -76,6 +87,7 @@ export function TransportFormSheet({
   open,
   onClose,
   transport,
+  tripId,
   tripName,
   tripCurrency,
   onSave,
@@ -84,6 +96,7 @@ export function TransportFormSheet({
   open: boolean;
   onClose: () => void;
   transport: Transport | null;
+  tripId: string;
   tripName: string;
   tripCurrency: string;
   onSave: (values: TransportFormValues) => void | Promise<void>;
@@ -111,11 +124,26 @@ export function TransportFormSheet({
 
   const removeTime = (t: string) => set({ departure_times: values.departure_times.filter((x) => x !== t) });
 
+  const autoDuration = computeDurationMin(values.depart_time, values.arrive_time);
+
+  const hasSecondaryContent =
+    !!transport &&
+    (values.pickup_point !== "" ||
+      values.pickup_photo_ids.length > 0 ||
+      values.departure_times.length > 0 ||
+      values.paid ||
+      values.slip_photo_ids.length > 0 ||
+      values.alt_option !== "" ||
+      values.notes !== "");
+
   const save = async () => {
-    if (!values.from.trim() || !values.to.trim()) return;
+    if (!values.from.trim() || !values.to.trim()) {
+      toast("กรอกต้นทางกับปลายทางก่อน");
+      return;
+    }
     setSaving(true);
     try {
-      await onSave(values);
+      await onSave({ ...values, duration_min: autoDuration || values.duration_min });
       onClose();
     } finally {
       setSaving(false);
@@ -126,193 +154,135 @@ export function TransportFormSheet({
     <BottomSheet open={open} onClose={onClose} title={transport ? "แก้ไขการเดินทาง" : "เพิ่มการเดินทาง"}>
       <div className="flex flex-col gap-3">
         <div className="flex gap-2">
-          <div className="flex-1">
-            <label className="text-sm text-muted">จาก</label>
+          <FormField label="จาก" className="flex-1">
             <input
               autoFocus
               value={values.from}
               onChange={(e) => set({ from: e.target.value })}
               placeholder="ต้นทาง"
-              className="w-full h-12 rounded-2xl border border-muted/30 bg-surface px-4 mt-1"
+              className="field"
             />
-          </div>
-          <div className="flex-1">
-            <label className="text-sm text-muted">ไป</label>
+          </FormField>
+          <FormField label="ไป" className="flex-1">
             <input
               value={values.to}
               onChange={(e) => set({ to: e.target.value })}
               placeholder="ปลายทาง"
-              className="w-full h-12 rounded-2xl border border-muted/30 bg-surface px-4 mt-1"
+              className="field"
             />
-          </div>
+          </FormField>
         </div>
 
-        <div>
-          <label className="text-sm text-muted">รูปแบบการเดินทาง</label>
-          <div className="flex gap-2 flex-wrap mt-1">
+        <FormField label="รูปแบบการเดินทาง">
+          <div className="flex gap-2 flex-wrap">
             {MODES.map((m) => (
-              <span
-                key={m}
-                onClick={() => set({ mode: m })}
-                className="relative inline-flex before:absolute before:inset-[-4px] before:content-['']"
-              >
-                <Chip selected={values.mode === m}>{m}</Chip>
-              </span>
+              <Chip key={m} selected={values.mode === m} onClick={() => set({ mode: m })}>
+                {m}
+              </Chip>
             ))}
           </div>
-        </div>
+        </FormField>
 
-        <div>
-          <label className="text-sm text-muted">จุดนัดพบ</label>
-          <input
-            value={values.pickup_point}
-            onChange={(e) => set({ pickup_point: e.target.value })}
-            placeholder="เช่น หน้าล็อบบี้โรงแรม"
-            className="w-full h-12 rounded-2xl border border-muted/30 bg-surface px-4 mt-1"
-          />
-          <div className="mt-2">
-            <PhotoPicker
-              tripName={tripName}
-              kind="photos"
-              fileIds={values.pickup_photo_ids}
-              onChange={(ids) => set({ pickup_photo_ids: ids })}
-            />
-          </div>
+        <div className="flex gap-2">
+          <FormField label="เวลาออก *" className="flex-1">
+            <TimeInput value={values.depart_time} onChange={(depart_time) => set({ depart_time })} className="w-full" />
+          </FormField>
+          <FormField label="เวลาถึง" className="flex-1">
+            <TimeInput value={values.arrive_time} onChange={(arrive_time) => set({ arrive_time })} className="w-full" />
+          </FormField>
         </div>
+        {autoDuration > 0 && <p className="text-sm text-muted -mt-1">ใช้เวลา ~{autoDuration} นาที</p>}
 
-        <div>
-          <label className="text-sm text-muted">เวลาออกเดินทาง</label>
-          <div className="flex gap-2 mt-1">
+        <FormField label="ราคา">
+          <MoneyInput value={values.money} onChange={(money) => set({ money })} tripCurrency={tripCurrency} />
+        </FormField>
+
+        <FormField label="ใครจ่าย">
+          <PayerChips tripId={tripId} value={values.payer} onChange={(payer) => set({ payer })} />
+        </FormField>
+
+        <Disclosure label="รายละเอียดเพิ่มเติม" defaultOpen={hasSecondaryContent}>
+          <FormField label="จุดนัดพบ">
             <input
-              type="time"
-              value={timeInput}
-              onChange={(e) => setTimeInput(e.target.value)}
-              className="flex-1 h-12 rounded-2xl border border-muted/30 bg-surface px-4"
+              value={values.pickup_point}
+              onChange={(e) => set({ pickup_point: e.target.value })}
+              placeholder="เช่น หน้าล็อบบี้โรงแรม"
+              className="field"
             />
-            <Button variant="secondary" onClick={addTime} className="shrink-0">
-              เพิ่มเวลา
-            </Button>
-          </div>
-          {values.departure_times.length > 0 && (
-            <div className="flex gap-2 flex-wrap mt-2">
-              {values.departure_times.map((t) => (
-                <button
-                  key={t}
-                  type="button"
-                  onClick={() => removeTime(t)}
-                  className="relative h-9 pl-3 pr-2 rounded-full bg-primary-soft text-primary text-sm cursor-pointer inline-flex items-center gap-1 before:absolute before:inset-[-4px] before:content-['']"
-                >
-                  {t}
-                  <X size={14} />
-                </button>
+            <div className="mt-2">
+              <PhotoPicker
+                tripName={tripName}
+                kind="photos"
+                fileIds={values.pickup_photo_ids}
+                onChange={(ids) => set({ pickup_photo_ids: ids })}
+              />
+            </div>
+          </FormField>
+
+          <FormField label="รอบรถ (ทางเลือก)">
+            <div className="flex gap-2">
+              <TimeInput value={timeInput} onChange={setTimeInput} className="flex-1" />
+              <Button variant="secondary" onClick={addTime} className="shrink-0">
+                เพิ่มรอบ
+              </Button>
+            </div>
+            {values.departure_times.length > 0 && (
+              <div className="flex gap-2 flex-wrap mt-2">
+                {values.departure_times.map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => removeTime(t)}
+                    className="relative h-9 pl-3 pr-2 rounded-full bg-primary-soft text-primary text-sm cursor-pointer inline-flex items-center gap-1 before:absolute before:inset-[-4px] before:content-['']"
+                  >
+                    {t}
+                    <X size={14} />
+                  </button>
+                ))}
+              </div>
+            )}
+          </FormField>
+
+          <FormField label="จังหวะจ่ายเงิน">
+            <div className="flex gap-2 flex-wrap">
+              {TIMINGS.map((t) => (
+                <Chip key={t.value} selected={values.pay_timing === t.value} onClick={() => set({ pay_timing: t.value })}>
+                  {t.label}
+                </Chip>
               ))}
             </div>
-          )}
-        </div>
+          </FormField>
 
-        <div>
-          <label className="text-sm text-muted">ใช้เวลา (นาที)</label>
-          <input
-            inputMode="numeric"
-            type="number"
-            value={values.duration_min || ""}
-            onChange={(e) => set({ duration_min: Number(e.target.value) || 0 })}
-            placeholder="0"
-            className="w-full h-12 rounded-2xl border border-muted/30 bg-surface px-4 mt-1"
-          />
-        </div>
+          <ToggleRow checked={values.paid} onChange={(paid) => set({ paid })} label="จ่ายแล้ว" />
 
-        <div>
-          <label className="text-sm text-muted">ราคา</label>
-          <div className="mt-1">
-            <MoneyInput value={values.money} onChange={(money) => set({ money })} tripCurrency={tripCurrency} />
-          </div>
-        </div>
-
-        <div>
-          <label className="text-sm text-muted">ใครจ่าย</label>
-          <div className="flex gap-2 flex-wrap mt-1">
-            {PAYERS.map((p) => (
-              <span
-                key={p}
-                onClick={() => set({ payer: p })}
-                className="relative inline-flex before:absolute before:inset-[-4px] before:content-['']"
-              >
-                <Chip selected={values.payer === p}>{p}</Chip>
-              </span>
-            ))}
-            <input
-              value={PAYERS.includes(values.payer) ? "" : values.payer}
-              onChange={(e) => set({ payer: e.target.value })}
-              placeholder="อื่นๆ"
-              className="h-12 w-24 rounded-full border border-muted/30 bg-surface px-3 text-sm"
-            />
-          </div>
-        </div>
-
-        <div>
-          <label className="text-sm text-muted">จังหวะจ่ายเงิน</label>
-          <div className="flex gap-2 flex-wrap mt-1">
-            {TIMINGS.map((t) => (
-              <span
-                key={t.value}
-                onClick={() => set({ pay_timing: t.value })}
-                className="relative inline-flex before:absolute before:inset-[-4px] before:content-['']"
-              >
-                <Chip selected={values.pay_timing === t.value}>{t.label}</Chip>
-              </span>
-            ))}
-          </div>
-        </div>
-
-        <div
-          role="button"
-          tabIndex={0}
-          onClick={() => set({ paid: !values.paid })}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") {
-              e.preventDefault();
-              set({ paid: !values.paid });
-            }
-          }}
-          className="flex items-center gap-3 min-h-11 py-1 cursor-pointer select-none"
-        >
-          <Checkbox checked={values.paid} onChange={(paid) => set({ paid })} />
-          <span className="text-sm">จ่ายแล้ว</span>
-        </div>
-
-        <div>
-          <label className="text-sm text-muted">สลิปการโอน</label>
-          <div className="mt-1">
+          <FormField label="สลิปการโอน">
             <PhotoPicker
               tripName={tripName}
               kind="slips"
               fileIds={values.slip_photo_ids}
               onChange={(ids) => set({ slip_photo_ids: ids })}
             />
-          </div>
-        </div>
+          </FormField>
 
-        <div>
-          <label className="text-sm text-muted">ตัวเลือกสำรอง</label>
-          <textarea
-            value={values.alt_option}
-            onChange={(e) => set({ alt_option: e.target.value })}
-            rows={2}
-            placeholder="แผนสำรองถ้าแผนนี้ไม่ได้"
-            className="w-full rounded-2xl border border-muted/30 bg-surface px-4 py-3 mt-1"
-          />
-        </div>
+          <FormField label="ตัวเลือกสำรอง">
+            <textarea
+              value={values.alt_option}
+              onChange={(e) => set({ alt_option: e.target.value })}
+              rows={2}
+              placeholder="แผนสำรองถ้าแผนนี้ไม่ได้"
+              className="field"
+            />
+          </FormField>
 
-        <div>
-          <label className="text-sm text-muted">โน้ต</label>
-          <textarea
-            value={values.notes}
-            onChange={(e) => set({ notes: e.target.value })}
-            rows={3}
-            className="w-full rounded-2xl border border-muted/30 bg-surface px-4 py-3 mt-1"
-          />
-        </div>
+          <FormField label="โน้ต">
+            <textarea
+              value={values.notes}
+              onChange={(e) => set({ notes: e.target.value })}
+              rows={3}
+              className="field"
+            />
+          </FormField>
+        </Disclosure>
 
         <div className="flex gap-2 mt-2">
           {transport && onDelete && (

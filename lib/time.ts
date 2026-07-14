@@ -39,3 +39,15 @@ export function formatTimeRange(start: string, end?: string): string {
   if (!start) return "";
   return end ? `${start} - ${end}` : start;
 }
+
+// Minutes from depart to arrive (both "HH:MM"). An arrive time that is earlier
+// than depart is treated as the next day. Returns 0 if either is missing.
+export function computeDurationMin(depart: string, arrive: string): number {
+  if (!depart || !arrive) return 0;
+  const toMin = (t: string) => {
+    const [h, m] = t.split(":").map((n) => parseInt(n, 10));
+    return (h || 0) * 60 + (m || 0);
+  };
+  const diff = toMin(arrive) - toMin(depart);
+  return diff < 0 ? diff + 1440 : diff;
+}
