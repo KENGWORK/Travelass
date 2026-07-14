@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/auth";
 import { ENTITIES, type EntityName } from "@/lib/models/mappers";
-import { listRows, appendRow, updateRow, deleteRow, ensureTabs, PREVIEW } from "@/lib/store";
+import { listRows, appendRow, updateRow, deleteRow, ensureTabs } from "@/lib/store";
 
 let tabsReady: Promise<void> | null = null;
 const ready = () => (tabsReady ??= ensureTabs());
 
+// No auth guard — see middleware.ts, login is intentionally not required.
 async function guard(entity: string) {
-  if (!PREVIEW && !(await auth())?.user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   if (!(entity in ENTITIES)) return NextResponse.json({ error: "unknown entity" }, { status: 404 });
   await ready();
   return null;

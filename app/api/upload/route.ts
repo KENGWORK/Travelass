@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/auth";
-import { saveImage, PREVIEW } from "@/lib/store";
+import { saveImage } from "@/lib/store";
 
+// No auth guard — see middleware.ts, login is intentionally not required.
 export async function POST(req: NextRequest) {
-  if (!PREVIEW && !(await auth())?.user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const form = await req.formData();
   const file = form.get("file") as File | null;
   const tripName = String(form.get("tripName") ?? "trip");

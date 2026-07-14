@@ -1,9 +1,6 @@
-import { auth } from "@/auth";
-
-// Preview / MVP mode: with no SPREADSHEET_ID configured, skip the auth gate so
-// the app is usable without Google credentials. Set SPREADSHEET_ID to restore
-// the login requirement automatically.
-const PREVIEW = !process.env.SPREADSHEET_ID;
-
-export const middleware = PREVIEW ? () => undefined : auth;
+// No login gate — the app is used by one person/family with no need to
+// restrict access, regardless of which storage backend (local or Google)
+// is active. SPREADSHEET_ID only selects the backend now (see lib/store.ts),
+// it no longer controls auth.
+export const middleware = () => undefined;
 export const config = { matcher: ["/((?!login|api/auth|_next|favicon.ico).*)"] };

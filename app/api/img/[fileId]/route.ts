@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/auth";
-import { loadImage, PREVIEW } from "@/lib/store";
+import { loadImage } from "@/lib/store";
 
+// No auth guard — see middleware.ts, login is intentionally not required.
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ fileId: string }> }) {
-  if (!PREVIEW && !(await auth())?.user) return new NextResponse("unauthorized", { status: 401 });
   const { fileId } = await params;
   const { body, mime } = await loadImage(fileId);
   return new NextResponse(body as unknown as BodyInit, {
