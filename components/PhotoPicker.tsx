@@ -6,17 +6,27 @@ import { PhotoViewer } from "@/components/PhotoViewer";
 import { toast } from "@/components/ui/Toast";
 import { fileToDataUrl } from "@/lib/image";
 import { photoUrl } from "@/lib/photo-url";
+import { isGoogleBackend } from "@/lib/backend";
 
 export interface PhotoPickerProps {
-  // tripName/kind are kept for interface compatibility; images are stored inline
-  // as data URLs in localStorage, so no server folder routing is needed.
   tripName: string;
   kind: "photos" | "slips";
   fileIds: string[];
   onChange: (fileIds: string[]) => void;
 }
 
-export function PhotoPicker({ fileIds, onChange }: PhotoPickerProps) {
+async function uploadToGoogle(file: File, tripName: string, kind: "photos" | "slips"): Promise<string> {
+  const form = new FormData();
+  form.append("file", file);
+  form.append("tripName", tripName);
+  form.append("kind", kind);
+  const res = await fetch("/api/upload", { method: "POST", body: form });
+  if (!res.ok) throw new Error(`upload failed: ${res.status}`);
+  const { fileId } = await res.json();
+  return fileId as string;
+}
+
+export function PhotoPicker({ tripName, kind, fileIds, onChange }: PhotoPickerProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploadingCount, setUploadingCount] = useState(0);
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
@@ -28,11 +38,13 @@ export function PhotoPicker({ fileIds, onChange }: PhotoPickerProps) {
     const accumulated = [...fileIds];
     for (const file of list) {
       try {
-        const url = await fileToDataUrl(file);
-        accumulated.push(url);
+        const id = isGoogleBackend()
+          ? await uploadToGoogle(file, tripName, kind)
+          : await fileToDataUrl(file);
+        accumulated.push(id);
         onChange([...accumulated]);
       } catch {
-        toast("อ่านรูปไม่สำเร็จ");
+        toast(isGoogleBackend() ? "อัปโหลดรูปไม่สำเร็จ" : "อ่านรูปไม่สำเร็จ");
       } finally {
         setUploadingCount((n) => Math.max(0, n - 1));
       }
