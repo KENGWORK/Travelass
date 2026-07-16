@@ -13,6 +13,7 @@ import { PullIntoPlanSheet } from "@/components/PullIntoPlanSheet";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { toast } from "@/components/ui/Toast";
+import { RefreshButton } from "@/components/ui/RefreshButton";
 import { transportIcon } from "@/lib/transport-icon";
 import type { ItineraryItem } from "@/lib/models/types";
 
@@ -103,8 +104,9 @@ export default function ItineraryPage() {
 
   return (
     <div className="max-w-3xl mx-auto">
-      <div className="px-4">
-        <h1 className="font-heading text-xl font-semibold pt-4">แผนการเดินทาง</h1>
+      <div className="px-4 pt-4 flex items-center justify-between">
+        <h1 className="font-heading text-xl font-semibold">แผนการเดินทาง</h1>
+        <RefreshButton onRefresh={reload} />
       </div>
 
       <div className="px-4">

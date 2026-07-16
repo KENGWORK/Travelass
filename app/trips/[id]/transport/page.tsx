@@ -11,6 +11,7 @@ import { TransportFormSheet, type TransportFormValues } from "@/components/Trans
 import { Skeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { toast } from "@/components/ui/Toast";
+import { RefreshButton } from "@/components/ui/RefreshButton";
 import type { Transport } from "@/lib/models/types";
 
 export default function TransportPage() {
@@ -68,7 +69,10 @@ export default function TransportPage() {
   return (
     <div className="max-w-3xl mx-auto">
       <div className="px-4 pt-4 flex flex-col gap-3">
-        <h1 className="font-heading text-xl font-semibold">เดินทาง</h1>
+        <div className="flex items-center justify-between">
+          <h1 className="font-heading text-xl font-semibold">เดินทาง</h1>
+          <RefreshButton onRefresh={reload} />
+        </div>
         <PlanBookSegment tripId={trip.id} active="transport" />
       </div>
 

@@ -9,6 +9,7 @@ import { apiUpdate } from "@/lib/api";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { ProgressRing } from "@/components/ui/ProgressRing";
 import { Mascot } from "@/components/ui/Mascot";
+import { RefreshButton } from "@/components/ui/RefreshButton";
 import { TodayView } from "@/components/TodayView";
 import { MembersCard } from "@/components/MembersCard";
 import type { Trip } from "@/lib/models/types";
@@ -146,7 +147,7 @@ const SHORTCUTS: { href: string; icon: LucideIcon; label: string; tint: string }
 
 export default function TripDashboardPage() {
   const { trip, refresh } = useTrip();
-  const { bookings, summary, loading } = useTripData(trip.id);
+  const { bookings, summary, loading, reload } = useTripData(trip.id);
 
   const setStatus = async (status: Trip["status"]) => {
     if (status === trip.status) return;
@@ -168,7 +169,10 @@ export default function TripDashboardPage() {
           </div>
           <ModeToggle trip={trip} onChange={setStatus} />
         </div>
-        <Mascot size={56} className="shrink-0 -mt-1" />
+        <div className="flex items-center gap-1 shrink-0">
+          <RefreshButton onRefresh={() => Promise.all([refresh(), reload()])} />
+          <Mascot size={56} className="-mt-1" />
+        </div>
       </header>
 
       {loading ? (

@@ -10,6 +10,7 @@ import { BookingCard } from "@/components/BookingCard";
 import { BookingFormSheet, type BookingFormValues } from "@/components/BookingFormSheet";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { toast } from "@/components/ui/Toast";
+import { RefreshButton } from "@/components/ui/RefreshButton";
 import type { Booking, BookingType } from "@/lib/models/types";
 
 const SECTIONS: { type: BookingType; label: string; icon: LucideIcon }[] = [
@@ -75,7 +76,10 @@ export default function BookingsPage() {
   return (
     <div className="max-w-3xl mx-auto">
       <div className="px-4 pt-4 flex flex-col gap-3">
-        <h1 className="font-heading text-xl font-semibold">จอง</h1>
+        <div className="flex items-center justify-between">
+          <h1 className="font-heading text-xl font-semibold">จอง</h1>
+          <RefreshButton onRefresh={reload} />
+        </div>
         <PlanBookSegment tripId={trip.id} active="bookings" />
         {!loading && total > 0 && (
           <div className="flex flex-col gap-1.5">

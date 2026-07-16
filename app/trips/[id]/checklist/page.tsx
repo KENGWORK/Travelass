@@ -9,6 +9,7 @@ import { Checkbox } from "@/components/ui/Checkbox";
 import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { toast } from "@/components/ui/Toast";
+import { RefreshButton } from "@/components/ui/RefreshButton";
 import type { ChecklistItem } from "@/lib/models/types";
 
 const GROUPS: string[] = ["เอกสาร", "ของใช้", "to-do"];
@@ -38,7 +39,12 @@ export default function ChecklistPage() {
   const toggleDone = async (item: ChecklistItem) => {
     const next = !item.done;
     setItems((prev) => prev.map((it) => (it.id === item.id ? { ...it, done: next } : it)));
-    await apiUpdate<ChecklistItem>("checklist", item.id, { ...item, done: next });
+    try {
+      await apiUpdate<ChecklistItem>("checklist", item.id, { ...item, done: next });
+    } catch {
+      setItems((prev) => prev.map((it) => (it.id === item.id ? { ...it, done: item.done } : it)));
+      toast("บันทึกไม่สำเร็จ ลองอีกครั้ง", "error");
+    }
   };
 
   const addItem = async (group: string) => {
@@ -80,7 +86,10 @@ export default function ChecklistPage() {
 
   return (
     <div className="p-4 max-w-3xl mx-auto flex flex-col gap-4">
-      <h1 className="font-heading text-xl font-semibold">เช็คลิสต์</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="font-heading text-xl font-semibold">เช็คลิสต์</h1>
+        <RefreshButton onRefresh={reload} />
+      </div>
 
       {loading ? (
         <div className="flex flex-col gap-3">

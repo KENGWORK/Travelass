@@ -5,10 +5,26 @@ import type { Expense, Booking, Transport, ItineraryItem } from "@/lib/models/ty
 import { summarize } from "@/lib/summary";
 
 const TRIP_DATA_CHANGED_EVENT = "trip-data-changed";
+const EXPENSE_ADDED_EVENT = "trip-expense-optimistic-added";
+const EXPENSE_ROLLBACK_EVENT = "trip-expense-optimistic-rollback";
 
 export function notifyTripDataChanged() {
   if (typeof window === "undefined") return;
   window.dispatchEvent(new CustomEvent(TRIP_DATA_CHANGED_EVENT));
+}
+
+// Optimistic-add path for quick expense: skips the full refetch so the entry
+// shows up instantly everywhere useTripData is mounted. Reserved for flows
+// the user taps often (see lib/api.ts's Google round-trip cost); most
+// mutations still just call notifyTripDataChanged() and refetch.
+export function notifyExpenseAdded(expense: Expense) {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new CustomEvent<Expense>(EXPENSE_ADDED_EVENT, { detail: expense }));
+}
+
+export function notifyExpenseRollback(expenseId: string) {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new CustomEvent<string>(EXPENSE_ROLLBACK_EVENT, { detail: expenseId }));
 }
 
 export function useTripData(tripId: string) {
@@ -42,7 +58,25 @@ export function useTripData(tripId: string) {
     return () => window.removeEventListener(TRIP_DATA_CHANGED_EVENT, reload);
   }, [reload]);
 
+  useEffect(() => {
+    const onAdded = (e: Event) => {
+      const expense = (e as CustomEvent<Expense>).detail;
+      if (expense.trip_id !== tripId) return;
+      setExpenses((prev) => [...prev, expense]);
+    };
+    const onRollback = (e: Event) => {
+      const id = (e as CustomEvent<string>).detail;
+      setExpenses((prev) => prev.filter((x) => x.id !== id));
+    };
+    window.addEventListener(EXPENSE_ADDED_EVENT, onAdded);
+    window.addEventListener(EXPENSE_ROLLBACK_EVENT, onRollback);
+    return () => {
+      window.removeEventListener(EXPENSE_ADDED_EVENT, onAdded);
+      window.removeEventListener(EXPENSE_ROLLBACK_EVENT, onRollback);
+    };
+  }, [tripId]);
+
   const summary = summarize(expenses, bookings, transports);
 
-  return { expenses, bookings, transports, itinerary, summary, loading, reload };
+  return { expenses, bookings, transports, itinerary, summary, loading, reload, setItinerary };
 }

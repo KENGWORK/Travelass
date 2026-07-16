@@ -131,7 +131,7 @@ function ItineraryCard({
 
 export function TodayView({ tripId }: { tripId: string }) {
   const { trip } = useTrip();
-  const { itinerary, transports, summary, loading, reload } = useTripData(tripId);
+  const { itinerary, transports, summary, loading, reload, setItinerary } = useTripData(tripId);
 
   const [menuItem, setMenuItem] = useState<ItineraryItem | null>(null);
   const [moveItem, setMoveItem] = useState<ItineraryItem | null>(null);
@@ -159,8 +159,13 @@ export function TodayView({ tripId }: { tripId: string }) {
 
   const toggleDone = async (item: ItineraryItem) => {
     const next = item.status === "done" ? "planned" : "done";
-    await apiUpdate<ItineraryItem>("itinerary", item.id, { ...item, status: next });
-    await reload();
+    setItinerary((prev) => prev.map((it) => (it.id === item.id ? { ...it, status: next } : it)));
+    try {
+      await apiUpdate<ItineraryItem>("itinerary", item.id, { ...item, status: next });
+    } catch {
+      setItinerary((prev) => prev.map((it) => (it.id === item.id ? { ...it, status: item.status } : it)));
+      toast("บันทึกไม่สำเร็จ ลองอีกครั้ง", "error");
+    }
   };
 
   const skip = async (item: ItineraryItem) => {

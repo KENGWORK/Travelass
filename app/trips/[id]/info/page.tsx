@@ -7,6 +7,7 @@ import { QuickInfoSection } from "@/components/QuickInfoSection";
 import { DiarySection } from "@/components/DiarySection";
 import { InfoListSection, type InfoField } from "@/components/InfoListSection";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { RefreshButton } from "@/components/ui/RefreshButton";
 import type { Note, QuickInfo } from "@/lib/models/types";
 
 const TABS = [
@@ -66,13 +67,14 @@ const EMPTY_TEXT: Record<string, string> = {
 
 export default function InfoPage() {
   const { trip } = useTrip();
-  const { bookings, transports, loading: tripDataLoading } = useTripData(trip.id);
+  const { bookings, transports, loading: tripDataLoading, reload: reloadTripData } = useTripData(trip.id);
   const [tab, setTab] = useState<TabKey>("quickinfo");
 
   const [notes, setNotes] = useState<Note[]>([]);
   const [notesLoaded, setNotesLoaded] = useState(false);
   const [quickInfo, setQuickInfo] = useState<QuickInfo[]>([]);
   const [quickInfoLoading, setQuickInfoLoading] = useState(true);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -100,10 +102,20 @@ export default function InfoPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trip.id]);
 
+  // Refreshes whichever tab-owned data isn't covered by useTripData: quick
+  // info + notes here, and a key bump so InfoListSection/DiarySection (which
+  // fetch their own tab's entity internally) remount and refetch too.
+  const refreshActive = async () => {
+    const notesPromise = apiList<Note>("notes", trip.id).then(setNotes);
+    await Promise.all([reloadTripData(), reloadQuickInfo(), notesPromise]);
+    setRefreshKey((k) => k + 1);
+  };
+
   return (
     <div className="max-w-3xl mx-auto">
-      <div className="px-4 pt-4">
+      <div className="px-4 pt-4 flex items-center justify-between">
         <h1 className="font-heading text-xl font-semibold">ข้อมูล</h1>
+        <RefreshButton onRefresh={refreshActive} />
       </div>
       <div className="sticky top-12 z-20 bg-bg">
         <div className="flex gap-2 overflow-x-auto px-4 py-2">
@@ -134,11 +146,11 @@ export default function InfoPage() {
           />
         )}
         {(["restaurants", "wishlist", "apps", "links", "shopping"] as const).includes(tab as never) && (
-          <InfoListSection tripId={trip.id} entity={tab as never} fields={FIELDS[tab]} emptyText={EMPTY_TEXT[tab]} />
+          <InfoListSection key={refreshKey} tripId={trip.id} entity={tab as never} fields={FIELDS[tab]} emptyText={EMPTY_TEXT[tab]} />
         )}
         {tab === "diary" &&
           (notesLoaded ? (
-            <DiarySection trip={trip} initialNotes={notes} />
+            <DiarySection key={refreshKey} trip={trip} initialNotes={notes} />
           ) : (
             <div className="flex flex-col gap-3">
               <Skeleton className="h-32" />

@@ -8,6 +8,7 @@ import { PhotoPicker } from "@/components/PhotoPicker";
 import { PayerChips } from "@/components/PayerChips";
 import { toast } from "@/components/ui/Toast";
 import { apiCreate } from "@/lib/api";
+import { notifyExpenseAdded, notifyExpenseRollback } from "@/lib/use-trip-data";
 import { CATS } from "@/lib/categories";
 import type { Trip, Expense, Category } from "@/lib/models/types";
 
@@ -20,19 +21,27 @@ export function QuickExpenseSheet({ trip, open, onClose, onSaved }: { trip: Trip
   const [slips, setSlips] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
 
-  const save = async () => {
+  const save = () => {
+    if (saving) return;
     setSaving(true);
     const isTHB = money.currency === "THB";
     const exp: Expense = { id: crypto.randomUUID(), trip_id: trip.id, datetime: new Date().toISOString(),
       category, description, amount: money.amount, currency: money.currency,
       fx_rate: isTHB ? 1 : money.fx_rate, amount_thb: isTHB ? money.amount : money.amount_thb,
       payer, slip_photo_ids: slips };
-    try {
-      await apiCreate("expenses", exp);
-      toast(`บันทึกแล้ว ฿${exp.amount_thb.toLocaleString()}`);
-      setMoney(blank()); setDescription(""); setSlips([]);
-      onSaved(); onClose();
-    } finally { setSaving(false); }
+
+    // Optimistic: show it as saved immediately, reconcile with the real
+    // Google Sheets write in the background (see lib/use-trip-data.ts).
+    notifyExpenseAdded(exp);
+    toast(`บันทึกแล้ว ฿${exp.amount_thb.toLocaleString()}`);
+    setMoney(blank()); setDescription(""); setSlips([]);
+    setSaving(false);
+    onSaved(); onClose();
+
+    apiCreate("expenses", exp).catch(() => {
+      notifyExpenseRollback(exp.id);
+      toast("บันทึกไม่สำเร็จ ลองอีกครั้ง", "error");
+    });
   };
 
   return (
