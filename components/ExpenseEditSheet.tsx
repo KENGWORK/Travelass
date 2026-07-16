@@ -8,7 +8,8 @@ import { PhotoPicker } from "@/components/PhotoPicker";
 import { PayerChips } from "@/components/PayerChips";
 import { toast } from "@/components/ui/Toast";
 import { apiUpdate, apiDelete } from "@/lib/api";
-import { notifyTripDataChanged } from "@/lib/use-trip-data";
+import { useTripData } from "@/lib/use-trip-data";
+import { optimisticUpdate, optimisticDelete } from "@/lib/optimistic";
 import { CATS } from "@/lib/categories";
 import type { Trip, Expense, Category } from "@/lib/models/types";
 
@@ -17,21 +18,18 @@ export function ExpenseEditSheet({
   expense,
   open,
   onClose,
-  onSaved,
 }: {
   trip: Trip;
   expense: Expense | null;
   open: boolean;
   onClose: () => void;
-  onSaved: () => void;
 }) {
+  const { setExpenses } = useTripData();
   const [money, setMoney] = useState<MoneyValue>({ amount: 0, currency: trip.trip_currency, fx_rate: 1, amount_thb: 0 });
   const [category, setCategory] = useState<Category>("อาหาร");
   const [payer, setPayer] = useState("เรา");
   const [description, setDescription] = useState("");
   const [slips, setSlips] = useState<string[]>([]);
-  const [saving, setSaving] = useState(false);
-  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if (open && expense) {
@@ -43,9 +41,8 @@ export function ExpenseEditSheet({
     }
   }, [open, expense]);
 
-  const save = async () => {
+  const save = () => {
     if (!expense) return;
-    setSaving(true);
     const isTHB = money.currency === "THB";
     const patch: Expense = {
       ...expense,
@@ -58,29 +55,16 @@ export function ExpenseEditSheet({
       payer,
       slip_photo_ids: slips,
     };
-    try {
-      await apiUpdate<Expense>("expenses", expense.id, patch);
-      notifyTripDataChanged();
-      onSaved();
-      onClose();
-      toast(`บันทึกแล้ว ฿${patch.amount_thb.toLocaleString()}`);
-    } finally {
-      setSaving(false);
-    }
+    optimisticUpdate(setExpenses, expense.id, patch, () => apiUpdate<Expense>("expenses", expense.id, patch));
+    toast(`บันทึกแล้ว ฿${patch.amount_thb.toLocaleString()}`);
+    onClose();
   };
 
-  const del = async () => {
+  const del = () => {
     if (!expense) return;
-    setDeleting(true);
-    try {
-      await apiDelete("expenses", expense.id);
-      notifyTripDataChanged();
-      onSaved();
-      onClose();
-      toast("ลบแล้ว");
-    } finally {
-      setDeleting(false);
-    }
+    optimisticDelete(setExpenses, expense.id, () => apiDelete("expenses", expense.id));
+    toast("ลบแล้ว");
+    onClose();
   };
 
   return (
@@ -103,10 +87,10 @@ export function ExpenseEditSheet({
         />
         <PhotoPicker tripName={trip.name} kind="slips" fileIds={slips} onChange={setSlips} />
         <div className="flex gap-2 mt-2">
-          <Button variant="secondary" className="text-danger" loading={deleting} onClick={del}>
+          <Button variant="secondary" className="text-danger" onClick={del}>
             ลบ
           </Button>
-          <Button variant="primary" full loading={saving} onClick={save} disabled={money.amount <= 0}>
+          <Button variant="primary" full onClick={save} disabled={money.amount <= 0}>
             บันทึก
           </Button>
         </div>

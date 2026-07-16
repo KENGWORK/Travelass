@@ -11,9 +11,11 @@ const VARIANT_CLASSES = {
   secondary:
     "bg-primary-soft text-primary shadow-[0_3px_0_color-mix(in_srgb,var(--color-primary-soft)_55%,black)]",
   ghost: "bg-transparent text-primary hover:bg-primary-soft",
+  danger:
+    "bg-danger text-white shadow-[0_4px_0_color-mix(in_srgb,var(--color-danger)_55%,black)]",
 } as const;
 
-const PRESS_Y = { primary: 4, secondary: 3, ghost: 0 } as const;
+const PRESS_Y = { primary: 4, secondary: 3, ghost: 0, danger: 4 } as const;
 
 export interface ButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, "onDrag" | "onDragEnd" | "onDragStart" | "onAnimationStart"> {
   variant?: keyof typeof VARIANT_CLASSES;

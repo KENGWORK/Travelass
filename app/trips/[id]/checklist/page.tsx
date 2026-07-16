@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { toast } from "@/components/ui/Toast";
 import { RefreshButton } from "@/components/ui/RefreshButton";
+import { optimisticCreate, optimisticUpdate } from "@/lib/optimistic";
 import type { ChecklistItem } from "@/lib/models/types";
 
 const GROUPS: string[] = ["เอกสาร", "ของใช้", "to-do"];
@@ -22,7 +23,6 @@ export default function ChecklistPage() {
     Object.fromEntries(GROUPS.map((g) => [g, true]))
   );
   const [inputs, setInputs] = useState<Record<string, string>>({});
-  const [templateLoading, setTemplateLoading] = useState(false);
 
   const reload = async () => {
     setLoading(true);
@@ -36,18 +36,12 @@ export default function ChecklistPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trip.id]);
 
-  const toggleDone = async (item: ChecklistItem) => {
-    const next = !item.done;
-    setItems((prev) => prev.map((it) => (it.id === item.id ? { ...it, done: next } : it)));
-    try {
-      await apiUpdate<ChecklistItem>("checklist", item.id, { ...item, done: next });
-    } catch {
-      setItems((prev) => prev.map((it) => (it.id === item.id ? { ...it, done: item.done } : it)));
-      toast("บันทึกไม่สำเร็จ ลองอีกครั้ง", "error");
-    }
+  const toggleDone = (item: ChecklistItem) => {
+    const patch = { ...item, done: !item.done };
+    optimisticUpdate(setItems, item.id, patch, () => apiUpdate<ChecklistItem>("checklist", item.id, patch));
   };
 
-  const addItem = async (group: string) => {
+  const addItem = (group: string) => {
     const text = (inputs[group] ?? "").trim();
     if (!text) return;
     setInputs((prev) => ({ ...prev, [group]: "" }));
@@ -59,27 +53,25 @@ export default function ChecklistPage() {
       done: false,
       from_template: false,
     };
-    setItems((prev) => [...prev, newItem]);
-    await apiCreate<ChecklistItem>("checklist", newItem);
+    optimisticCreate(setItems, newItem, () => apiCreate<ChecklistItem>("checklist", newItem));
   };
 
-  const applyTemplate = async () => {
-    setTemplateLoading(true);
-    try {
-      const newItems: ChecklistItem[] = CHECKLIST_TEMPLATE.map((t) => ({
-        id: crypto.randomUUID(),
-        trip_id: trip.id,
-        group: t.group,
-        item: t.item,
-        done: false,
-        from_template: true,
-      }));
-      await Promise.all(newItems.map((it) => apiCreate<ChecklistItem>("checklist", it)));
-      await reload();
-      toast("เพิ่มรายการมาตรฐานแล้ว");
-    } finally {
-      setTemplateLoading(false);
-    }
+  const applyTemplate = () => {
+    const newItems: ChecklistItem[] = CHECKLIST_TEMPLATE.map((t) => ({
+      id: crypto.randomUUID(),
+      trip_id: trip.id,
+      group: t.group,
+      item: t.item,
+      done: false,
+      from_template: true,
+    }));
+    setItems((prev) => [...prev, ...newItems]);
+    Promise.all(newItems.map((it) => apiCreate<ChecklistItem>("checklist", it))).catch(() => {
+      const ids = new Set(newItems.map((it) => it.id));
+      setItems((prev) => prev.filter((it) => !ids.has(it.id)));
+      toast("เพิ่มรายการมาตรฐานไม่สำเร็จ ลองอีกครั้ง", "error");
+    });
+    toast("เพิ่มรายการมาตรฐานแล้ว");
   };
 
   const toggleGroup = (g: string) => setOpenGroups((prev) => ({ ...prev, [g]: !prev[g] }));
@@ -100,7 +92,7 @@ export default function ChecklistPage() {
       ) : items.length === 0 ? (
         <div className="flex flex-col items-center gap-3 py-10 text-center">
           <p className="text-muted text-sm">ยังไม่มีรายการเช็คลิสต์</p>
-          <Button variant="primary" loading={templateLoading} onClick={applyTemplate}>
+          <Button variant="primary" onClick={applyTemplate}>
             ใช้ template มาตรฐาน
           </Button>
         </div>

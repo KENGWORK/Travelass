@@ -8,6 +8,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { FormField } from "@/components/ui/FormField";
 import { ToggleRow } from "@/components/ui/ToggleRow";
 import { toast } from "@/components/ui/Toast";
+import { optimisticCreate, optimisticUpdate, optimisticDelete } from "@/lib/optimistic";
 import type { EntityName } from "@/lib/models/mappers";
 
 export type FieldType = "text" | "textarea" | "url" | "bool" | "price";
@@ -63,31 +64,31 @@ export function InfoListSection({
 
   const set = (patch: Record<string, string | number | boolean>) => setForm((f) => ({ ...f, ...patch }));
 
-  const save = async () => {
+  const save = () => {
     if (!String(form[primary.key] ?? "").trim()) {
       toast(`กรอก${primary.label}ก่อน`);
       return;
     }
     if (editingId) {
-      await apiUpdate(entity, editingId, form);
+      const patch = { ...form } as Partial<Row>;
+      optimisticUpdate(setItems, editingId, patch, () => apiUpdate(entity, editingId, form));
     } else {
-      await apiCreate(entity, { ...form, id: crypto.randomUUID(), trip_id: tripId });
+      const newRow: Row = { ...form, id: crypto.randomUUID(), trip_id: tripId };
+      optimisticCreate(setItems, newRow, () => apiCreate(entity, newRow));
     }
     setOpen(false);
-    await load();
   };
 
-  const remove = async () => {
+  const remove = () => {
     if (!editingId) return;
-    await apiDelete(entity, editingId);
+    optimisticDelete(setItems, editingId, () => apiDelete(entity, editingId));
     setOpen(false);
     toast("ลบแล้ว");
-    await load();
   };
 
-  const toggleBool = async (row: Row, key: string) => {
-    await apiUpdate(entity, row.id, { ...row, [key]: !row[key] });
-    await load();
+  const toggleBool = (row: Row, key: string) => {
+    const patch = { [key]: !row[key] } as Partial<Row>;
+    optimisticUpdate(setItems, row.id, patch, () => apiUpdate(entity, row.id, { ...row, [key]: !row[key] }));
   };
 
   return (

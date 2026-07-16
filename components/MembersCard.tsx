@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { UserPlus, X } from "lucide-react";
 import { apiList, apiCreate, apiDelete } from "@/lib/api";
+import { optimisticCreate, optimisticDelete } from "@/lib/optimistic";
 import { nextMemberColor } from "@/lib/members";
 import type { Member } from "@/lib/models/types";
 
@@ -14,23 +15,22 @@ export function MembersCard({ tripId }: { tripId: string }) {
     load();
   }, [tripId]);
 
-  const add = async () => {
+  const add = () => {
     const name = adding.trim();
     if (!name) return;
-    await apiCreate<Member>("members", {
+    const newMember: Member = {
       id: crypto.randomUUID(),
       trip_id: tripId,
       name,
       color: nextMemberColor(members.map((m) => m.color)),
-    });
+    };
     setAdding("");
-    await load();
+    optimisticCreate(setMembers, newMember, () => apiCreate<Member>("members", newMember));
     window.dispatchEvent(new Event("members-changed"));
   };
 
-  const remove = async (id: string) => {
-    await apiDelete("members", id);
-    await load();
+  const remove = (id: string) => {
+    optimisticDelete(setMembers, id, () => apiDelete("members", id));
     window.dispatchEvent(new Event("members-changed"));
   };
 

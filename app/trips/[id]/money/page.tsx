@@ -12,6 +12,7 @@ import { ExpenseEditSheet } from "@/components/ExpenseEditSheet";
 import { Chip } from "@/components/ui/Chip";
 import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { RefreshButton } from "@/components/ui/RefreshButton";
 import type { Expense } from "@/lib/models/types";
 
 type FilterMode = "today" | "day" | "all";
@@ -78,7 +79,10 @@ export default function MoneyPage() {
 
   return (
     <div className="p-4 max-w-3xl mx-auto flex flex-col gap-5">
-      <h1 className="font-heading text-xl font-semibold">สรุปค่าใช้จ่าย</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="font-heading text-xl font-semibold">สรุปค่าใช้จ่าย</h1>
+        <RefreshButton onRefresh={reload} />
+      </div>
 
       <div className="relative h-11 grid grid-cols-3 rounded-full bg-muted/10 p-0.5">
         {MODES.map((m, i) => (
@@ -164,7 +168,7 @@ export default function MoneyPage() {
         </a>
       )}
 
-      <ExpenseEditSheet trip={trip} expense={editing} open={!!editing} onClose={() => setEditing(null)} onSaved={reload} />
+      <ExpenseEditSheet trip={trip} expense={editing} open={!!editing} onClose={() => setEditing(null)} />
     </div>
   );
 }

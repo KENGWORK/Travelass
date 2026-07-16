@@ -1,7 +1,9 @@
 "use client";
 import { useState } from "react";
 import { BedDouble, MoreHorizontal, Navigation, Pin, Plus, Info } from "lucide-react";
+import type { Dispatch, SetStateAction } from "react";
 import { apiCreate, apiDelete, apiUpdate } from "@/lib/api";
+import { optimisticCreate, optimisticUpdate, optimisticDelete } from "@/lib/optimistic";
 import { PhotoViewer } from "@/components/PhotoViewer";
 import { QuickInfoFormSheet, type QuickInfoFormValues } from "@/components/QuickInfoFormSheet";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -38,15 +40,15 @@ export function QuickInfoSection({
   bookings,
   transports,
   quickInfo,
+  setQuickInfo,
   loading,
-  reload,
 }: {
   trip: Trip;
   bookings: Booking[];
   transports: Transport[];
   quickInfo: QuickInfo[];
+  setQuickInfo: Dispatch<SetStateAction<QuickInfo[]>>;
   loading: boolean;
-  reload: () => Promise<void>;
 }) {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editing, setEditing] = useState<QuickInfo | null>(null);
@@ -73,22 +75,21 @@ export function QuickInfoSection({
     }
   };
 
-  const handleSave = async (values: QuickInfoFormValues) => {
+  const handleSave = (values: QuickInfoFormValues) => {
     if (editing) {
-      await apiUpdate<QuickInfo>("quickinfo", editing.id, { ...editing, ...values });
+      const patch = { ...editing, ...values };
+      optimisticUpdate(setQuickInfo, editing.id, patch, () => apiUpdate<QuickInfo>("quickinfo", editing.id, patch));
     } else {
       const newItem: QuickInfo = { id: crypto.randomUUID(), trip_id: trip.id, ...values };
-      await apiCreate<QuickInfo>("quickinfo", newItem);
+      optimisticCreate(setQuickInfo, newItem, () => apiCreate<QuickInfo>("quickinfo", newItem));
     }
-    await reload();
   };
 
-  const handleDelete = async () => {
+  const handleDelete = () => {
     if (!editing) return;
-    await apiDelete("quickinfo", editing.id);
+    optimisticDelete(setQuickInfo, editing.id, () => apiDelete("quickinfo", editing.id));
     setSheetOpen(false);
     toast("ลบแล้ว");
-    await reload();
   };
 
   if (loading) {

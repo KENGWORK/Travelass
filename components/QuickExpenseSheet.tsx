@@ -8,40 +8,31 @@ import { PhotoPicker } from "@/components/PhotoPicker";
 import { PayerChips } from "@/components/PayerChips";
 import { toast } from "@/components/ui/Toast";
 import { apiCreate } from "@/lib/api";
-import { notifyExpenseAdded, notifyExpenseRollback } from "@/lib/use-trip-data";
+import { useTripData } from "@/lib/use-trip-data";
+import { optimisticCreate } from "@/lib/optimistic";
 import { CATS } from "@/lib/categories";
 import type { Trip, Expense, Category } from "@/lib/models/types";
 
-export function QuickExpenseSheet({ trip, open, onClose, onSaved }: { trip: Trip; open: boolean; onClose: () => void; onSaved: () => void }) {
+export function QuickExpenseSheet({ trip, open, onClose }: { trip: Trip; open: boolean; onClose: () => void }) {
+  const { setExpenses } = useTripData();
   const blank = (): MoneyValue => ({ amount: 0, currency: trip.trip_currency, fx_rate: 0, amount_thb: 0 });
   const [money, setMoney] = useState<MoneyValue>(blank);
   const [category, setCategory] = useState<Category>("อาหาร");
   const [payer, setPayer] = useState("ฉัน");
   const [description, setDescription] = useState("");
   const [slips, setSlips] = useState<string[]>([]);
-  const [saving, setSaving] = useState(false);
 
   const save = () => {
-    if (saving) return;
-    setSaving(true);
     const isTHB = money.currency === "THB";
     const exp: Expense = { id: crypto.randomUUID(), trip_id: trip.id, datetime: new Date().toISOString(),
       category, description, amount: money.amount, currency: money.currency,
       fx_rate: isTHB ? 1 : money.fx_rate, amount_thb: isTHB ? money.amount : money.amount_thb,
       payer, slip_photo_ids: slips };
 
-    // Optimistic: show it as saved immediately, reconcile with the real
-    // Google Sheets write in the background (see lib/use-trip-data.ts).
-    notifyExpenseAdded(exp);
+    optimisticCreate(setExpenses, exp, () => apiCreate("expenses", exp));
     toast(`บันทึกแล้ว ฿${exp.amount_thb.toLocaleString()}`);
     setMoney(blank()); setDescription(""); setSlips([]);
-    setSaving(false);
-    onSaved(); onClose();
-
-    apiCreate("expenses", exp).catch(() => {
-      notifyExpenseRollback(exp.id);
-      toast("บันทึกไม่สำเร็จ ลองอีกครั้ง", "error");
-    });
+    onClose();
   };
 
   return (
@@ -55,7 +46,7 @@ export function QuickExpenseSheet({ trip, open, onClose, onSaved }: { trip: Trip
         <input className="field h-11" placeholder="โน๊ตสั้นๆ (ไม่บังคับ)"
           value={description} onChange={(e) => setDescription(e.target.value)} />
         <PhotoPicker tripName={trip.name} kind="slips" fileIds={slips} onChange={setSlips} />
-        <Button variant="primary" full loading={saving} onClick={save} disabled={money.amount <= 0}>บันทึก</Button>
+        <Button variant="primary" full onClick={save} disabled={money.amount <= 0}>บันทึก</Button>
       </div>
     </BottomSheet>
   );

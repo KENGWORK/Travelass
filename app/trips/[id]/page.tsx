@@ -1,8 +1,9 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { motion, animate } from "framer-motion";
-import { CalendarDays, TrainFront, Ticket, ListChecks, ChevronRight, type LucideIcon } from "lucide-react";
+import { CalendarDays, TrainFront, Ticket, ListChecks, ChevronRight, Trash2, type LucideIcon } from "lucide-react";
 import { useTrip } from "@/lib/trip-context";
 import { useTripData } from "@/lib/use-trip-data";
 import { apiUpdate } from "@/lib/api";
@@ -10,8 +11,10 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { ProgressRing } from "@/components/ui/ProgressRing";
 import { Mascot } from "@/components/ui/Mascot";
 import { RefreshButton } from "@/components/ui/RefreshButton";
+import { toast } from "@/components/ui/Toast";
 import { TodayView } from "@/components/TodayView";
 import { MembersCard } from "@/components/MembersCard";
+import { DeleteTripSheet } from "@/components/DeleteTripSheet";
 import type { Trip } from "@/lib/models/types";
 
 const MotionLink = motion.create(Link);
@@ -146,13 +149,20 @@ const SHORTCUTS: { href: string; icon: LucideIcon; label: string; tint: string }
 ];
 
 export default function TripDashboardPage() {
-  const { trip, refresh } = useTrip();
+  const { trip, refresh, setTrip } = useTrip();
   const { bookings, summary, loading, reload } = useTripData(trip.id);
+  const router = useRouter();
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
-  const setStatus = async (status: Trip["status"]) => {
+  const setStatus = (status: Trip["status"]) => {
     if (status === trip.status) return;
-    await apiUpdate("trips", trip.id, { ...trip, status });
-    await refresh();
+    const previous = trip;
+    const patch = { ...trip, status };
+    setTrip(patch);
+    apiUpdate("trips", trip.id, patch).catch(() => {
+      setTrip(previous);
+      toast("บันทึกไม่สำเร็จ ลองอีกครั้ง", "error");
+    });
   };
 
   const bookedCount = bookings.filter((b) => b.paid || b.ref_no.trim() !== "").length;
@@ -217,6 +227,22 @@ export default function TripDashboardPage() {
           <MembersCard tripId={trip.id} />
         </div>
       )}
+
+      <button
+        type="button"
+        onClick={() => setDeleteOpen(true)}
+        className="mt-2 h-11 rounded-2xl text-danger text-sm font-medium inline-flex items-center justify-center gap-1.5 cursor-pointer"
+      >
+        <Trash2 size={16} />
+        ลบทริปนี้
+      </button>
+
+      <DeleteTripSheet
+        trip={trip}
+        open={deleteOpen}
+        onClose={() => setDeleteOpen(false)}
+        onDeleted={() => router.replace("/")}
+      />
     </div>
   );
 }

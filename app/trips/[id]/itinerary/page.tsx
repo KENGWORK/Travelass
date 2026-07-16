@@ -14,6 +14,7 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { toast } from "@/components/ui/Toast";
 import { RefreshButton } from "@/components/ui/RefreshButton";
+import { optimisticCreate, optimisticUpdate, optimisticDelete } from "@/lib/optimistic";
 import { transportIcon } from "@/lib/transport-icon";
 import type { ItineraryItem } from "@/lib/models/types";
 
@@ -30,7 +31,7 @@ function initialSelectedDate(startDate: string, endDate: string): string {
 
 export default function ItineraryPage() {
   const { trip } = useTrip();
-  const { itinerary, transports, loading, reload } = useTripData(trip.id);
+  const { itinerary, transports, loading, reload, setItinerary } = useTripData(trip.id);
 
   const [selectedDate, setSelectedDate] = useState(() => initialSelectedDate(trip.start_date, trip.end_date));
   const [items, setItems] = useState<ItineraryItem[]>([]);
@@ -45,15 +46,21 @@ export default function ItineraryPage() {
     setItems(dayItems);
   }, [itinerary, selectedDate]);
 
-  const persistOrder = async (newItems: ItineraryItem[]) => {
+  // Drag reorder: apply the new sort_order values to the shared itinerary
+  // state immediately (so it survives day-tab switches, which re-derive
+  // `items` from `itinerary`), then persist in the background. A batch of
+  // N writes doesn't get a full rollback on partial failure — reorder is
+  // low-stakes and a stuck order is fixed by the refresh button.
+  const persistOrder = (newItems: ItineraryItem[]) => {
     const changed = newItems.filter((it, idx) => it.sort_order !== idx);
     if (changed.length === 0) return;
-    await Promise.all(
-      newItems.map((it, idx) =>
-        it.sort_order === idx ? Promise.resolve() : apiUpdate<ItineraryItem>("itinerary", it.id, { ...it, sort_order: idx })
-      )
-    );
-    await reload();
+    const reordered = newItems.map((it, idx) => ({ ...it, sort_order: idx }));
+    setItinerary((prev) => prev.map((it) => reordered.find((r) => r.id === it.id) ?? it));
+    Promise.all(
+      reordered
+        .filter((it) => changed.some((c) => c.id === it.id))
+        .map((it) => apiUpdate<ItineraryItem>("itinerary", it.id, it)),
+    ).catch(() => toast("บันทึกลำดับไม่สำเร็จ ลองอีกครั้ง", "error"));
   };
 
   const openCreate = () => {
@@ -66,9 +73,10 @@ export default function ItineraryPage() {
     setSheetOpen(true);
   };
 
-  const handleSave = async (values: ItineraryFormValues) => {
+  const handleSave = (values: ItineraryFormValues) => {
     if (editingItem) {
-      await apiUpdate<ItineraryItem>("itinerary", editingItem.id, { ...editingItem, ...values });
+      const patch = { ...editingItem, ...values };
+      optimisticUpdate(setItinerary, editingItem.id, patch, () => apiUpdate<ItineraryItem>("itinerary", editingItem.id, patch));
     } else {
       const newItem: ItineraryItem = {
         id: crypto.randomUUID(),
@@ -81,23 +89,22 @@ export default function ItineraryPage() {
         sort_order: items.length,
         ...values,
       };
-      await apiCreate<ItineraryItem>("itinerary", newItem);
+      optimisticCreate(setItinerary, newItem, () => apiCreate<ItineraryItem>("itinerary", newItem));
     }
-    await reload();
+    setSheetOpen(false);
   };
 
-  const handleDelete = async () => {
+  const handleDelete = () => {
     if (!editingItem) return;
-    await apiDelete("itinerary", editingItem.id);
+    optimisticDelete(setItinerary, editingItem.id, () => apiDelete("itinerary", editingItem.id));
     setSheetOpen(false);
     toast("ลบแล้ว");
-    await reload();
   };
 
-  const handlePull = async (item: ItineraryItem) => {
-    await apiCreate<ItineraryItem>("itinerary", { ...item, day_date: selectedDate, sort_order: items.length });
+  const handlePull = (item: ItineraryItem) => {
+    const newItem: ItineraryItem = { ...item, day_date: selectedDate, sort_order: items.length };
+    optimisticCreate(setItinerary, newItem, () => apiCreate<ItineraryItem>("itinerary", newItem));
     toast("เพิ่มเข้าแผนแล้ว");
-    await reload();
   };
 
   const days = tripDays(trip.start_date, trip.end_date);

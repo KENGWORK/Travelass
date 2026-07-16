@@ -1,5 +1,5 @@
 "use client";
-import { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useState, type Dispatch, type SetStateAction } from "react";
 import { apiList } from "@/lib/api";
 import type { Trip } from "@/lib/models/types";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -7,6 +7,7 @@ import { Skeleton } from "@/components/ui/Skeleton";
 interface TripContextValue {
   trip: Trip;
   refresh: () => Promise<void>;
+  setTrip: Dispatch<SetStateAction<Trip>>;
 }
 
 const TripContext = createContext<TripContextValue | null>(null);
@@ -40,7 +41,11 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
     );
   }
 
-  return <TripContext.Provider value={{ trip, refresh }}>{children}</TripContext.Provider>;
+  return (
+    <TripContext.Provider value={{ trip, refresh, setTrip: setTrip as Dispatch<SetStateAction<Trip>> }}>
+      {children}
+    </TripContext.Provider>
+  );
 }
 
 export function useTrip(): TripContextValue {

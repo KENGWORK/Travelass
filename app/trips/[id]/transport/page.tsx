@@ -12,11 +12,12 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { toast } from "@/components/ui/Toast";
 import { RefreshButton } from "@/components/ui/RefreshButton";
+import { optimisticCreate, optimisticUpdate, optimisticDelete } from "@/lib/optimistic";
 import type { Transport } from "@/lib/models/types";
 
 export default function TransportPage() {
   const { trip } = useTrip();
-  const { transports, loading, reload } = useTripData(trip.id);
+  const { transports, loading, reload, setTransports } = useTripData(trip.id);
 
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editingTransport, setEditingTransport] = useState<Transport | null>(null);
@@ -35,7 +36,7 @@ export default function TransportPage() {
     setSheetOpen(true);
   };
 
-  const handleSave = async (values: TransportFormValues) => {
+  const handleSave = (values: TransportFormValues) => {
     const { money, ...rest } = values;
     const payload = {
       ...rest,
@@ -45,7 +46,8 @@ export default function TransportPage() {
       price_thb: money.amount_thb,
     };
     if (editingTransport) {
-      await apiUpdate<Transport>("transports", editingTransport.id, { ...editingTransport, ...payload });
+      const patch = { ...editingTransport, ...payload };
+      optimisticUpdate(setTransports, editingTransport.id, patch, () => apiUpdate<Transport>("transports", editingTransport.id, patch));
     } else {
       const newTransport: Transport = {
         id: crypto.randomUUID(),
@@ -53,17 +55,16 @@ export default function TransportPage() {
         day_date: createDay,
         ...payload,
       };
-      await apiCreate<Transport>("transports", newTransport);
+      optimisticCreate(setTransports, newTransport, () => apiCreate<Transport>("transports", newTransport));
     }
-    await reload();
+    setSheetOpen(false);
   };
 
-  const handleDelete = async () => {
+  const handleDelete = () => {
     if (!editingTransport) return;
-    await apiDelete("transports", editingTransport.id);
+    optimisticDelete(setTransports, editingTransport.id, () => apiDelete("transports", editingTransport.id));
     setSheetOpen(false);
     toast("ลบแล้ว");
-    await reload();
   };
 
   return (

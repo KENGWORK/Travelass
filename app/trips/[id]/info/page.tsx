@@ -141,8 +141,8 @@ export default function InfoPage() {
             bookings={bookings}
             transports={transports}
             quickInfo={quickInfo}
+            setQuickInfo={setQuickInfo}
             loading={quickInfoLoading || tripDataLoading}
-            reload={reloadQuickInfo}
           />
         )}
         {(["restaurants", "wishlist", "apps", "links", "shopping"] as const).includes(tab as never) && (

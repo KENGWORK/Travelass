@@ -4,6 +4,7 @@ import { MapPin, Camera, Clock, Navigation, MoreHorizontal } from "lucide-react"
 import { useTrip } from "@/lib/trip-context";
 import { useTripData } from "@/lib/use-trip-data";
 import { apiUpdate, apiCreate } from "@/lib/api";
+import { optimisticUpdate } from "@/lib/optimistic";
 import { tripDays } from "@/lib/days";
 import { formatTimeRange } from "@/lib/time";
 import { Checkbox } from "@/components/ui/Checkbox";
@@ -131,7 +132,7 @@ function ItineraryCard({
 
 export function TodayView({ tripId }: { tripId: string }) {
   const { trip } = useTrip();
-  const { itinerary, transports, summary, loading, reload, setItinerary } = useTripData(tripId);
+  const { itinerary, transports, summary, loading, setItinerary } = useTripData(tripId);
 
   const [menuItem, setMenuItem] = useState<ItineraryItem | null>(null);
   const [moveItem, setMoveItem] = useState<ItineraryItem | null>(null);
@@ -157,21 +158,16 @@ export function TodayView({ tripId }: { tripId: string }) {
 
   const todaySpend = summary.byDay[selectedDate] ?? 0;
 
-  const toggleDone = async (item: ItineraryItem) => {
-    const next = item.status === "done" ? "planned" : "done";
-    setItinerary((prev) => prev.map((it) => (it.id === item.id ? { ...it, status: next } : it)));
-    try {
-      await apiUpdate<ItineraryItem>("itinerary", item.id, { ...item, status: next });
-    } catch {
-      setItinerary((prev) => prev.map((it) => (it.id === item.id ? { ...it, status: item.status } : it)));
-      toast("บันทึกไม่สำเร็จ ลองอีกครั้ง", "error");
-    }
+  const toggleDone = (item: ItineraryItem) => {
+    const next: ItineraryItem["status"] = item.status === "done" ? "planned" : "done";
+    const patch = { ...item, status: next };
+    optimisticUpdate(setItinerary, item.id, patch, () => apiUpdate<ItineraryItem>("itinerary", item.id, patch));
   };
 
-  const skip = async (item: ItineraryItem) => {
+  const skip = (item: ItineraryItem) => {
     setMenuItem(null);
-    await apiUpdate<ItineraryItem>("itinerary", item.id, { ...item, status: "skipped" });
-    await reload();
+    const patch = { ...item, status: "skipped" as const };
+    optimisticUpdate(setItinerary, item.id, patch, () => apiUpdate<ItineraryItem>("itinerary", item.id, patch));
     toast("ข้ามแล้ว");
   };
 
@@ -180,15 +176,15 @@ export function TodayView({ tripId }: { tripId: string }) {
     setMoveItem(item);
   };
 
-  const moveTo = async (targetDate: string) => {
+  // Two writes (mark original moved + create the clone on the target day) —
+  // apply both to local state up front, fire both in the background. On
+  // failure this doesn't try to reconcile which of the two landed; refresh
+  // resolves it, same tradeoff as the drag-reorder batch above.
+  const moveTo = (targetDate: string) => {
     if (!moveItem) return;
     const original = moveItem;
     setMoveItem(null);
-    await apiUpdate<ItineraryItem>("itinerary", original.id, {
-      ...original,
-      status: "moved",
-      moved_to_date: targetDate,
-    });
+    const movedOriginal = { ...original, status: "moved" as const, moved_to_date: targetDate };
     const clone: ItineraryItem = {
       ...original,
       id: crypto.randomUUID(),
@@ -197,8 +193,11 @@ export function TodayView({ tripId }: { tripId: string }) {
       moved_to_date: "",
       sort_order: 999,
     };
-    await apiCreate<ItineraryItem>("itinerary", clone);
-    await reload();
+    setItinerary((prev) => [...prev.map((it) => (it.id === original.id ? movedOriginal : it)), clone]);
+    Promise.all([
+      apiUpdate<ItineraryItem>("itinerary", original.id, movedOriginal),
+      apiCreate<ItineraryItem>("itinerary", clone),
+    ]).catch(() => toast("บันทึกไม่สำเร็จ ลองอีกครั้ง", "error"));
     toast("เลื่อนแผนแล้ว");
   };
 

@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowLeft } from "lucide-react";
 import { TripProvider, useTrip } from "@/lib/trip-context";
+import { TripDataProvider } from "@/lib/use-trip-data";
 import { TabBar } from "@/components/TabBar";
 import { QuickExpenseSheet } from "@/components/QuickExpenseSheet";
 import { Toaster } from "@/components/ui/Toast";
@@ -14,8 +15,11 @@ function TripLayoutInner({ tripId, children }: { tripId: string; children: React
   const [fabOpen, setFabOpen] = useState(false);
   const path = usePathname();
 
+  // Mounted here (not per-page) so it survives tab switches within a trip —
+  // switching itinerary/transport/money/info no longer refetches from
+  // Google Sheets, every page just reads this same already-loaded state.
   return (
-    <>
+    <TripDataProvider tripId={tripId}>
       <div className="sticky top-0 z-20 flex items-center h-12 px-2 bg-bg/80 backdrop-blur">
         <Link
           href="/"
@@ -38,14 +42,9 @@ function TripLayoutInner({ tripId, children }: { tripId: string; children: React
         </motion.main>
       </AnimatePresence>
       <TabBar tripId={tripId} onFab={() => setFabOpen(true)} />
-      <QuickExpenseSheet
-        trip={trip}
-        open={fabOpen}
-        onClose={() => setFabOpen(false)}
-        onSaved={() => {}}
-      />
+      <QuickExpenseSheet trip={trip} open={fabOpen} onClose={() => setFabOpen(false)} />
       <Toaster />
-    </>
+    </TripDataProvider>
   );
 }
 

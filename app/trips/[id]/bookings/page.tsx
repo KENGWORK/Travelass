@@ -11,6 +11,7 @@ import { BookingFormSheet, type BookingFormValues } from "@/components/BookingFo
 import { Skeleton } from "@/components/ui/Skeleton";
 import { toast } from "@/components/ui/Toast";
 import { RefreshButton } from "@/components/ui/RefreshButton";
+import { optimisticCreate, optimisticUpdate, optimisticDelete } from "@/lib/optimistic";
 import type { Booking, BookingType } from "@/lib/models/types";
 
 const SECTIONS: { type: BookingType; label: string; icon: LucideIcon }[] = [
@@ -22,7 +23,7 @@ const SECTIONS: { type: BookingType; label: string; icon: LucideIcon }[] = [
 
 export default function BookingsPage() {
   const { trip } = useTrip();
-  const { bookings, loading, reload } = useTripData(trip.id);
+  const { bookings, loading, reload, setBookings } = useTripData(trip.id);
 
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editingBooking, setEditingBooking] = useState<Booking | null>(null);
@@ -43,7 +44,7 @@ export default function BookingsPage() {
     setSheetOpen(true);
   };
 
-  const handleSave = async (values: BookingFormValues) => {
+  const handleSave = (values: BookingFormValues) => {
     const { money, ...rest } = values;
     const payload = {
       ...rest,
@@ -53,24 +54,24 @@ export default function BookingsPage() {
       amount_thb: money.amount_thb,
     };
     if (editingBooking) {
-      await apiUpdate<Booking>("bookings", editingBooking.id, { ...editingBooking, ...payload });
+      const patch = { ...editingBooking, ...payload };
+      optimisticUpdate(setBookings, editingBooking.id, patch, () => apiUpdate<Booking>("bookings", editingBooking.id, patch));
     } else {
       const newBooking: Booking = {
         id: crypto.randomUUID(),
         trip_id: trip.id,
         ...payload,
       };
-      await apiCreate<Booking>("bookings", newBooking);
+      optimisticCreate(setBookings, newBooking, () => apiCreate<Booking>("bookings", newBooking));
     }
-    await reload();
+    setSheetOpen(false);
   };
 
-  const handleDelete = async () => {
+  const handleDelete = () => {
     if (!editingBooking) return;
-    await apiDelete("bookings", editingBooking.id);
+    optimisticDelete(setBookings, editingBooking.id, () => apiDelete("bookings", editingBooking.id));
     setSheetOpen(false);
     toast("ลบแล้ว");
-    await reload();
   };
 
   return (
