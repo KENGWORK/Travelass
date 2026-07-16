@@ -131,7 +131,6 @@ export function TransportFormSheet({
     (values.pickup_point !== "" ||
       values.pickup_photo_ids.length > 0 ||
       values.departure_times.length > 0 ||
-      values.paid ||
       values.slip_photo_ids.length > 0 ||
       values.alt_option !== "" ||
       values.notes !== "");
@@ -201,6 +200,10 @@ export function TransportFormSheet({
           <PayerChips tripId={tripId} value={values.payer} onChange={(payer) => set({ payer })} />
         </FormField>
 
+        {/* Visible up here (not in the collapsed disclosure) — unpaid items
+            don't count toward spend, so this toggle must be seen to be used. */}
+        <ToggleRow checked={values.paid} onChange={(paid) => set({ paid })} label="จ่ายแล้ว" />
+
         <Disclosure label="รายละเอียดเพิ่มเติม" defaultOpen={hasSecondaryContent}>
           <FormField label="จุดนัดพบ">
             <input
@@ -252,8 +255,6 @@ export function TransportFormSheet({
               ))}
             </div>
           </FormField>
-
-          <ToggleRow checked={values.paid} onChange={(paid) => set({ paid })} label="จ่ายแล้ว" />
 
           <FormField label="สลิปการโอน">
             <PhotoPicker

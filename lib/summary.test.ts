@@ -18,7 +18,27 @@ describe("summarize", () => {
     expect(s.onsiteTHB).toBe(100 + 50 + 736);
     expect(s.byPayer).toEqual({ "เรา": 100 + 5000 + 736, "แฟน": 50 });
     expect(s.byDay).toEqual({ "2026-07-12": 100, "2026-07-13": 50 });
-    expect(s.byCategory).toEqual({ "อาหาร": 150 });
+    // paid hotel booking -> ที่พัก, paid transport -> เดินทาง, alongside food expenses
+    expect(s.byCategory).toEqual({ "อาหาร": 150, "ที่พัก": 5000, "เดินทาง": 736 });
+  });
+  it("maps paid bookings/transports into byCategory and byDay by their own date", () => {
+    const s = summarize(
+      [e({ amount_thb: 200, category: "อาหาร", datetime: "2026-07-12T09:00:00.000Z" })],
+      [b({ type: "flight", amount_thb: 8000, date_from: "2026-07-12", paid: true })],
+      [tr({ price_thb: 500, day_date: "2026-07-13", paid: true })],
+    );
+    expect(s.byCategory).toEqual({ "อาหาร": 200, "เดินทาง": 8000 + 500 });
+    expect(s.byDay).toEqual({ "2026-07-12": 200 + 8000, "2026-07-13": 500 });
+  });
+  it("excludes unpaid bookings/transports from every tally", () => {
+    const s = summarize(
+      [],
+      [b({ type: "hotel", amount_thb: 9000, date_from: "2026-07-12", paid: false })],
+      [tr({ price_thb: 400, day_date: "2026-07-12", paid: false })],
+    );
+    expect(s.totalTHB).toBe(0);
+    expect(s.byCategory).toEqual({});
+    expect(s.byDay).toEqual({});
   });
   it("empty inputs give zeros", () => {
     const s = summarize([], [], []);

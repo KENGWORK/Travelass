@@ -1,13 +1,15 @@
 "use client";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { motion, animate } from "framer-motion";
 import { ExternalLink } from "lucide-react";
 import { useTrip } from "@/lib/trip-context";
 import { useTripData } from "@/lib/use-trip-data";
 import { tripDays } from "@/lib/days";
 import { summarize } from "@/lib/summary";
+import { toSpendItems, type SpendItem } from "@/lib/spend";
 import { CategoryDonut } from "@/components/CategoryDonut";
-import { ExpenseList } from "@/components/ExpenseList";
+import { SpendList } from "@/components/SpendList";
 import { ExpenseEditSheet } from "@/components/ExpenseEditSheet";
 import { Chip } from "@/components/ui/Chip";
 import { Button } from "@/components/ui/Button";
@@ -40,7 +42,8 @@ const MODES: { key: FilterMode; label: string }[] = [
 
 export default function MoneyPage() {
   const { trip } = useTrip();
-  const { expenses, summary, loading, reload } = useTripData(trip.id);
+  const router = useRouter();
+  const { expenses, bookings, transports, summary, loading, reload } = useTripData(trip.id);
 
   const days = tripDays(trip.start_date, trip.end_date);
   const [mode, setMode] = useState<FilterMode>("today");
@@ -55,17 +58,33 @@ export default function MoneyPage() {
     setCategory(null);
   }, [mode, selectedDate]);
 
-  const filtered =
-    mode === "all"
-      ? expenses
-      : expenses.filter((e) => e.datetime.slice(0, 10) === (mode === "today" ? todayISO() : selectedDate));
+  // The active date the today/day modes scope to (all = whole trip).
+  const activeDate = mode === "today" ? todayISO() : selectedDate;
+  const inScope = (date: string) => mode === "all" || date === activeDate;
 
-  const byCategoryExpenses = category ? filtered.filter((e) => e.category === category) : filtered;
+  // Scope expenses + paid bookings + paid transports to the selected mode,
+  // then run everything (total, donut, list) off that one scoped set so the
+  // grand total, the category ring, and the line items always agree.
+  const scopedExpenses = expenses.filter((e) => inScope(e.datetime.slice(0, 10)));
+  const scopedBookings = bookings.filter((b) => inScope(b.date_from.slice(0, 10)));
+  const scopedTransports = transports.filter((t) => inScope(t.day_date));
 
-  const filteredTotal = filtered.reduce((sum, e) => sum + e.amount_thb, 0);
-  const bigTotal = mode === "all" ? summary.totalTHB : filteredTotal;
+  const scoped = summarize(scopedExpenses, scopedBookings, scopedTransports);
+  const bigTotal = scoped.totalTHB;
 
-  const filteredByCategory = summarize(filtered, [], []).byCategory;
+  const allItems = toSpendItems(scopedExpenses, scopedBookings, scopedTransports);
+  const listItems = category ? allItems.filter((i) => i.category === category) : allItems;
+
+  const pick = (item: SpendItem) => {
+    if (item.source === "expense") {
+      const exp = expenses.find((e) => e.id === item.id);
+      if (exp) setEditing(exp);
+    } else if (item.source === "booking") {
+      router.push(`/trips/${trip.id}/bookings`);
+    } else {
+      router.push(`/trips/${trip.id}/transport`);
+    }
+  };
 
   if (loading) {
     return (
@@ -85,7 +104,7 @@ export default function MoneyPage() {
       </div>
 
       <div className="relative h-11 grid grid-cols-3 rounded-full bg-muted/10 p-0.5">
-        {MODES.map((m, i) => (
+        {MODES.map((m) => (
           <button
             key={m.key}
             onClick={() => setMode(m.key)}
@@ -125,7 +144,7 @@ export default function MoneyPage() {
         </p>
       </div>
 
-      <CategoryDonut data={filteredByCategory} total={bigTotal} selected={category} onSelect={setCategory} />
+      <CategoryDonut data={scoped.byCategory} total={bigTotal} selected={category} onSelect={setCategory} />
 
       {Object.keys(summary.byPayer).length > 0 && (
         <div className="flex flex-col gap-2">
@@ -157,7 +176,7 @@ export default function MoneyPage() {
         </div>
       )}
 
-      <ExpenseList expenses={byCategoryExpenses} days={days} onSelect={setEditing} />
+      <SpendList items={listItems} days={days} onPick={pick} />
 
       {process.env.NEXT_PUBLIC_SHEET_URL && (
         <a href={process.env.NEXT_PUBLIC_SHEET_URL} target="_blank" rel="noreferrer">

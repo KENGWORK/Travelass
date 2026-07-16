@@ -1,8 +1,6 @@
 "use client";
 import { use, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
 import { ArrowLeft } from "lucide-react";
 import { TripProvider, useTrip } from "@/lib/trip-context";
 import { TripDataProvider } from "@/lib/use-trip-data";
@@ -13,11 +11,12 @@ import { Toaster } from "@/components/ui/Toast";
 function TripLayoutInner({ tripId, children }: { tripId: string; children: React.ReactNode }) {
   const { trip } = useTrip();
   const [fabOpen, setFabOpen] = useState(false);
-  const path = usePathname();
 
-  // Mounted here (not per-page) so it survives tab switches within a trip —
-  // switching itinerary/transport/money/info no longer refetches from
-  // Google Sheets, every page just reads this same already-loaded state.
+  // TripDataProvider is mounted here (not per-page) so it survives tab
+  // switches within a trip — switching itinerary/transport/money/info no
+  // longer refetches from Google Sheets, every page reads this cached state.
+  // The per-nav enter animation lives in template.tsx (not here) so the
+  // router isn't blocked on an exit-wait — see the note there.
   return (
     <TripDataProvider tripId={tripId}>
       <div className="sticky top-0 z-20 flex items-center h-12 px-2 bg-bg/80 backdrop-blur">
@@ -29,18 +28,7 @@ function TripLayoutInner({ tripId, children }: { tripId: string; children: React
           <ArrowLeft size={24} />
         </Link>
       </div>
-      <AnimatePresence mode="wait">
-        <motion.main
-          key={path}
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -6 }}
-          transition={{ duration: 0.2, ease: "easeOut" }}
-          className="pb-24"
-        >
-          {children}
-        </motion.main>
-      </AnimatePresence>
+      {children}
       <TabBar tripId={tripId} onFab={() => setFabOpen(true)} />
       <QuickExpenseSheet trip={trip} open={fabOpen} onClose={() => setFabOpen(false)} />
       <Toaster />
