@@ -1,57 +1,66 @@
 import type { EntityName } from "@/lib/models/mappers";
-import { dbList, dbCreate, dbUpdate, dbDelete, type Row } from "@/lib/local-db";
+import { dbList, dbCreate, dbUpdate, dbDelete, dbReplaceAll, type Row } from "@/lib/local-db";
 import { isGoogleConfigured } from "@/lib/backend";
-import { resourceListUrl, resourceItemUrl } from "@/lib/resource-url";
+import { markSynced } from "@/lib/sync-status";
+import { remoteList } from "@/lib/remote-api";
+import { notify } from "@/lib/notify";
+import { enqueue, flush, initSyncQueue } from "@/lib/sync-queue";
 
-// Two storage modes behind one interface, selected by NEXT_PUBLIC_BACKEND
-// (see lib/backend.ts). "local" (default) talks to localStorage via
-// lib/local-db.ts synchronously, wrapped in a resolved Promise so callers
-// stay unchanged either way. "google" talks to the Sheets-backed API routes
-// under app/api/resource/[entity]/route.ts.
-async function jsonOrThrow(res: Response) {
-  if (!res.ok) throw new Error(`API ${res.status}`);
-  return res.json();
-}
+// Local-first: every read/write hits localStorage synchronously and never
+// waits on the network. When NEXT_PUBLIC_BACKEND=google is set, apiList also
+// kicks a background revalidate against Sheets (result overwrites the local
+// cache and notifies subscribers via lib/notify.ts), and mutations are
+// pushed onto lib/sync-queue.ts's outbox instead of being awaited inline.
+// See docs/superpowers/specs/2026-07-17-localstorage-first-sync-design.md.
+initSyncQueue();
 
 export const apiList = <T,>(entity: EntityName, tripId?: string): Promise<T[]> => {
+  const local = dbList(entity, tripId) as T[];
   if (isGoogleConfigured()) {
-    return fetch(resourceListUrl(entity, tripId)).then(jsonOrThrow);
+    remoteList<T>(entity, tripId)
+      .then((fresh) => {
+        dbReplaceAll(entity, tripId, fresh as unknown as Row[]);
+        markSynced(entity, tripId);
+        notify(entity);
+      })
+      .catch(() => {
+        // Revalidate failed — keep serving the cache. Nothing actionable to
+        // show the user; the next apiList call will try again.
+      });
   }
-  return Promise.resolve(dbList(entity, tripId) as T[]);
+  return Promise.resolve(local);
 };
 
 export const apiCreate = <T,>(entity: EntityName, obj: T): Promise<{ ok: true }> => {
-  if (isGoogleConfigured()) {
-    return fetch(resourceListUrl(entity), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(obj),
-    }).then(jsonOrThrow);
-  }
   dbCreate(entity, obj as Row);
+  notify(entity);
+  if (isGoogleConfigured()) {
+    enqueue({ kind: "create", entity, payload: obj as Row });
+    void flush();
+  }
   return Promise.resolve({ ok: true });
 };
 
-// `obj` must be the complete entity, not a partial patch: Google mode does a
-// full-row overwrite (any field missing from `obj` gets defaulted to empty/
-// zero/false), while local mode merges the partial into the existing row.
+// `obj` must be the complete entity, not a partial patch — Google mode does
+// a full-row overwrite via the PATCH route, so every caller already passes
+// the whole object.
 export const apiUpdate = <T,>(entity: EntityName, id: string, obj: T): Promise<{ ok: true }> => {
-  if (isGoogleConfigured()) {
-    return fetch(resourceItemUrl(entity, id), {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(obj),
-    }).then(jsonOrThrow);
-  }
   dbUpdate(entity, id, obj as Partial<Row>);
+  notify(entity);
+  if (isGoogleConfigured()) {
+    enqueue({ kind: "update", entity, id, payload: obj as Row });
+    void flush();
+  }
   return Promise.resolve({ ok: true });
 };
 
 export const apiDelete = (entity: EntityName, id: string): Promise<{ ok: true }> => {
-  if (isGoogleConfigured()) {
-    return fetch(resourceItemUrl(entity, id), { method: "DELETE" }).then(jsonOrThrow);
-  }
   dbDelete(entity, id);
+  notify(entity);
+  if (isGoogleConfigured()) {
+    enqueue({ kind: "delete", entity, id });
+    void flush();
+  }
   return Promise.resolve({ ok: true });
 };
 
