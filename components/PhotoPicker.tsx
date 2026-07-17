@@ -6,7 +6,7 @@ import { PhotoViewer } from "@/components/PhotoViewer";
 import { toast } from "@/components/ui/Toast";
 import { fileToDataUrl } from "@/lib/image";
 import { photoUrl } from "@/lib/photo-url";
-import { isGoogleBackend } from "@/lib/backend";
+import { isGoogleConfigured } from "@/lib/backend";
 
 export interface PhotoPickerProps {
   tripName: string;
@@ -38,13 +38,13 @@ export function PhotoPicker({ tripName, kind, fileIds, onChange }: PhotoPickerPr
     const accumulated = [...fileIds];
     for (const file of list) {
       try {
-        const id = isGoogleBackend()
+        const id = isGoogleConfigured()
           ? await uploadToGoogle(file, tripName, kind)
           : await fileToDataUrl(file);
         accumulated.push(id);
         onChange([...accumulated]);
       } catch {
-        toast(isGoogleBackend() ? "อัปโหลดรูปไม่สำเร็จ" : "อ่านรูปไม่สำเร็จ");
+        toast(isGoogleConfigured() ? "อัปโหลดรูปไม่สำเร็จ" : "อ่านรูปไม่สำเร็จ");
       } finally {
         setUploadingCount((n) => Math.max(0, n - 1));
       }

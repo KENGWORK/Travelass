@@ -1,6 +1,6 @@
 import type { EntityName } from "@/lib/models/mappers";
 import { dbList, dbCreate, dbUpdate, dbDelete, type Row } from "@/lib/local-db";
-import { isGoogleBackend } from "@/lib/backend";
+import { isGoogleConfigured } from "@/lib/backend";
 import { resourceListUrl, resourceItemUrl } from "@/lib/resource-url";
 
 // Two storage modes behind one interface, selected by NEXT_PUBLIC_BACKEND
@@ -14,14 +14,14 @@ async function jsonOrThrow(res: Response) {
 }
 
 export const apiList = <T,>(entity: EntityName, tripId?: string): Promise<T[]> => {
-  if (isGoogleBackend()) {
+  if (isGoogleConfigured()) {
     return fetch(resourceListUrl(entity, tripId)).then(jsonOrThrow);
   }
   return Promise.resolve(dbList(entity, tripId) as T[]);
 };
 
 export const apiCreate = <T,>(entity: EntityName, obj: T): Promise<{ ok: true }> => {
-  if (isGoogleBackend()) {
+  if (isGoogleConfigured()) {
     return fetch(resourceListUrl(entity), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -36,7 +36,7 @@ export const apiCreate = <T,>(entity: EntityName, obj: T): Promise<{ ok: true }>
 // full-row overwrite (any field missing from `obj` gets defaulted to empty/
 // zero/false), while local mode merges the partial into the existing row.
 export const apiUpdate = <T,>(entity: EntityName, id: string, obj: T): Promise<{ ok: true }> => {
-  if (isGoogleBackend()) {
+  if (isGoogleConfigured()) {
     return fetch(resourceItemUrl(entity, id), {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -48,7 +48,7 @@ export const apiUpdate = <T,>(entity: EntityName, id: string, obj: T): Promise<{
 };
 
 export const apiDelete = (entity: EntityName, id: string): Promise<{ ok: true }> => {
-  if (isGoogleBackend()) {
+  if (isGoogleConfigured()) {
     return fetch(resourceItemUrl(entity, id), { method: "DELETE" }).then(jsonOrThrow);
   }
   dbDelete(entity, id);
