@@ -7,7 +7,6 @@ import { SUPPORTED_CURRENCIES } from "@/lib/fx";
 import { BottomSheet } from "@/components/ui/BottomSheet";
 import { Button } from "@/components/ui/Button";
 import { FormField } from "@/components/ui/FormField";
-import { toast } from "@/components/ui/Toast";
 
 const EMPTY = { name: "", destination: "", start_date: "", end_date: "", trip_currency: "THB" };
 
@@ -15,12 +14,10 @@ export function TripFormSheet({
   open,
   onClose,
   onOptimisticCreate,
-  onCreateError,
 }: {
   open: boolean;
   onClose: () => void;
   onOptimisticCreate: (trip: Trip) => void;
-  onCreateError: (tripId: string) => void;
 }) {
   const [form, setForm] = useState(EMPTY);
   const [saving, setSaving] = useState(false);
@@ -44,18 +41,16 @@ export function TripFormSheet({
     };
     const me: Member = { id: crypto.randomUUID(), trip_id: trip.id, name: "ฉัน", color: MEMBER_COLORS[0] };
 
-    // Optimistic: drop into the list and close immediately, reconcile with
-    // the real Google Sheets writes (trip + owner member row) in the
-    // background. Roll back if either write fails.
+    // Instant: drop into the list and close immediately. apiCreate writes to
+    // local storage synchronously (and, if Google is configured, queues the
+    // Sheets sync in the background) — see lib/api.ts.
     onOptimisticCreate(trip);
     setForm(EMPTY);
     setSaving(false);
     onClose();
 
-    Promise.all([apiCreate("trips", trip), apiCreate("members", me)]).catch(() => {
-      onCreateError(trip.id);
-      toast("สร้างทริปไม่สำเร็จ ลองอีกครั้ง", "error");
-    });
+    apiCreate("trips", trip);
+    apiCreate("members", me);
   };
 
   return (

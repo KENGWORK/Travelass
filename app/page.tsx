@@ -2,6 +2,10 @@
 import { useEffect, useState } from "react";
 import { Plus, Plane } from "lucide-react";
 import { apiList } from "@/lib/api";
+import { dbList } from "@/lib/local-db";
+import { isSynced } from "@/lib/sync-status";
+import { isGoogleConfigured } from "@/lib/backend";
+import { subscribe } from "@/lib/notify";
 import type { Trip } from "@/lib/models/types";
 import { TripCard } from "@/components/TripCard";
 import { TripFormSheet } from "@/components/TripFormSheet";
@@ -15,8 +19,23 @@ const sortTrips = (t: Trip[]) =>
 export default function TripListPage() {
   const [trips, setTrips] = useState<Trip[] | null>(null);
   const [open, setOpen] = useState(false);
-  const load = () => apiList<Trip>("trips").then((t) => setTrips(sortTrips(t)));
-  useEffect(() => { load(); }, []);
+
+  const load = () =>
+    apiList<Trip>("trips").then((t) => {
+      // The local cache may legitimately be empty on a device that's never
+      // synced yet — keep showing the skeleton (trips === null) until either
+      // there's real data, or the cache is otherwise trustworthy (already
+      // synced before, or there's no Google sync to wait for at all).
+      if (t.length > 0 || !isGoogleConfigured() || isSynced("trips")) {
+        setTrips(sortTrips(t));
+      }
+    });
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  useEffect(() => subscribe("trips", () => setTrips(sortTrips(dbList("trips") as unknown as Trip[]))), []);
 
   return (
     <main className="p-4 max-w-3xl mx-auto">
@@ -41,7 +60,6 @@ export default function TripListPage() {
         open={open}
         onClose={() => setOpen(false)}
         onOptimisticCreate={(trip) => setTrips((prev) => sortTrips([...(prev ?? []), trip]))}
-        onCreateError={(tripId) => setTrips((prev) => (prev ? prev.filter((t) => t.id !== tripId) : prev))}
       />
     </main>
   );
