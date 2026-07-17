@@ -70,10 +70,19 @@ export async function flush(): Promise<void> {
     for (;;) {
       const queue = readQueue();
       if (queue.length === 0) return;
-      const [head, ...rest] = queue;
+      const head = queue[0];
       try {
         await runOp(head);
-        writeQueue(rest);
+        // Re-read after the await — the queue may have grown (via a
+        // concurrent enqueue()) while we were waiting on the network.
+        // Remove exactly the item we just processed rather than writing
+        // back the pre-await snapshot, which would silently drop anything
+        // enqueued during the await. Safe because flush() holds the
+        // `flushing` mutex (only one flush loop runs at a time) and
+        // enqueue() only ever appends, so the processed item is guaranteed
+        // to still be at index 0 of a freshly-read queue.
+        const current = readQueue();
+        writeQueue(current.slice(1));
       } catch {
         return;
       }

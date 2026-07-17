@@ -68,6 +68,35 @@ describe("sync-queue", () => {
     expect(cb).toHaveBeenCalledTimes(1); // not called again after unsubscribing
   });
 
+  it("does not drop an op enqueued while the current flush is awaiting the network", async () => {
+    let resolveFirst: (v: unknown) => void = () => {};
+    (remoteCreate as ReturnType<typeof vi.fn>).mockImplementationOnce(
+      () => new Promise((resolve) => { resolveFirst = resolve; }),
+    );
+    (remoteCreate as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: true });
+
+    enqueue({ kind: "create", entity: "expenses", payload: { id: "a" } });
+    const flushPromise = flush();
+
+    // While the first op's remoteCreate call is still pending, enqueue a
+    // second op — this is the race window the fix must protect.
+    enqueue({ kind: "create", entity: "expenses", payload: { id: "b" } });
+    expect(queueLength()).toBe(2);
+
+    resolveFirst({ ok: true });
+    await flushPromise;
+
+    // flush()'s for(;;) loop re-reads the queue on every iteration, so once
+    // "a" is drained the same flush() call picks up "b" too (it was already
+    // enqueued before the loop's next iteration ran). The core guarantee
+    // under test: "b" is never silently lost — it gets processed and the
+    // queue ends up empty, rather than being clobbered by a stale
+    // pre-await snapshot.
+    expect(remoteCreate).toHaveBeenCalledWith("expenses", { id: "a" });
+    expect(remoteCreate).toHaveBeenCalledWith("expenses", { id: "b" });
+    expect(queueLength()).toBe(0);
+  });
+
   it("queue persists across a simulated reload (re-reading from localStorage)", async () => {
     enqueue({ kind: "create", entity: "expenses", payload: { id: "a" } });
     // Nothing keeps the queue in memory between calls other than localStorage
