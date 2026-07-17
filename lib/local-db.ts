@@ -23,6 +23,12 @@ export function removeRow(db: DB, entity: string, id: string): DB {
   return { ...db, [entity]: (db[entity] ?? []).filter((r) => r.id !== id) };
 }
 
+export function replaceRows(db: DB, entity: string, tripId: string | undefined, rows: Row[]): DB {
+  const existing = db[entity] ?? [];
+  const kept = tripId ? existing.filter((r) => r.trip_id !== tripId) : [];
+  return { ...db, [entity]: [...kept, ...rows] };
+}
+
 const KEY = "travelass:db";
 
 function read(): DB {
@@ -44,3 +50,5 @@ export const dbCreate = (entity: string, row: Row): void => write(insertRow(read
 export const dbUpdate = (entity: string, id: string, patch: Partial<Row>): void =>
   write(patchRow(read(), entity, id, patch));
 export const dbDelete = (entity: string, id: string): void => write(removeRow(read(), entity, id));
+export const dbReplaceAll = (entity: string, tripId: string | undefined, rows: Row[]): void =>
+  write(replaceRows(read(), entity, tripId, rows));

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { selectRows, insertRow, patchRow, removeRow, type DB } from "./local-db";
+import { selectRows, insertRow, patchRow, removeRow, replaceRows, type DB } from "./local-db";
 
 describe("local-db transforms", () => {
   it("selectRows returns [] for unknown entity", () => {
@@ -54,5 +54,29 @@ describe("local-db transforms", () => {
     const url = "data:image/jpeg;base64,AAAA,BBBB"; // contains commas
     const next = insertRow({}, "expenses", { id: "a", slip_photo_ids: [url] });
     expect(selectRows(next, "expenses")[0].slip_photo_ids).toEqual([url]);
+  });
+
+  it("replaceRows replaces only the given trip's rows, leaving other trips untouched", () => {
+    const db: DB = {
+      expenses: [
+        { id: "a", trip_id: "t1" },
+        { id: "b", trip_id: "t2" },
+        { id: "c", trip_id: "t1" },
+      ],
+    };
+    const next = replaceRows(db, "expenses", "t1", [{ id: "d", trip_id: "t1" }]);
+    expect(next.expenses.map((r) => r.id)).toEqual(["b", "d"]);
+    expect(db.expenses).toHaveLength(3); // original untouched
+  });
+
+  it("replaceRows replaces the entire entity when tripId is undefined", () => {
+    const db: DB = { trips: [{ id: "a" }, { id: "b" }] };
+    const next = replaceRows(db, "trips", undefined, [{ id: "c" }]);
+    expect(next.trips.map((r) => r.id)).toEqual(["c"]);
+  });
+
+  it("replaceRows creates the entity array when it didn't exist", () => {
+    const next = replaceRows({}, "expenses", "t1", [{ id: "a", trip_id: "t1" }]);
+    expect(next.expenses.map((r) => r.id)).toEqual(["a"]);
   });
 });
