@@ -1,6 +1,10 @@
 "use client";
 import { createContext, useCallback, useContext, useEffect, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import { apiList } from "@/lib/api";
+import { dbList } from "@/lib/local-db";
+import { isSynced } from "@/lib/sync-status";
+import { isGoogleConfigured } from "@/lib/backend";
+import { subscribe } from "@/lib/notify";
 import type { Expense, Booking, Transport, ItineraryItem } from "@/lib/models/types";
 import { summarize } from "@/lib/summary";
 
@@ -20,11 +24,24 @@ interface TripDataValue {
 
 const TripDataContext = createContext<TripDataValue | null>(null);
 
+const ENTITIES = ["expenses", "bookings", "transports", "itinerary"] as const;
+
+function allSynced(tripId: string): boolean {
+  return ENTITIES.every((e) => isSynced(e, tripId));
+}
+
 // Mounted once per trip in app/trips/[id]/layout.tsx, which Next.js keeps
 // alive across nav between tabs (itinerary/transport/money/info/...) since
 // they're all the same route segment's children. That's what makes
 // switching tabs instant: there's no refetch-on-mount per page anymore,
 // every page reads the same already-fetched state via useTripData().
+//
+// Local-first (docs/superpowers/specs/2026-07-17-localstorage-first-sync-design.md):
+// reload() calls lib/api.ts's apiList, which itself resolves instantly from
+// the local cache and (if Google is configured) kicks a background Sheets
+// revalidate. This provider subscribes to lib/notify.ts so it picks up that
+// revalidate's result — and any other write to these entities from
+// anywhere in the app — without needing to be told explicitly.
 export function TripDataProvider({ tripId, children }: { tripId: string; children: ReactNode }) {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -33,7 +50,6 @@ export function TripDataProvider({ tripId, children }: { tripId: string; childre
   const [loading, setLoading] = useState(true);
 
   const reload = useCallback(async () => {
-    setLoading(true);
     const [e, b, t, i] = await Promise.all([
       apiList<Expense>("expenses", tripId),
       apiList<Booking>("bookings", tripId),
@@ -44,12 +60,24 @@ export function TripDataProvider({ tripId, children }: { tripId: string; childre
     setBookings(b);
     setTransports(t);
     setItinerary(i);
-    setLoading(false);
+    setLoading(isGoogleConfigured() && !allSynced(tripId));
   }, [tripId]);
 
   useEffect(() => {
     reload();
   }, [reload]);
+
+  useEffect(() => {
+    const refresh = () => {
+      setExpenses(dbList("expenses", tripId) as unknown as Expense[]);
+      setBookings(dbList("bookings", tripId) as unknown as Booking[]);
+      setTransports(dbList("transports", tripId) as unknown as Transport[]);
+      setItinerary(dbList("itinerary", tripId) as unknown as ItineraryItem[]);
+      setLoading((prev) => (prev ? isGoogleConfigured() && !allSynced(tripId) : false));
+    };
+    const unsubs = ENTITIES.map((entity) => subscribe(entity, refresh));
+    return () => unsubs.forEach((unsub) => unsub());
+  }, [tripId]);
 
   const summary = summarize(expenses, bookings, transports);
 
