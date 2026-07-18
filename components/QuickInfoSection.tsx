@@ -1,5 +1,6 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { Reorder } from "framer-motion";
 import { BedDouble, MoreHorizontal, Navigation, Pin, Plus, Info } from "lucide-react";
 import type { Dispatch, SetStateAction } from "react";
 import { apiCreate, apiDelete, apiUpdate } from "@/lib/api";
@@ -52,10 +53,30 @@ export function QuickInfoSection({
 }) {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editing, setEditing] = useState<QuickInfo | null>(null);
+  const [rows, setRows] = useState<QuickInfo[]>([]);
 
   const hotelBookings = bookings.filter((b) => b.type === "hotel");
   const pickupTransports = transports.filter((t) => t.pickup_photo_ids.length > 0);
-  const rows = quickInfo.slice().sort((a, b) => Number(b.pinned) - Number(a.pinned));
+
+  useEffect(() => {
+    setRows(quickInfo.slice().sort((a, b) => a.sort_order - b.sort_order));
+  }, [quickInfo]);
+
+  // Drag reorder (same pattern as the itinerary page): apply the new
+  // sort_order to the shared quickInfo state immediately, persist in the
+  // background. A stuck order after a rare partial failure is fixed by the
+  // page's refresh button rather than a full rollback.
+  const persistOrder = (newRows: QuickInfo[]) => {
+    const changed = newRows.filter((it, idx) => it.sort_order !== idx);
+    if (changed.length === 0) return;
+    const reordered = newRows.map((it, idx) => ({ ...it, sort_order: idx }));
+    setQuickInfo((prev) => prev.map((it) => reordered.find((r) => r.id === it.id) ?? it));
+    Promise.all(
+      reordered
+        .filter((it) => changed.some((c) => c.id === it.id))
+        .map((it) => apiUpdate<QuickInfo>("quickinfo", it.id, it)),
+    ).catch(() => toast("บันทึกลำดับไม่สำเร็จ ลองอีกครั้ง", "error"));
+  };
 
   const openCreate = () => {
     setEditing(null);
@@ -80,7 +101,7 @@ export function QuickInfoSection({
       const patch = { ...editing, ...values };
       optimisticUpdate(setQuickInfo, editing.id, patch, () => apiUpdate<QuickInfo>("quickinfo", editing.id, patch));
     } else {
-      const newItem: QuickInfo = { id: crypto.randomUUID(), trip_id: trip.id, ...values };
+      const newItem: QuickInfo = { id: crypto.randomUUID(), trip_id: trip.id, sort_order: rows.length, ...values };
       optimisticCreate(setQuickInfo, newItem, () => apiCreate<QuickInfo>("quickinfo", newItem));
     }
   };
@@ -132,39 +153,45 @@ export function QuickInfoSection({
         <EmptyState icon={Info} title="ยังไม่มีข้อมูลด่วน" subtitle="เก็บที่อยู่โรงแรม, เบอร์ฉุกเฉิน, wifi ไว้ที่นี่" />
       )}
 
-      {rows.map((item) => (
-        <div
-          key={item.id}
-          role="button"
-          tabIndex={0}
-          onClick={() => copyValue(item.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") {
-              e.preventDefault();
-              copyValue(item.value);
-            }
-          }}
-          className="press rounded-2xl bg-surface shadow-card p-4 flex flex-col gap-2 relative cursor-pointer"
-        >
-          <div className="flex items-center gap-1.5 pr-9">
-            {item.pinned && <Pin size={12} className="text-primary shrink-0" />}
-            <span className="text-xs text-muted truncate">{item.label}</span>
-          </div>
-          <p className="text-base whitespace-pre-wrap break-words">{item.value}</p>
-          <PhotoStrip fileIds={item.photo_ids} />
-          <button
-            type="button"
-            aria-label="ตัวเลือกเพิ่มเติม"
-            onClick={(e) => {
-              e.stopPropagation();
-              openEdit(item);
-            }}
-            className="absolute top-0.5 right-0.5 h-11 w-11 flex items-center justify-center text-muted cursor-pointer"
-          >
-            <MoreHorizontal size={18} />
-          </button>
-        </div>
-      ))}
+      {rows.length > 0 && (
+        <Reorder.Group axis="y" values={rows} onReorder={setRows} className="flex flex-col gap-3 list-none">
+          {rows.map((item) => (
+            <Reorder.Item
+              key={item.id}
+              value={item}
+              onDragEnd={() => persistOrder(rows)}
+              role="button"
+              tabIndex={0}
+              onClick={() => copyValue(item.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  copyValue(item.value);
+                }
+              }}
+              className="press rounded-2xl bg-surface shadow-card p-4 flex flex-col gap-2 relative cursor-grab active:cursor-grabbing"
+            >
+              <div className="flex items-center gap-1.5 pr-9">
+                {item.pinned && <Pin size={12} className="text-primary shrink-0" />}
+                <span className="text-xs text-muted truncate">{item.label}</span>
+              </div>
+              <p className="text-base whitespace-pre-wrap break-words">{item.value}</p>
+              <PhotoStrip fileIds={item.photo_ids} />
+              <button
+                type="button"
+                aria-label="ตัวเลือกเพิ่มเติม"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openEdit(item);
+                }}
+                className="absolute top-0.5 right-0.5 h-11 w-11 flex items-center justify-center text-muted cursor-pointer"
+              >
+                <MoreHorizontal size={18} />
+              </button>
+            </Reorder.Item>
+          ))}
+        </Reorder.Group>
+      )}
 
       <button
         type="button"

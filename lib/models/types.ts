@@ -11,7 +11,7 @@ export interface Booking { id: string; trip_id: string; type: BookingType; vendo
 export interface Expense { id: string; trip_id: string; datetime: string; category: Category; description: string; amount: number; currency: string; fx_rate: number; amount_thb: number; payer: string; slip_photo_ids: string[]; }
 export interface ChecklistItem { id: string; trip_id: string; group: string; item: string; done: boolean; from_template: boolean; }
 export interface Note { id: string; trip_id: string; date: string; text: string; photo_ids: string[]; }
-export interface QuickInfo { id: string; trip_id: string; label: string; value: string; photo_ids: string[]; pinned: boolean; }
+export interface QuickInfo { id: string; trip_id: string; label: string; value: string; photo_ids: string[]; pinned: boolean; sort_order: number; }
 export interface Member { id: string; trip_id: string; name: string; color: string; }
 export interface Restaurant { id: string; trip_id: string; name: string; area: string; maps_link: string; note: string; must_try: boolean; price_level: number; visited: boolean; }
 export interface WishItem { id: string; trip_id: string; name: string; area: string; maps_link: string; note: string; star: boolean; visited: boolean; }

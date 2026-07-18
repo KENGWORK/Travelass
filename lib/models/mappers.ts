@@ -36,7 +36,7 @@ export const ENTITIES = {
   expenses: makeMapper<Expense>([["id","s"],["trip_id","s"],["datetime","s"],["category","s"],["description","s"],["amount","n"],["currency","s"],["fx_rate","n"],["amount_thb","n"],["payer","s"],["slip_photo_ids","a"]]),
   checklist: makeMapper<ChecklistItem>([["id","s"],["trip_id","s"],["group","s"],["item","s"],["done","b"],["from_template","b"]]),
   notes: makeMapper<Note>([["id","s"],["trip_id","s"],["date","s"],["text","s"],["photo_ids","a"]]),
-  quickinfo: makeMapper<QuickInfo>([["id","s"],["trip_id","s"],["label","s"],["value","s"],["photo_ids","a"],["pinned","b"]]),
+  quickinfo: makeMapper<QuickInfo>([["id","s"],["trip_id","s"],["label","s"],["value","s"],["photo_ids","a"],["pinned","b"],["sort_order","n"]]),
   members: makeMapper<Member>([["id","s"],["trip_id","s"],["name","s"],["color","s"]]),
   restaurants: makeMapper<Restaurant>([["id","s"],["trip_id","s"],["name","s"],["area","s"],["maps_link","s"],["note","s"],["must_try","b"],["price_level","n"],["visited","b"]]),
   wishlist: makeMapper<WishItem>([["id","s"],["trip_id","s"],["name","s"],["area","s"],["maps_link","s"],["note","s"],["star","b"],["visited","b"]]),
