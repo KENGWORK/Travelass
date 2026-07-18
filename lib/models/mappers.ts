@@ -10,7 +10,7 @@ function makeMapper<T>(fields: [keyof T & string, Kind][]) {
         const v = obj[k] as unknown;
         if (kind === "n") return String(v ?? 0);
         if (kind === "b") return v ? "TRUE" : "FALSE";
-        if (kind === "a") return (v as string[]).join(",");
+        if (kind === "a") return ((v as string[] | undefined) ?? []).join(",");
         return String(v ?? "");
       });
     },
