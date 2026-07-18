@@ -7,7 +7,6 @@ import { useTrip } from "@/lib/trip-context";
 import { useTripData } from "@/lib/use-trip-data";
 import { apiCreate, apiUpdate, apiDelete } from "@/lib/api";
 import { tripDays } from "@/lib/days";
-import { formatTimeRange } from "@/lib/time";
 import { DayChips } from "@/components/DayChips";
 import { ItineraryFormSheet, type ItineraryFormValues } from "@/components/ItineraryFormSheet";
 import { PullIntoPlanSheet } from "@/components/PullIntoPlanSheet";
@@ -171,31 +170,38 @@ export default function ItineraryPage() {
                   <button
                     type="button"
                     onClick={() => openEdit(item)}
-                    className="press w-full text-left rounded-2xl bg-surface shadow-card p-3 flex flex-col gap-1 cursor-pointer"
+                    className="press w-full text-left rounded-2xl bg-surface shadow-card p-3 flex items-start justify-between gap-3 cursor-pointer"
                   >
-                    {item.time && <p className="text-xs text-muted">{formatTimeRange(item.time, item.end_time)}</p>}
-                    <p className="text-base font-medium">{item.title}</p>
-                    {item.place && (
-                      <p className="text-sm text-muted flex items-center gap-1">
-                        {item.place}
-                        {item.maps_link && (
-                          <a
-                            href={item.maps_link}
-                            target="_blank"
-                            rel="noreferrer"
-                            onClick={(e) => e.stopPropagation()}
-                            className="relative text-primary inline-flex items-center justify-center p-2.5 before:absolute before:inset-[-5px] before:content-['']"
-                          >
-                            <MapPin size={14} />
-                          </a>
-                        )}
-                      </p>
-                    )}
-                    {transport && Icon && (
-                      <span className="inline-flex items-center gap-1 text-xs text-primary bg-primary-soft rounded-full px-2 py-1 w-fit mt-1">
-                        <Icon size={12} />
-                        {transport.duration_min} นาที
-                      </span>
+                    <div className="min-w-0 flex-1 flex flex-col gap-1">
+                      <p className="text-base font-medium">{item.title}</p>
+                      {item.place && (
+                        <p className="text-sm text-muted flex items-center gap-1">
+                          {item.place}
+                          {item.maps_link && (
+                            <a
+                              href={item.maps_link}
+                              target="_blank"
+                              rel="noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="relative text-primary inline-flex items-center justify-center p-2.5 before:absolute before:inset-[-5px] before:content-['']"
+                            >
+                              <MapPin size={14} />
+                            </a>
+                          )}
+                        </p>
+                      )}
+                      {transport && Icon && (
+                        <span className="inline-flex items-center gap-1 text-xs text-primary bg-primary-soft rounded-full px-2 py-1 w-fit mt-1">
+                          <Icon size={12} />
+                          {transport.duration_min} นาที
+                        </span>
+                      )}
+                    </div>
+                    {item.time && (
+                      <div className="shrink-0 flex flex-col items-end tabular-nums">
+                        <span className="text-xl font-semibold leading-tight">{item.time}</span>
+                        {item.end_time && <span className="text-xs text-muted leading-tight">{item.end_time}</span>}
+                      </div>
                     )}
                   </button>
                 </Reorder.Item>
