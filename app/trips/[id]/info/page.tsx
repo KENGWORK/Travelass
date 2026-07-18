@@ -11,6 +11,7 @@ import { PhraseSection } from "@/components/PhraseSection";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { RefreshButton } from "@/components/ui/RefreshButton";
 import { SearchButton } from "@/components/ui/SearchButton";
+import { UploadButton } from "@/components/ui/UploadButton";
 import type { Note, QuickInfo } from "@/lib/models/types";
 
 const TABS = [
@@ -132,6 +133,7 @@ export default function InfoPage() {
         <h1 className="font-heading text-xl font-semibold">ข้อมูล</h1>
         <div className="flex items-center">
           <SearchButton />
+          <UploadButton />
           <RefreshButton onRefresh={refreshActive} />
         </div>
       </div>

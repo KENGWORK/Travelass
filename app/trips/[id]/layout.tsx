@@ -5,14 +5,17 @@ import { ArrowLeft } from "lucide-react";
 import { TripProvider, useTrip } from "@/lib/trip-context";
 import { TripDataProvider } from "@/lib/use-trip-data";
 import { SearchProvider, useSearch } from "@/lib/search-context";
+import { UploadProvider, useUpload } from "@/lib/upload-context";
 import { TabBar } from "@/components/TabBar";
 import { QuickExpenseSheet } from "@/components/QuickExpenseSheet";
 import { SearchSheet } from "@/components/SearchSheet";
+import { UploadOverlay } from "@/components/ui/UploadOverlay";
 import { Toaster } from "@/components/ui/Toast";
 
 function TripLayoutInner({ tripId, children }: { tripId: string; children: React.ReactNode }) {
   const { trip } = useTrip();
   const { open: searchOpen, closeSearch } = useSearch();
+  const { uploading } = useUpload();
   const [fabOpen, setFabOpen] = useState(false);
 
   // TripDataProvider is mounted here (not per-page) so it survives tab
@@ -35,6 +38,7 @@ function TripLayoutInner({ tripId, children }: { tripId: string; children: React
       <TabBar tripId={tripId} onFab={() => setFabOpen(true)} />
       <QuickExpenseSheet trip={trip} open={fabOpen} onClose={() => setFabOpen(false)} />
       <SearchSheet open={searchOpen} onClose={closeSearch} tripId={tripId} />
+      <UploadOverlay open={uploading} />
       <Toaster />
     </TripDataProvider>
   );
@@ -52,7 +56,9 @@ export default function TripLayout({
   return (
     <TripProvider tripId={id}>
       <SearchProvider>
-        <TripLayoutInner tripId={id}>{children}</TripLayoutInner>
+        <UploadProvider tripId={id}>
+          <TripLayoutInner tripId={id}>{children}</TripLayoutInner>
+        </UploadProvider>
       </SearchProvider>
     </TripProvider>
   );

@@ -13,6 +13,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { toast } from "@/components/ui/Toast";
 import { RefreshButton } from "@/components/ui/RefreshButton";
 import { SearchButton } from "@/components/ui/SearchButton";
+import { UploadButton } from "@/components/ui/UploadButton";
 import { optimisticCreate, optimisticUpdate, optimisticDelete } from "@/lib/optimistic";
 import type { Transport } from "@/lib/models/types";
 
@@ -75,6 +76,7 @@ export default function TransportPage() {
           <h1 className="font-heading text-xl font-semibold">เดินทาง</h1>
           <div className="flex items-center">
             <SearchButton />
+            <UploadButton />
             <RefreshButton onRefresh={reload} />
           </div>
         </div>

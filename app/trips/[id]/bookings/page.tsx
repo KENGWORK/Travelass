@@ -12,6 +12,7 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { toast } from "@/components/ui/Toast";
 import { RefreshButton } from "@/components/ui/RefreshButton";
 import { SearchButton } from "@/components/ui/SearchButton";
+import { UploadButton } from "@/components/ui/UploadButton";
 import { optimisticCreate, optimisticUpdate, optimisticDelete } from "@/lib/optimistic";
 import type { Booking, BookingType } from "@/lib/models/types";
 
@@ -82,6 +83,7 @@ export default function BookingsPage() {
           <h1 className="font-heading text-xl font-semibold">จอง</h1>
           <div className="flex items-center">
             <SearchButton />
+            <UploadButton />
             <RefreshButton onRefresh={reload} />
           </div>
         </div>

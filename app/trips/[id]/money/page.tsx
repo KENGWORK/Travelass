@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { RefreshButton } from "@/components/ui/RefreshButton";
 import { SearchButton } from "@/components/ui/SearchButton";
+import { UploadButton } from "@/components/ui/UploadButton";
 import type { Expense } from "@/lib/models/types";
 
 type FilterMode = "today" | "day" | "all";
@@ -103,6 +104,7 @@ export default function MoneyPage() {
         <h1 className="font-heading text-xl font-semibold">สรุปค่าใช้จ่าย</h1>
         <div className="flex items-center">
           <SearchButton />
+          <UploadButton />
           <RefreshButton onRefresh={reload} />
         </div>
       </div>
