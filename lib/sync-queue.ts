@@ -94,18 +94,24 @@ export async function flush(): Promise<void> {
 
 let initialized = false;
 
-// Wires up automatic retry (on the browser's "online" event, plus a 30s
-// interval fallback for connectivity changes the browser doesn't always
-// report) and attempts an initial flush in case the queue was left
-// non-empty from a previous session. Idempotent — safe to call more than
-// once. Called once from lib/api.ts's module scope. Not unit tested here
-// (module-scope side effects touching window/timers) — matches
+// Wires up automatic retry (on the browser's "online" event, on the tab/PWA
+// becoming visible or focused — iOS PWAs don't reliably fire "online" after
+// being backgrounded with no connectivity — plus a 30s interval fallback for
+// anything those miss) and attempts an initial flush in case the queue was
+// left non-empty from a previous session. Idempotent — safe to call more
+// than once. Called once from lib/api.ts's module scope. Not unit tested
+// here (module-scope side effects touching window/timers) — matches
 // lib/local-db.ts's existing pattern of leaving browser-only wrappers to
 // manual/browser verification rather than unit tests.
 export function initSyncQueue(): void {
   if (initialized || typeof window === "undefined") return;
   initialized = true;
-  window.addEventListener("online", () => void flush());
+  const tryFlush = () => void flush();
+  window.addEventListener("online", tryFlush);
+  window.addEventListener("focus", tryFlush);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") tryFlush();
+  });
   setInterval(() => {
     if (queueLength() > 0) void flush();
   }, RETRY_INTERVAL_MS);
