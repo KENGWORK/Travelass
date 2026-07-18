@@ -7,10 +7,12 @@
 // row, since another device's local cache (and therefore this device's
 // view of "what's local") can lag behind what's actually on Sheets.
 //
-// Requests are sent one at a time (not Promise.all) with a small delay
-// between writes. The Sheets API's per-minute-per-user quota is easily
-// blown through by firing every row of every entity in parallel — a trip
-// with a few dozen rows across entities was enough to trigger 429s.
+// Every Sheets API call (read or write) goes through `paced`, which waits
+// after each one. The Sheets API's default quota is ~60 requests per
+// minute per user — a naive loop even one-at-a-time with a 150ms gap
+// still averages ~400/min and blew through it instantly. ~1 request/sec
+// stays safely under that, combined with whatever else the app's normal
+// background revalidation is doing at the same time.
 import { ENTITIES, type EntityName } from "@/lib/models/mappers";
 import { dbList, type Row } from "@/lib/local-db";
 import { remoteList, remoteCreate, remoteUpdate } from "@/lib/remote-api";
@@ -18,23 +20,23 @@ import { markSynced } from "@/lib/sync-status";
 import { notify } from "@/lib/notify";
 
 const TRIP_ENTITIES = (Object.keys(ENTITIES) as EntityName[]).filter((e) => e !== "trips");
-const WRITE_DELAY_MS = 150;
+const REQUEST_DELAY_MS = 1100;
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-async function upsertRow(entity: EntityName, row: Row, remoteIds: Set<string>): Promise<void> {
-  if (remoteIds.has(row.id)) await remoteUpdate(entity, row.id, row);
-  else await remoteCreate(entity, row);
-  await sleep(WRITE_DELAY_MS);
+async function paced<T>(fn: () => Promise<T>): Promise<T> {
+  const result = await fn();
+  await sleep(REQUEST_DELAY_MS);
+  return result;
 }
 
 async function upsertEntity(entity: EntityName, tripId: string): Promise<void> {
   const localRows = dbList(entity, tripId);
   if (localRows.length === 0) return;
-  const remoteRows = await remoteList<Row>(entity, tripId);
+  const remoteRows = await paced(() => remoteList<Row>(entity, tripId));
   const remoteIds = new Set(remoteRows.map((r) => r.id));
   for (const row of localRows) {
-    await upsertRow(entity, row, remoteIds);
+    await paced(() => (remoteIds.has(row.id) ? remoteUpdate(entity, row.id, row) : remoteCreate(entity, row)));
   }
   markSynced(entity, tripId);
   notify(entity);
@@ -44,10 +46,9 @@ export async function uploadLocalToSheets(tripId: string): Promise<void> {
   const localTrips = dbList("trips");
   const tripRow = localTrips.find((t) => t.id === tripId);
   if (tripRow) {
-    const remoteTrips = await remoteList<Row>("trips");
-    if (remoteTrips.some((t) => t.id === tripId)) await remoteUpdate("trips", tripId, tripRow);
-    else await remoteCreate("trips", tripRow);
-    await sleep(WRITE_DELAY_MS);
+    const remoteTrips = await paced(() => remoteList<Row>("trips"));
+    if (remoteTrips.some((t) => t.id === tripId)) await paced(() => remoteUpdate("trips", tripId, tripRow));
+    else await paced(() => remoteCreate("trips", tripRow));
     notify("trips");
   }
   for (const entity of TRIP_ENTITIES) {
