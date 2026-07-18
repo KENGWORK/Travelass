@@ -33,3 +33,13 @@ export function remoteUpdate<T>(entity: EntityName, id: string, obj: T): Promise
 export function remoteDelete(entity: EntityName, id: string): Promise<{ ok: true }> {
   return fetch(resourceItemUrl(entity, id), { method: "DELETE" }).then(jsonOrThrow);
 }
+
+// One request upserts every row for the entity (server batches the Sheets
+// calls) — the quota-safe path for lib/force-sync.ts.
+export function remoteBulkUpsert<T>(entity: EntityName, rows: T[]): Promise<{ ok: true }> {
+  return fetch(resourceListUrl(entity), {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(rows),
+  }).then(jsonOrThrow);
+}

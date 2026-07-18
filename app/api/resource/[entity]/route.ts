@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ENTITIES, type EntityName } from "@/lib/models/mappers";
-import { listRows, appendRow, updateRow, deleteRow, ensureTabs } from "@/lib/store";
+import { listRows, appendRow, updateRow, deleteRow, bulkUpsertRows, ensureTabs } from "@/lib/store";
 
 let tabsReady: Promise<void> | null = null;
 const ready = () => (tabsReady ??= ensureTabs());
@@ -34,6 +34,17 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
   const id = req.nextUrl.searchParams.get("id");
   if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
   await updateRow(entity as EntityName, id, await req.json());
+  return NextResponse.json({ ok: true });
+}
+
+// Bulk upsert: body is an array of complete rows. Costs a fixed ~3 Sheets
+// API calls total instead of 1-2 per row — used by the force-upload button.
+export async function PUT(req: NextRequest, { params }: Ctx) {
+  const { entity } = await params;
+  const err = await guard(entity); if (err) return err;
+  const rows = await req.json();
+  if (!Array.isArray(rows)) return NextResponse.json({ error: "array required" }, { status: 400 });
+  await bulkUpsertRows(entity as EntityName, rows);
   return NextResponse.json({ ok: true });
 }
 

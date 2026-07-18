@@ -1,7 +1,7 @@
 import type { EntityName } from "@/lib/models/mappers";
 import { dbList, dbCreate, dbUpdate, dbDelete, dbReplaceAll, type Row } from "@/lib/local-db";
 import { isGoogleConfigured } from "@/lib/backend";
-import { markSynced } from "@/lib/sync-status";
+import { markSynced, shouldRevalidate } from "@/lib/sync-status";
 import { remoteList } from "@/lib/remote-api";
 import { notify } from "@/lib/notify";
 import { enqueue, flush, initSyncQueue } from "@/lib/sync-queue";
@@ -16,7 +16,10 @@ initSyncQueue();
 
 export const apiList = <T,>(entity: EntityName, tripId?: string): Promise<T[]> => {
   const local = dbList(entity, tripId) as T[];
-  if (isGoogleConfigured()) {
+  // shouldRevalidate gates the background read: pages calling apiList on
+  // every mount/tab-switch/search-open were stacking dozens of Sheets reads
+  // a minute, exhausting the per-minute quota and failing real writes.
+  if (isGoogleConfigured() && shouldRevalidate(entity, tripId)) {
     remoteList<T>(entity, tripId)
       .then((fresh) => {
         dbReplaceAll(entity, tripId, fresh as unknown as Row[]);

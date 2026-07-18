@@ -1,5 +1,6 @@
 import { getSheets } from "./client";
 import { ENTITIES, type EntityName } from "@/lib/models/mappers";
+import { planBulkUpsert } from "@/lib/bulk-plan";
 
 const SSID = () => process.env.SPREADSHEET_ID!;
 
@@ -48,6 +49,35 @@ export async function updateRow<T>(entity: EntityName, id: string, obj: T): Prom
     spreadsheetId: SSID(), range: `${entity}!A${row}`, valueInputOption: "RAW",
     requestBody: { values: [ENTITIES[entity].toRow(obj as never)] },
   });
+}
+
+// Upserts a whole batch of rows in a fixed number of Sheets API calls
+// (1 read + at most 2 writes), regardless of row count. The per-row
+// append/update path costs 1-2 API calls per row, which blows through the
+// Sheets per-minute quota the moment a device force-uploads a real trip.
+export async function bulkUpsertRows<T extends { id: string }>(entity: EntityName, rows: T[]): Promise<void> {
+  if (rows.length === 0) return;
+  const res = await getSheets().spreadsheets.values.get({ spreadsheetId: SSID(), range: `${entity}!A2:A` });
+  const sheetIds = ((res.data.values ?? []) as string[][]).map((r) => r[0] ?? "");
+  const plan = planBulkUpsert(rows, sheetIds);
+  if (plan.creates.length > 0) {
+    await getSheets().spreadsheets.values.append({
+      spreadsheetId: SSID(), range: `${entity}!A1`, valueInputOption: "RAW",
+      requestBody: { values: plan.creates.map((row) => ENTITIES[entity].toRow(row as never)) },
+    });
+  }
+  if (plan.updates.length > 0) {
+    await getSheets().spreadsheets.values.batchUpdate({
+      spreadsheetId: SSID(),
+      requestBody: {
+        valueInputOption: "RAW",
+        data: plan.updates.map(({ row, sheetRow }) => ({
+          range: `${entity}!A${sheetRow}`,
+          values: [ENTITIES[entity].toRow(row as never)],
+        })),
+      },
+    });
+  }
 }
 
 export async function deleteRow(entity: EntityName, id: string): Promise<void> {

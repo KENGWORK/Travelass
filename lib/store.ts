@@ -23,6 +23,9 @@ export const updateRow = <T,>(entity: EntityName, id: string, obj: T): Promise<v
 export const deleteRow = (entity: EntityName, id: string): Promise<void> =>
   sheets.deleteRow(entity, id);
 
+export const bulkUpsertRows = <T extends { id: string }>(entity: EntityName, rows: T[]): Promise<void> =>
+  sheets.bulkUpsertRows<T>(entity, rows);
+
 export const saveImage = (
   buf: Buffer,
   mime: string,

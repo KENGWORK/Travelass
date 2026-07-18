@@ -19,4 +19,20 @@ function markSynced(entity: string, tripId?: string): void {
   localStorage.setItem(syncedKey(entity, tripId), String(Date.now()));
 }
 
-export { syncedKey, isSynced, markSynced };
+// Gate for background revalidates: markSynced stores a timestamp, so a fresh
+// sync within the TTL means the cache is new enough — skip the Sheets read.
+// This is what keeps normal navigation (tab switches, opening search, pull
+// refresh) from stacking up dozens of reads per minute and exhausting the
+// Sheets API's per-minute quota, which then fails real writes too.
+const REVALIDATE_TTL_MS = 15_000;
+
+function shouldRevalidate(entity: string, tripId?: string): boolean {
+  if (typeof localStorage === "undefined") return false;
+  const raw = localStorage.getItem(syncedKey(entity, tripId));
+  if (raw === null) return true;
+  const last = Number(raw);
+  if (!Number.isFinite(last)) return true;
+  return Date.now() - last > REVALIDATE_TTL_MS;
+}
+
+export { syncedKey, isSynced, markSynced, shouldRevalidate };

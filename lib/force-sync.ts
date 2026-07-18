@@ -1,57 +1,37 @@
 // Manual "push everything local up to Sheets" action — separate from the
 // normal outbox (lib/sync-queue.ts), which only carries mutations made
-// since it started listening. This walks every entity's current local
-// cache for the trip and upserts each row to Sheets directly, for cases
-// where the queue might have missed something or Google was only just
-// configured after local-only use. Upsert only — never deletes a remote
-// row, since another device's local cache (and therefore this device's
-// view of "what's local") can lag behind what's actually on Sheets.
-//
-// Every Sheets API call (read or write) goes through `paced`, which waits
-// after each one. The Sheets API's default quota is ~60 requests per
-// minute per user — a naive loop even one-at-a-time with a 150ms gap
-// still averages ~400/min and blew through it instantly. ~1 request/sec
-// stays safely under that, combined with whatever else the app's normal
-// background revalidation is doing at the same time.
+// since it started listening. Each entity with local rows becomes ONE
+// bulk-upsert request; the server batches that into ~3 Sheets API calls
+// (see lib/google/sheets.ts bulkUpsertRows), so a full trip upload stays
+// far under the Sheets per-minute quota that per-row uploads kept hitting.
+// Upsert only — never deletes a remote row, since another device's local
+// cache can lag behind what's actually on Sheets.
 import { ENTITIES, type EntityName } from "@/lib/models/mappers";
-import { dbList, type Row } from "@/lib/local-db";
-import { remoteList, remoteCreate, remoteUpdate } from "@/lib/remote-api";
+import { dbList } from "@/lib/local-db";
+import { remoteBulkUpsert } from "@/lib/remote-api";
 import { markSynced } from "@/lib/sync-status";
 import { notify } from "@/lib/notify";
 
 const TRIP_ENTITIES = (Object.keys(ENTITIES) as EntityName[]).filter((e) => e !== "trips");
-const REQUEST_DELAY_MS = 1100;
+// Spacing between entity requests keeps the server-side Sheets calls of
+// consecutive entities from overlapping into the same quota window.
+const ENTITY_DELAY_MS = 1500;
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-async function paced<T>(fn: () => Promise<T>): Promise<T> {
-  const result = await fn();
-  await sleep(REQUEST_DELAY_MS);
-  return result;
-}
-
-async function upsertEntity(entity: EntityName, tripId: string): Promise<void> {
-  const localRows = dbList(entity, tripId);
-  if (localRows.length === 0) return;
-  const remoteRows = await paced(() => remoteList<Row>(entity, tripId));
-  const remoteIds = new Set(remoteRows.map((r) => r.id));
-  for (const row of localRows) {
-    await paced(() => (remoteIds.has(row.id) ? remoteUpdate(entity, row.id, row) : remoteCreate(entity, row)));
-  }
-  markSynced(entity, tripId);
-  notify(entity);
-}
-
 export async function uploadLocalToSheets(tripId: string): Promise<void> {
-  const localTrips = dbList("trips");
-  const tripRow = localTrips.find((t) => t.id === tripId);
+  const tripRow = dbList("trips").find((t) => t.id === tripId);
   if (tripRow) {
-    const remoteTrips = await paced(() => remoteList<Row>("trips"));
-    if (remoteTrips.some((t) => t.id === tripId)) await paced(() => remoteUpdate("trips", tripId, tripRow));
-    else await paced(() => remoteCreate("trips", tripRow));
+    await remoteBulkUpsert("trips", [tripRow]);
     notify("trips");
+    await sleep(ENTITY_DELAY_MS);
   }
   for (const entity of TRIP_ENTITIES) {
-    await upsertEntity(entity, tripId);
+    const localRows = dbList(entity, tripId);
+    if (localRows.length === 0) continue;
+    await remoteBulkUpsert(entity, localRows);
+    markSynced(entity, tripId);
+    notify(entity);
+    await sleep(ENTITY_DELAY_MS);
   }
 }

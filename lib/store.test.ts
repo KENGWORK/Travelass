@@ -8,6 +8,7 @@ vi.mock("@/lib/google/sheets", () => ({
   appendRow: vi.fn().mockResolvedValue(undefined),
   updateRow: vi.fn().mockResolvedValue(undefined),
   deleteRow: vi.fn().mockResolvedValue(undefined),
+  bulkUpsertRows: vi.fn().mockResolvedValue(undefined),
 }));
 vi.mock("@/lib/google/drive", () => ({
   uploadImage: vi.fn().mockResolvedValue("drive-file-id-123"),
@@ -58,6 +59,14 @@ describe("lib/store", () => {
     const { deleteRow } = await import("./store");
     await deleteRow("trips", "a");
     expect(sheets.deleteRow).toHaveBeenCalledWith("trips", "a");
+  });
+
+  it("bulkUpsertRows delegates to google/sheets.bulkUpsertRows", async () => {
+    const sheets = await import("@/lib/google/sheets");
+    const { bulkUpsertRows } = await import("./store");
+    const rows = [{ id: "a" }, { id: "b" }];
+    await bulkUpsertRows("expenses", rows);
+    expect(sheets.bulkUpsertRows).toHaveBeenCalledWith("expenses", rows);
   });
 
   it("ensureTabs delegates to google/sheets.ensureTabs", async () => {
