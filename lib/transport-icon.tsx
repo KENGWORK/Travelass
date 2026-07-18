@@ -1,11 +1,14 @@
-import { TrainFront, Bus, Plane, Ship, Footprints, Navigation, type LucideIcon } from "lucide-react";
+import { Car, TrainFront, Bus, Plane, Ship, Footprints, Navigation, type LucideIcon } from "lucide-react";
 
 const MODE_ICONS: Record<string, LucideIcon> = {
+  รถ: Car,
   รถไฟ: TrainFront,
+  รถบัส: Bus,
+  เดิน: Footprints,
+  // kept for existing rows saved under the old preset labels
   บัส: Bus,
   เครื่องบิน: Plane,
   เรือ: Ship,
-  เดิน: Footprints,
 };
 
 export function transportIcon(mode: string): LucideIcon {

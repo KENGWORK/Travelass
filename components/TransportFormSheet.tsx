@@ -15,7 +15,7 @@ import { computeDurationMin } from "@/lib/time";
 import { X } from "lucide-react";
 import type { Transport, PayTiming } from "@/lib/models/types";
 
-const MODES = ["รถไฟ", "บัส", "เครื่องบิน", "เรือ", "เดิน"];
+const MODES = ["รถ", "รถไฟ", "รถบัส", "เดิน"];
 const TIMINGS: { value: PayTiming; label: string }[] = [
   { value: "prepaid", label: "จ่ายล่วงหน้า" },
   { value: "pay_before", label: "จ่ายก่อน" },
@@ -173,13 +173,19 @@ export function TransportFormSheet({
         </div>
 
         <FormField label="รูปแบบการเดินทาง">
-          <div className="flex gap-2 flex-wrap">
+          <div className="flex gap-2 flex-wrap mb-2">
             {MODES.map((m) => (
               <Chip key={m} selected={values.mode === m} onClick={() => set({ mode: m })}>
                 {m}
               </Chip>
             ))}
           </div>
+          <input
+            value={values.mode}
+            onChange={(e) => set({ mode: e.target.value })}
+            placeholder="หรือระบุเอง เช่น Didi, รถตู้"
+            className="field"
+          />
         </FormField>
 
         <div className="flex gap-2">
