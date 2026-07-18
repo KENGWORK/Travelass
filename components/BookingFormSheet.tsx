@@ -106,8 +106,7 @@ export function BookingFormSheet({
 
   const set = (patch: Partial<BookingFormValues>) => setValues((v) => ({ ...v, ...patch }));
 
-  const hasSecondaryContent =
-    !!booking && (values.detail !== "" || values.slip_photo_ids.length > 0 || values.notes !== "");
+  const hasSecondaryContent = !!booking && (values.detail !== "" || values.notes !== "");
 
   const save = async () => {
     if (!values.vendor.trim()) {
@@ -190,6 +189,18 @@ export function BookingFormSheet({
             don't count toward spend, so this toggle must be seen to be used. */}
         <ToggleRow checked={values.paid} onChange={(paid) => set({ paid })} label="จ่ายแล้ว" />
 
+        {/* Also visible up here — buried in the collapsed disclosure it was
+            easy to miss entirely, and attaching the slip is the whole point
+            of tracking a booking. */}
+        <FormField label="สลิป / ใบจอง">
+          <PhotoPicker
+            tripName={tripName}
+            kind="slips"
+            fileIds={values.slip_photo_ids}
+            onChange={(ids) => set({ slip_photo_ids: ids })}
+          />
+        </FormField>
+
         <Disclosure label="รายละเอียดเพิ่มเติม" defaultOpen={hasSecondaryContent}>
           <FormField label="รายละเอียด">
             <textarea
@@ -209,15 +220,6 @@ export function BookingFormSheet({
                 </Chip>
               ))}
             </div>
-          </FormField>
-
-          <FormField label="สลิปการโอน">
-            <PhotoPicker
-              tripName={tripName}
-              kind="slips"
-              fileIds={values.slip_photo_ids}
-              onChange={(ids) => set({ slip_photo_ids: ids })}
-            />
           </FormField>
 
           <FormField label="โน้ต">
