@@ -1,6 +1,6 @@
 import { getSheets } from "./client";
 import { ENTITIES, type EntityName } from "@/lib/models/mappers";
-import { planBulkUpsert } from "@/lib/bulk-plan";
+import { planBulkUpsert, planDedupe } from "@/lib/bulk-plan";
 
 const SSID = () => process.env.SPREADSHEET_ID!;
 
@@ -78,6 +78,25 @@ export async function bulkUpsertRows<T extends { id: string }>(entity: EntityNam
       },
     });
   }
+}
+
+// One-time cleanup: drops duplicate-id rows a tab picked up from the
+// pre-quota-fix force-upload (a retry re-appending a row that had actually
+// already landed on a prior attempt). Keeps the first occurrence of each
+// id. Returns how many duplicate rows were removed.
+export async function dedupeRows(entity: EntityName): Promise<number> {
+  const res = await getSheets().spreadsheets.values.get({ spreadsheetId: SSID(), range: `${entity}!A2:Z` });
+  const rows = (res.data.values ?? []) as string[][];
+  const plan = planDedupe(rows);
+  if (plan.duplicateCount === 0) return 0;
+  await getSheets().spreadsheets.values.clear({ spreadsheetId: SSID(), range: `${entity}!A2:Z` });
+  if (plan.unique.length > 0) {
+    await getSheets().spreadsheets.values.update({
+      spreadsheetId: SSID(), range: `${entity}!A2`, valueInputOption: "RAW",
+      requestBody: { values: plan.unique },
+    });
+  }
+  return plan.duplicateCount;
 }
 
 export async function deleteRow(entity: EntityName, id: string): Promise<void> {

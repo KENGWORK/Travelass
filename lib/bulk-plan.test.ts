@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { planBulkUpsert } from "./bulk-plan";
+import { planBulkUpsert, planDedupe } from "./bulk-plan";
 
 describe("planBulkUpsert", () => {
   const rows = [
@@ -39,5 +39,46 @@ describe("planBulkUpsert", () => {
   it("uses the first occurrence when the sheet has a duplicated id", () => {
     const plan = planBulkUpsert([rows[0]], ["a", "z", "a"]);
     expect(plan.updates).toEqual([{ row: rows[0], sheetRow: 2 }]);
+  });
+});
+
+describe("planDedupe", () => {
+  it("keeps the first occurrence of each id, drops later duplicates", () => {
+    const rows = [
+      ["a", "x"],
+      ["b", "y"],
+      ["a", "z"],
+    ];
+    const plan = planDedupe(rows);
+    expect(plan.unique).toEqual([
+      ["a", "x"],
+      ["b", "y"],
+    ]);
+    expect(plan.duplicateCount).toBe(1);
+  });
+
+  it("no duplicates -> unique equals input, duplicateCount 0", () => {
+    const rows = [["a", "x"], ["b", "y"]];
+    const plan = planDedupe(rows);
+    expect(plan.unique).toEqual(rows);
+    expect(plan.duplicateCount).toBe(0);
+  });
+
+  it("skips rows with a blank id", () => {
+    const plan = planDedupe([["", "x"], ["a", "y"]]);
+    expect(plan.unique).toEqual([["a", "y"]]);
+    expect(plan.duplicateCount).toBe(0);
+  });
+
+  it("empty input", () => {
+    const plan = planDedupe([]);
+    expect(plan.unique).toEqual([]);
+    expect(plan.duplicateCount).toBe(0);
+  });
+
+  it("triplicate id counts as 2 duplicates", () => {
+    const plan = planDedupe([["a", "1"], ["a", "2"], ["a", "3"]]);
+    expect(plan.unique).toEqual([["a", "1"]]);
+    expect(plan.duplicateCount).toBe(2);
   });
 });

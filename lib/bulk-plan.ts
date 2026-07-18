@@ -10,6 +10,32 @@ export interface BulkUpsertPlan<T> {
   updates: { row: T; sheetRow: number }[];
 }
 
+export interface DedupePlan {
+  unique: string[][];
+  duplicateCount: number;
+}
+
+// Given a sheet tab's raw A2:Z rows, drop every row after the first one
+// with a given id (column A). Used by the one-time cleanup endpoint for
+// rows a pre-quota-fix upload duplicated when a retry re-appended a row
+// that had actually already landed.
+export function planDedupe(rows: string[][]): DedupePlan {
+  const seen = new Set<string>();
+  const unique: string[][] = [];
+  let duplicateCount = 0;
+  for (const row of rows) {
+    const id = row[0];
+    if (!id) continue;
+    if (seen.has(id)) {
+      duplicateCount++;
+      continue;
+    }
+    seen.add(id);
+    unique.push(row);
+  }
+  return { unique, duplicateCount };
+}
+
 export function planBulkUpsert<T extends { id: string }>(rows: T[], sheetIds: string[]): BulkUpsertPlan<T> {
   const indexById = new Map<string, number>();
   sheetIds.forEach((id, i) => {
