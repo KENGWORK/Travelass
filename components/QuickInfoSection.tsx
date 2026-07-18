@@ -11,7 +11,39 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { toast } from "@/components/ui/Toast";
 import { photoUrl } from "@/lib/photo-url";
+import { getQuickInfoOrder, setQuickInfoOrder } from "@/lib/quickinfo-order";
 import type { Booking, QuickInfo, Transport, Trip } from "@/lib/models/types";
+
+type DisplayItem =
+  | { kind: "hotel"; id: string; booking: Booking }
+  | { kind: "pickup"; id: string; transport: Transport }
+  | { kind: "quickinfo"; id: string; item: QuickInfo };
+
+function defaultOrder(hotelBookings: Booking[], pickupTransports: Transport[], quickInfoSorted: QuickInfo[]): DisplayItem[] {
+  return [
+    ...hotelBookings.map((b): DisplayItem => ({ kind: "hotel", id: b.id, booking: b })),
+    ...pickupTransports.map((t): DisplayItem => ({ kind: "pickup", id: t.id, transport: t })),
+    ...quickInfoSorted.map((item): DisplayItem => ({ kind: "quickinfo", id: item.id, item })),
+  ];
+}
+
+function applyStoredOrder(items: DisplayItem[], order: string[]): DisplayItem[] {
+  if (order.length === 0) return items;
+  const byId = new Map(items.map((it) => [it.id, it]));
+  const ordered: DisplayItem[] = [];
+  order.forEach((id) => {
+    const it = byId.get(id);
+    if (it) {
+      ordered.push(it);
+      byId.delete(id);
+    }
+  });
+  // Anything not in the saved order (new hotel booking, new quickinfo entry) goes last.
+  items.forEach((it) => {
+    if (byId.has(it.id)) ordered.push(it);
+  });
+  return ordered;
+}
 
 function PhotoStrip({ fileIds }: { fileIds: string[] }) {
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
@@ -53,29 +85,24 @@ export function QuickInfoSection({
 }) {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editing, setEditing] = useState<QuickInfo | null>(null);
-  const [rows, setRows] = useState<QuickInfo[]>([]);
+  const [rows, setRows] = useState<DisplayItem[]>([]);
 
   const hotelBookings = bookings.filter((b) => b.type === "hotel");
   const pickupTransports = transports.filter((t) => t.pickup_photo_ids.length > 0);
 
   useEffect(() => {
-    setRows(quickInfo.slice().sort((a, b) => a.sort_order - b.sort_order));
-  }, [quickInfo]);
+    const quickInfoSorted = quickInfo.slice().sort((a, b) => a.sort_order - b.sort_order);
+    const base = defaultOrder(hotelBookings, pickupTransports, quickInfoSorted);
+    setRows(applyStoredOrder(base, getQuickInfoOrder(trip.id)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [quickInfo, bookings, transports, trip.id]);
 
-  // Drag reorder (same pattern as the itinerary page): apply the new
-  // sort_order to the shared quickInfo state immediately, persist in the
-  // background. A stuck order after a rare partial failure is fixed by the
-  // page's refresh button rather than a full rollback.
-  const persistOrder = (newRows: QuickInfo[]) => {
-    const changed = newRows.filter((it, idx) => it.sort_order !== idx);
-    if (changed.length === 0) return;
-    const reordered = newRows.map((it, idx) => ({ ...it, sort_order: idx }));
-    setQuickInfo((prev) => prev.map((it) => reordered.find((r) => r.id === it.id) ?? it));
-    Promise.all(
-      reordered
-        .filter((it) => changed.some((c) => c.id === it.id))
-        .map((it) => apiUpdate<QuickInfo>("quickinfo", it.id, it)),
-    ).catch(() => toast("บันทึกลำดับไม่สำเร็จ ลองอีกครั้ง", "error"));
+  // Drag reorder covers hotel/pickup auto-cards too, so the whole tab is
+  // freely reorderable — those two aren't real QuickInfo rows and have
+  // nowhere sane to sync a position to, so the combined order is a
+  // per-device local preference instead of a Sheets-synced field.
+  const persistOrder = (newRows: DisplayItem[]) => {
+    setQuickInfoOrder(trip.id, newRows.map((it) => it.id));
   };
 
   const openCreate = () => {
@@ -124,72 +151,89 @@ export function QuickInfoSection({
 
   return (
     <div className="flex flex-col gap-3">
-      {hotelBookings.map((b) => (
-        <div key={b.id} className="rounded-2xl bg-surface shadow-card p-4 flex flex-col gap-1">
-          <div className="flex items-center gap-1.5 text-xs text-muted">
-            <BedDouble size={14} />
-            <span>ที่พัก</span>
-          </div>
-          <p className="text-base font-medium">{b.vendor}</p>
-          {b.detail && <p className="text-sm text-muted whitespace-pre-wrap">{b.detail}</p>}
-          {b.ref_no && <p className="font-mono text-xs text-muted">{b.ref_no}</p>}
-        </div>
-      ))}
-
-      {pickupTransports.map((t) => (
-        <div key={t.id} className="rounded-2xl bg-surface shadow-card p-4 flex flex-col gap-2">
-          <div className="flex items-center gap-1.5 text-xs text-muted">
-            <Navigation size={14} />
-            <span>จุดนัดพบ</span>
-          </div>
-          <p className="text-base font-medium">
-            {t.from} → {t.to}
-          </p>
-          <PhotoStrip fileIds={t.pickup_photo_ids} />
-        </div>
-      ))}
-
-      {rows.length === 0 && hotelBookings.length === 0 && pickupTransports.length === 0 && (
+      {rows.length === 0 && (
         <EmptyState icon={Info} title="ยังไม่มีข้อมูลด่วน" subtitle="เก็บที่อยู่โรงแรม, เบอร์ฉุกเฉิน, wifi ไว้ที่นี่" />
       )}
 
       {rows.length > 0 && (
         <Reorder.Group axis="y" values={rows} onReorder={setRows} className="flex flex-col gap-3 list-none">
-          {rows.map((item) => (
-            <Reorder.Item
-              key={item.id}
-              value={item}
-              onDragEnd={() => persistOrder(rows)}
-              role="button"
-              tabIndex={0}
-              onClick={() => copyValue(item.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  copyValue(item.value);
-                }
-              }}
-              className="press rounded-2xl bg-surface shadow-card p-4 flex flex-col gap-2 relative cursor-grab active:cursor-grabbing"
-            >
-              <div className="flex items-center gap-1.5 pr-9">
-                {item.pinned && <Pin size={12} className="text-primary shrink-0" />}
-                <span className="text-xs text-muted truncate">{item.label}</span>
-              </div>
-              <p className="text-base whitespace-pre-wrap break-words">{item.value}</p>
-              <PhotoStrip fileIds={item.photo_ids} />
-              <button
-                type="button"
-                aria-label="ตัวเลือกเพิ่มเติม"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  openEdit(item);
+          {rows.map((row) => {
+            if (row.kind === "hotel") {
+              const b = row.booking;
+              return (
+                <Reorder.Item
+                  key={row.id}
+                  value={row}
+                  onDragEnd={() => persistOrder(rows)}
+                  className="press rounded-2xl bg-surface shadow-card p-4 flex flex-col gap-1 cursor-grab active:cursor-grabbing"
+                >
+                  <div className="flex items-center gap-1.5 text-xs text-muted">
+                    <BedDouble size={14} />
+                    <span>ที่พัก</span>
+                  </div>
+                  <p className="text-base font-medium">{b.vendor}</p>
+                  {b.detail && <p className="text-sm text-muted whitespace-pre-wrap">{b.detail}</p>}
+                  {b.ref_no && <p className="font-mono text-xs text-muted">{b.ref_no}</p>}
+                </Reorder.Item>
+              );
+            }
+            if (row.kind === "pickup") {
+              const t = row.transport;
+              return (
+                <Reorder.Item
+                  key={row.id}
+                  value={row}
+                  onDragEnd={() => persistOrder(rows)}
+                  className="press rounded-2xl bg-surface shadow-card p-4 flex flex-col gap-2 cursor-grab active:cursor-grabbing"
+                >
+                  <div className="flex items-center gap-1.5 text-xs text-muted">
+                    <Navigation size={14} />
+                    <span>จุดนัดพบ</span>
+                  </div>
+                  <p className="text-base font-medium">
+                    {t.from} → {t.to}
+                  </p>
+                  <PhotoStrip fileIds={t.pickup_photo_ids} />
+                </Reorder.Item>
+              );
+            }
+            const item = row.item;
+            return (
+              <Reorder.Item
+                key={row.id}
+                value={row}
+                onDragEnd={() => persistOrder(rows)}
+                role="button"
+                tabIndex={0}
+                onClick={() => copyValue(item.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    copyValue(item.value);
+                  }
                 }}
-                className="absolute top-0.5 right-0.5 h-11 w-11 flex items-center justify-center text-muted cursor-pointer"
+                className="press rounded-2xl bg-surface shadow-card p-4 flex flex-col gap-2 relative cursor-grab active:cursor-grabbing"
               >
-                <MoreHorizontal size={18} />
-              </button>
-            </Reorder.Item>
-          ))}
+                <div className="flex items-center gap-1.5 pr-9">
+                  {item.pinned && <Pin size={12} className="text-primary shrink-0" />}
+                  <span className="text-xs text-muted truncate">{item.label}</span>
+                </div>
+                <p className="text-base whitespace-pre-wrap break-words">{item.value}</p>
+                <PhotoStrip fileIds={item.photo_ids} />
+                <button
+                  type="button"
+                  aria-label="ตัวเลือกเพิ่มเติม"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openEdit(item);
+                  }}
+                  className="absolute top-0.5 right-0.5 h-11 w-11 flex items-center justify-center text-muted cursor-pointer"
+                >
+                  <MoreHorizontal size={18} />
+                </button>
+              </Reorder.Item>
+            );
+          })}
         </Reorder.Group>
       )}
 
