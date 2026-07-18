@@ -11,6 +11,7 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { ProgressRing } from "@/components/ui/ProgressRing";
 import { Mascot } from "@/components/ui/Mascot";
 import { RefreshButton } from "@/components/ui/RefreshButton";
+import { SearchButton } from "@/components/ui/SearchButton";
 import { toast } from "@/components/ui/Toast";
 import { TodayView } from "@/components/TodayView";
 import { MembersCard } from "@/components/MembersCard";
@@ -180,6 +181,7 @@ export default function TripDashboardPage() {
           <ModeToggle trip={trip} onChange={setStatus} />
         </div>
         <div className="flex items-center gap-1 shrink-0">
+          <SearchButton />
           <RefreshButton onRefresh={() => Promise.all([refresh(), reload()])} />
           <Mascot size={56} className="-mt-1" />
         </div>

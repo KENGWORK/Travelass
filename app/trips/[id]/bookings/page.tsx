@@ -11,6 +11,7 @@ import { BookingFormSheet, type BookingFormValues } from "@/components/BookingFo
 import { Skeleton } from "@/components/ui/Skeleton";
 import { toast } from "@/components/ui/Toast";
 import { RefreshButton } from "@/components/ui/RefreshButton";
+import { SearchButton } from "@/components/ui/SearchButton";
 import { optimisticCreate, optimisticUpdate, optimisticDelete } from "@/lib/optimistic";
 import type { Booking, BookingType } from "@/lib/models/types";
 
@@ -79,7 +80,10 @@ export default function BookingsPage() {
       <div className="px-4 pt-4 flex flex-col gap-3">
         <div className="flex items-center justify-between">
           <h1 className="font-heading text-xl font-semibold">จอง</h1>
-          <RefreshButton onRefresh={reload} />
+          <div className="flex items-center">
+            <SearchButton />
+            <RefreshButton onRefresh={reload} />
+          </div>
         </div>
         <PlanBookSegment tripId={trip.id} active="bookings" />
         {!loading && total > 0 && (

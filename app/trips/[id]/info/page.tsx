@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useTrip } from "@/lib/trip-context";
 import { useTripData } from "@/lib/use-trip-data";
 import { apiList } from "@/lib/api";
@@ -8,6 +9,7 @@ import { DiarySection } from "@/components/DiarySection";
 import { InfoListSection, type InfoField } from "@/components/InfoListSection";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { RefreshButton } from "@/components/ui/RefreshButton";
+import { SearchButton } from "@/components/ui/SearchButton";
 import type { Note, QuickInfo } from "@/lib/models/types";
 
 const TABS = [
@@ -68,7 +70,18 @@ const EMPTY_TEXT: Record<string, string> = {
 export default function InfoPage() {
   const { trip } = useTrip();
   const { bookings, transports, loading: tripDataLoading, reload: reloadTripData } = useTripData(trip.id);
-  const [tab, setTab] = useState<TabKey>("quickinfo");
+  const searchParams = useSearchParams();
+  const tabParam = searchParams.get("tab");
+  const [tab, setTab] = useState<TabKey>(
+    TABS.some((t) => t.key === tabParam) ? (tabParam as TabKey) : "quickinfo",
+  );
+
+  // Search results deep-link here with ?tab=..., which can change after this
+  // page is already mounted (Next keeps the layout/page instance alive
+  // across nav within the same route segment).
+  useEffect(() => {
+    if (TABS.some((t) => t.key === tabParam)) setTab(tabParam as TabKey);
+  }, [tabParam]);
 
   const [notes, setNotes] = useState<Note[]>([]);
   const [notesLoaded, setNotesLoaded] = useState(false);
@@ -115,7 +128,10 @@ export default function InfoPage() {
     <div className="max-w-3xl mx-auto">
       <div className="px-4 pt-4 flex items-center justify-between">
         <h1 className="font-heading text-xl font-semibold">ข้อมูล</h1>
-        <RefreshButton onRefresh={refreshActive} />
+        <div className="flex items-center">
+          <SearchButton />
+          <RefreshButton onRefresh={refreshActive} />
+        </div>
       </div>
       <div className="sticky top-12 z-20 bg-bg">
         <div className="flex gap-2 overflow-x-auto px-4 py-2">

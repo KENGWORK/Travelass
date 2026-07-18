@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Reorder } from "framer-motion";
 import { MapPin, Plus, Download, CalendarDays } from "lucide-react";
 import { useTrip } from "@/lib/trip-context";
@@ -14,6 +15,7 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { toast } from "@/components/ui/Toast";
 import { RefreshButton } from "@/components/ui/RefreshButton";
+import { SearchButton } from "@/components/ui/SearchButton";
 import { optimisticCreate, optimisticUpdate, optimisticDelete } from "@/lib/optimistic";
 import { transportIcon } from "@/lib/transport-icon";
 import type { ItineraryItem } from "@/lib/models/types";
@@ -32,8 +34,18 @@ function initialSelectedDate(startDate: string, endDate: string): string {
 export default function ItineraryPage() {
   const { trip } = useTrip();
   const { itinerary, transports, loading, reload, setItinerary } = useTripData(trip.id);
+  const searchParams = useSearchParams();
+  const dayParam = searchParams.get("day");
 
-  const [selectedDate, setSelectedDate] = useState(() => initialSelectedDate(trip.start_date, trip.end_date));
+  const [selectedDate, setSelectedDate] = useState(
+    () => dayParam || initialSelectedDate(trip.start_date, trip.end_date),
+  );
+
+  // Search results deep-link here with ?day=..., which can arrive after
+  // this page is already mounted (layout stays alive across in-trip nav).
+  useEffect(() => {
+    if (dayParam) setSelectedDate(dayParam);
+  }, [dayParam]);
   const [items, setItems] = useState<ItineraryItem[]>([]);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [pullOpen, setPullOpen] = useState(false);
@@ -113,7 +125,10 @@ export default function ItineraryPage() {
     <div className="max-w-3xl mx-auto">
       <div className="px-4 pt-4 flex items-center justify-between">
         <h1 className="font-heading text-xl font-semibold">แผนการเดินทาง</h1>
-        <RefreshButton onRefresh={reload} />
+        <div className="flex items-center">
+          <SearchButton />
+          <RefreshButton onRefresh={reload} />
+        </div>
       </div>
 
       <div className="px-4">

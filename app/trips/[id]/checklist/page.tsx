@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { toast } from "@/components/ui/Toast";
 import { RefreshButton } from "@/components/ui/RefreshButton";
+import { SearchButton } from "@/components/ui/SearchButton";
 import { optimisticCreate, optimisticUpdate } from "@/lib/optimistic";
 import type { ChecklistItem } from "@/lib/models/types";
 
@@ -80,7 +81,10 @@ export default function ChecklistPage() {
     <div className="p-4 max-w-3xl mx-auto flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <h1 className="font-heading text-xl font-semibold">เช็คลิสต์</h1>
-        <RefreshButton onRefresh={reload} />
+        <div className="flex items-center">
+          <SearchButton />
+          <RefreshButton onRefresh={reload} />
+        </div>
       </div>
 
       {loading ? (

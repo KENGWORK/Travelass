@@ -15,6 +15,7 @@ import { Chip } from "@/components/ui/Chip";
 import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { RefreshButton } from "@/components/ui/RefreshButton";
+import { SearchButton } from "@/components/ui/SearchButton";
 import type { Expense } from "@/lib/models/types";
 
 type FilterMode = "today" | "day" | "all";
@@ -100,7 +101,10 @@ export default function MoneyPage() {
     <div className="p-4 max-w-3xl mx-auto flex flex-col gap-5">
       <div className="flex items-center justify-between">
         <h1 className="font-heading text-xl font-semibold">สรุปค่าใช้จ่าย</h1>
-        <RefreshButton onRefresh={reload} />
+        <div className="flex items-center">
+          <SearchButton />
+          <RefreshButton onRefresh={reload} />
+        </div>
       </div>
 
       <div className="relative h-11 grid grid-cols-3 rounded-full bg-muted/10 p-0.5">
