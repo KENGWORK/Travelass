@@ -7,6 +7,7 @@ import { useTrip } from "@/lib/trip-context";
 import { useTripData } from "@/lib/use-trip-data";
 import { apiCreate, apiUpdate, apiDelete } from "@/lib/api";
 import { tripDays } from "@/lib/days";
+import { photoUrl } from "@/lib/photo-url";
 import { DayChips } from "@/components/DayChips";
 import { ItineraryFormSheet, type ItineraryFormValues } from "@/components/ItineraryFormSheet";
 import { PullIntoPlanSheet } from "@/components/PullIntoPlanSheet";
@@ -197,12 +198,24 @@ export default function ItineraryPage() {
                         </span>
                       )}
                     </div>
-                    {item.time && (
-                      <div className="shrink-0 flex flex-col items-end tabular-nums">
-                        <span className="text-xl font-semibold leading-tight">{item.time}</span>
-                        {item.end_time && <span className="text-xs text-muted leading-tight">{item.end_time}</span>}
-                      </div>
-                    )}
+                    <div className="shrink-0 flex flex-col items-end gap-1.5">
+                      {item.time && (
+                        <div className="flex flex-col items-end tabular-nums">
+                          <span className="text-xl font-semibold leading-tight">{item.time}</span>
+                          {item.end_time && <span className="text-xs text-muted leading-tight">{item.end_time}</span>}
+                        </div>
+                      )}
+                      {item.photo_ids.length > 0 && (
+                        <div className="relative h-11 w-11">
+                          <img src={photoUrl(item.photo_ids[0])} alt="" className="h-11 w-11 rounded-lg object-cover" />
+                          {item.photo_ids.length > 1 && (
+                            <span className="absolute -bottom-1 -right-1 h-5 min-w-5 px-1 rounded-full bg-primary text-white text-[10px] font-medium flex items-center justify-center">
+                              +{item.photo_ids.length - 1}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </button>
                 </Reorder.Item>
               );
@@ -242,6 +255,7 @@ export default function ItineraryPage() {
         open={sheetOpen}
         onClose={() => setSheetOpen(false)}
         item={editingItem}
+        tripName={trip.name}
         onSave={handleSave}
         onDelete={editingItem ? handleDelete : undefined}
       />

@@ -18,6 +18,7 @@ export function itineraryFromTransport(t: Transport, day: string, id: string): I
     linked_transport_id: t.id,
     linked_booking_id: "",
     sort_order: 999,
+    photo_ids: [],
   };
 }
 
@@ -41,5 +42,6 @@ export function itineraryFromPlace(
     linked_transport_id: "",
     linked_booking_id: "",
     sort_order: 999,
+    photo_ids: [],
   };
 }

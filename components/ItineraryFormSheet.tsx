@@ -4,6 +4,7 @@ import { BottomSheet } from "@/components/ui/BottomSheet";
 import { Button } from "@/components/ui/Button";
 import { FormField } from "@/components/ui/FormField";
 import { TimeInput } from "@/components/ui/TimeInput";
+import { PhotoPicker } from "@/components/PhotoPicker";
 import type { ItineraryItem } from "@/lib/models/types";
 
 export interface ItineraryFormValues {
@@ -13,20 +14,23 @@ export interface ItineraryFormValues {
   place: string;
   maps_link: string;
   notes: string;
+  photo_ids: string[];
 }
 
-const EMPTY: ItineraryFormValues = { time: "", end_time: "", title: "", place: "", maps_link: "", notes: "" };
+const EMPTY: ItineraryFormValues = { time: "", end_time: "", title: "", place: "", maps_link: "", notes: "", photo_ids: [] };
 
 export function ItineraryFormSheet({
   open,
   onClose,
   item,
+  tripName,
   onSave,
   onDelete,
 }: {
   open: boolean;
   onClose: () => void;
   item: ItineraryItem | null;
+  tripName: string;
   onSave: (values: ItineraryFormValues) => void | Promise<void>;
   onDelete?: () => void | Promise<void>;
 }) {
@@ -37,7 +41,7 @@ export function ItineraryFormSheet({
     if (open) {
       setValues(
         item
-          ? { time: item.time, end_time: item.end_time ?? "", title: item.title, place: item.place, maps_link: item.maps_link, notes: item.notes }
+          ? { time: item.time, end_time: item.end_time ?? "", title: item.title, place: item.place, maps_link: item.maps_link, notes: item.notes, photo_ids: item.photo_ids ?? [] }
           : EMPTY
       );
     }
@@ -100,6 +104,14 @@ export function ItineraryFormSheet({
             onChange={(e) => set({ notes: e.target.value })}
             rows={3}
             className="field"
+          />
+        </FormField>
+        <FormField label="รูปภาพ">
+          <PhotoPicker
+            tripName={tripName}
+            kind="photos"
+            fileIds={values.photo_ids}
+            onChange={(photo_ids) => set({ photo_ids })}
           />
         </FormField>
 
