@@ -16,6 +16,7 @@ import {
   Smartphone,
   Link2,
   ShoppingBag,
+  Languages,
   type LucideIcon,
 } from "lucide-react";
 import { apiList } from "@/lib/api";
@@ -32,6 +33,7 @@ import type {
   TripApp,
   LinkItem,
   ShopItem,
+  Phrase,
 } from "@/lib/models/types";
 
 interface Result {
@@ -56,6 +58,7 @@ const TYPE_ORDER = [
   "แอพ",
   "ลิงก์",
   "ของฝาก",
+  "ภาษา",
 ];
 
 function norm(s: string): string {
@@ -85,6 +88,7 @@ export function SearchSheet({ open, onClose, tripId }: { open: boolean; onClose:
     apps: TripApp[];
     links: LinkItem[];
     shopping: ShopItem[];
+    phrases: Phrase[];
   } | null>(null);
 
   useEffect(() => {
@@ -104,8 +108,9 @@ export function SearchSheet({ open, onClose, tripId }: { open: boolean; onClose:
       apiList<TripApp>("apps", tripId),
       apiList<LinkItem>("links", tripId),
       apiList<ShopItem>("shopping", tripId),
-    ]).then(([itinerary, transports, bookings, expenses, checklist, notes, quickinfo, restaurants, wishlist, apps, links, shopping]) => {
-      setData({ itinerary, transports, bookings, expenses, checklist, notes, quickinfo, restaurants, wishlist, apps, links, shopping });
+      apiList<Phrase>("phrases", tripId),
+    ]).then(([itinerary, transports, bookings, expenses, checklist, notes, quickinfo, restaurants, wishlist, apps, links, shopping, phrases]) => {
+      setData({ itinerary, transports, bookings, expenses, checklist, notes, quickinfo, restaurants, wishlist, apps, links, shopping, phrases });
       setLoaded(true);
     });
     const t = setTimeout(() => inputRef.current?.focus(), 50);
@@ -257,6 +262,18 @@ export function SearchSheet({ open, onClose, tripId }: { open: boolean; onClose:
           title: s.item,
           subtitle: s.for_whom,
           path: `/trips/${tripId}/info?tab=shopping`,
+        });
+      }
+    });
+    data.phrases.forEach((p) => {
+      if (matches(query, p.text, p.pronunciation, p.meaning)) {
+        results.push({
+          id: p.id,
+          typeLabel: "ภาษา",
+          icon: Languages,
+          title: p.text,
+          subtitle: p.meaning,
+          path: `/trips/${tripId}/info?tab=phrases`,
         });
       }
     });

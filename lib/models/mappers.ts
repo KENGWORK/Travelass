@@ -1,4 +1,4 @@
-import type { Trip, ItineraryItem, Transport, Booking, Expense, ChecklistItem, Note, QuickInfo, Member, Restaurant, WishItem, TripApp, LinkItem, ShopItem } from "./types";
+import type { Trip, ItineraryItem, Transport, Booking, Expense, ChecklistItem, Note, QuickInfo, Member, Restaurant, WishItem, TripApp, LinkItem, ShopItem, Phrase } from "./types";
 
 type Kind = "s" | "n" | "b" | "a"; // string, number, bool, string-array
 
@@ -43,6 +43,7 @@ export const ENTITIES = {
   apps: makeMapper<TripApp>([["id","s"],["trip_id","s"],["name","s"],["purpose","s"],["url","s"]]),
   links: makeMapper<LinkItem>([["id","s"],["trip_id","s"],["title","s"],["url","s"],["note","s"]]),
   shopping: makeMapper<ShopItem>([["id","s"],["trip_id","s"],["item","s"],["for_whom","s"],["price","s"],["bought","b"]]),
+  phrases: makeMapper<Phrase>([["id","s"],["trip_id","s"],["category","s"],["text","s"],["pronunciation","s"],["meaning","s"]]),
 } as const;
 
 export type EntityName = keyof typeof ENTITIES;

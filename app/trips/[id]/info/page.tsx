@@ -7,6 +7,7 @@ import { apiList } from "@/lib/api";
 import { QuickInfoSection } from "@/components/QuickInfoSection";
 import { DiarySection } from "@/components/DiarySection";
 import { InfoListSection, type InfoField } from "@/components/InfoListSection";
+import { PhraseSection } from "@/components/PhraseSection";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { RefreshButton } from "@/components/ui/RefreshButton";
 import { SearchButton } from "@/components/ui/SearchButton";
@@ -19,6 +20,7 @@ const TABS = [
   { key: "apps", label: "แอพ" },
   { key: "links", label: "ลิงก์" },
   { key: "shopping", label: "ของฝาก" },
+  { key: "phrases", label: "ภาษา" },
   { key: "diary", label: "ไดอารี่" },
 ] as const;
 type TabKey = (typeof TABS)[number]["key"];
@@ -164,6 +166,7 @@ export default function InfoPage() {
         {(["restaurants", "wishlist", "apps", "links", "shopping"] as const).includes(tab as never) && (
           <InfoListSection key={refreshKey} tripId={trip.id} entity={tab as never} fields={FIELDS[tab]} emptyText={EMPTY_TEXT[tab]} />
         )}
+        {tab === "phrases" && <PhraseSection key={refreshKey} tripId={trip.id} />}
         {tab === "diary" &&
           (notesLoaded ? (
             <DiarySection key={refreshKey} trip={trip} initialNotes={notes} />

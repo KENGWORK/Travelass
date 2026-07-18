@@ -40,6 +40,16 @@ export function formatTimeRange(start: string, end?: string): string {
   return end ? `${start} - ${end}` : start;
 }
 
+// "90" -> "1 ชม. 30 นาที", "45" -> "45 นาที", "120" -> "2 ชม."
+export function formatDuration(minutes: number): string {
+  if (minutes <= 0) return "";
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  if (h === 0) return `${m} นาที`;
+  if (m === 0) return `${h} ชม.`;
+  return `${h} ชม. ${m} นาที`;
+}
+
 // Minutes from depart to arrive (both "HH:MM"). An arrive time that is earlier
 // than depart is treated as the next day. Returns 0 if either is missing.
 export function computeDurationMin(depart: string, arrive: string): number {

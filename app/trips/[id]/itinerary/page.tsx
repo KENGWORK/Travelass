@@ -7,6 +7,7 @@ import { useTrip } from "@/lib/trip-context";
 import { useTripData } from "@/lib/use-trip-data";
 import { apiCreate, apiUpdate, apiDelete } from "@/lib/api";
 import { tripDays } from "@/lib/days";
+import { computeDurationMin, formatDuration } from "@/lib/time";
 import { photoUrl } from "@/lib/photo-url";
 import { DayChips } from "@/components/DayChips";
 import { ItineraryFormSheet, type ItineraryFormValues } from "@/components/ItineraryFormSheet";
@@ -159,6 +160,7 @@ export default function ItineraryPage() {
                 ? transports.find((t) => t.id === item.linked_transport_id)
                 : undefined;
               const Icon = transport ? transportIcon(transport.mode) : null;
+              const durationMin = item.time && item.end_time ? computeDurationMin(item.time, item.end_time) : 0;
 
               return (
                 <Reorder.Item
@@ -203,6 +205,9 @@ export default function ItineraryPage() {
                         <div className="flex flex-col items-end tabular-nums">
                           <span className="text-xl font-semibold leading-tight">{item.time}</span>
                           {item.end_time && <span className="text-xs text-muted leading-tight">{item.end_time}</span>}
+                          {durationMin > 0 && (
+                            <span className="text-[11px] text-primary leading-tight mt-0.5">{formatDuration(durationMin)}</span>
+                          )}
                         </div>
                       )}
                       {item.photo_ids.length > 0 && (

@@ -18,3 +18,4 @@ export interface WishItem { id: string; trip_id: string; name: string; area: str
 export interface TripApp { id: string; trip_id: string; name: string; purpose: string; url: string; }
 export interface LinkItem { id: string; trip_id: string; title: string; url: string; note: string; }
 export interface ShopItem { id: string; trip_id: string; item: string; for_whom: string; price: string; bought: boolean; }
+export interface Phrase { id: string; trip_id: string; category: string; text: string; pronunciation: string; meaning: string; }
