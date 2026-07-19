@@ -1,4 +1,4 @@
-const THAI_DOW = ["อา.", "จ.", "อ.", "พ.", "พฤ.", "ศ.", "ส."];
+export const THAI_DOW = ["อา.", "จ.", "อ.", "พ.", "พฤ.", "ศ.", "ส."];
 
 export function tripDays(start: string, end: string): { date: string; label: string }[] {
   const out: { date: string; label: string }[] = [];
@@ -9,4 +9,12 @@ export function tripDays(start: string, end: string): { date: string; label: str
     out.push({ date: iso, label: `วัน ${i} ${THAI_DOW[d.getDay()]} ${d.getDate()}` });
   }
   return out;
+}
+
+// Compact day-chip label: "อา. 30/8 (1)" — day-of-week, date/month, trip-day
+// index. Used by DayChips instead of tripDays()'s own `label`, which other
+// pages (money/transport tabs, diary headers) still rely on unchanged.
+export function dayShortLabel(dateISO: string, index: number): string {
+  const d = new Date(dateISO + "T00:00:00");
+  return `${THAI_DOW[d.getDay()]} ${d.getDate()}/${d.getMonth() + 1} (${index})`;
 }

@@ -22,7 +22,7 @@
   --color-cat-tickets: #b0a23c;
   --color-cat-other: #9b8fb5;
   --font-heading: var(--font-kanit);
-  --font-body: var(--font-plex);
+  --font-body: var(--font-sarabun);
 }
 
 @media (prefers-color-scheme: dark) {

@@ -12,6 +12,7 @@ import { photoUrl } from "@/lib/photo-url";
 import { dayColor } from "@/lib/day-color";
 import { sessionOf } from "@/lib/day-session";
 import { DayChips } from "@/components/DayChips";
+import { PhotoViewer } from "@/components/PhotoViewer";
 import { ItineraryFormSheet, type ItineraryFormValues } from "@/components/ItineraryFormSheet";
 import { PullIntoPlanSheet } from "@/components/PullIntoPlanSheet";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -54,6 +55,7 @@ export default function ItineraryPage() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [pullOpen, setPullOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<ItineraryItem | null>(null);
+  const [viewerItem, setViewerItem] = useState<ItineraryItem | null>(null);
 
   useEffect(() => {
     const dayItems = itinerary
@@ -217,9 +219,16 @@ export default function ItineraryPage() {
                       className="absolute left-0 top-1.5 w-[18px] h-[18px] rounded-full border-2 border-bg"
                       style={{ backgroundColor: accent }}
                     />
-                    <button
-                      type="button"
+                    <div
+                      role="button"
+                      tabIndex={0}
                       onClick={() => openEdit(item)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          openEdit(item);
+                        }
+                      }}
                       className="press w-full text-left rounded-2xl bg-surface shadow-card p-3 flex items-start justify-between gap-3 cursor-pointer"
                     >
                       <div className="min-w-0 flex-1 flex flex-col gap-1">
@@ -250,30 +259,43 @@ export default function ItineraryPage() {
                       <div className="shrink-0 flex flex-col items-end gap-1.5">
                         {item.time && (
                           <div
-                            className="flex flex-col items-end tabular-nums rounded-xl px-2 py-1"
+                            className="flex items-center gap-1 tabular-nums rounded-xl px-2 py-1"
                             style={{ backgroundColor: `color-mix(in srgb, ${accent} 12%, transparent)` }}
                           >
-                            <span className="text-xl font-semibold leading-tight">{item.time}</span>
-                            {item.end_time && <span className="text-xs text-muted leading-tight">{item.end_time}</span>}
-                            {durationMin > 0 && (
-                              <span className="text-[11px] leading-tight mt-0.5" style={{ color: accent }}>
-                                {formatDuration(durationMin)}
-                              </span>
+                            <span className="text-base font-semibold leading-tight">{item.time}</span>
+                            {item.end_time && (
+                              <>
+                                <span className="text-xs text-muted leading-tight">–</span>
+                                <span className="text-base font-semibold leading-tight">{item.end_time}</span>
+                              </>
                             )}
                           </div>
                         )}
+                        {durationMin > 0 && (
+                          <span className="text-[11px] leading-tight" style={{ color: accent }}>
+                            {formatDuration(durationMin)}
+                          </span>
+                        )}
                         {item.photo_ids.length > 0 && (
-                          <div className="relative h-11 w-11">
+                          <button
+                            type="button"
+                            aria-label="ดูรูป"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setViewerItem(item);
+                            }}
+                            className="relative h-11 w-11 cursor-pointer"
+                          >
                             <img src={photoUrl(item.photo_ids[0])} alt="" className="h-11 w-11 rounded-lg object-cover" />
                             {item.photo_ids.length > 1 && (
                               <span className="absolute -bottom-1 -right-1 h-5 min-w-5 px-1 rounded-full bg-primary text-white text-[10px] font-medium flex items-center justify-center">
                                 +{item.photo_ids.length - 1}
                               </span>
                             )}
-                          </div>
+                          </button>
                         )}
                       </div>
-                    </button>
+                    </div>
                   </div>
                   </Reorder.Item>
                 </Fragment>
@@ -318,6 +340,10 @@ export default function ItineraryPage() {
         onSave={handleSave}
         onDelete={editingItem ? handleDelete : undefined}
       />
+
+      {viewerItem && (
+        <PhotoViewer fileIds={viewerItem.photo_ids} initialIndex={0} onClose={() => setViewerItem(null)} />
+      )}
     </div>
   );
 }

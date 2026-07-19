@@ -1,5 +1,5 @@
 "use client";
-import { tripDays } from "@/lib/days";
+import { tripDays, dayShortLabel } from "@/lib/days";
 import { dayColor } from "@/lib/day-color";
 
 export function DayChips({
@@ -33,7 +33,7 @@ export function DayChips({
               }
               className="shrink-0 h-11 px-4 rounded-full border text-sm font-medium whitespace-nowrap cursor-pointer transition flex items-center justify-center"
             >
-              {d.label}
+              {dayShortLabel(d.date, i + 1)}
             </button>
           );
         })}

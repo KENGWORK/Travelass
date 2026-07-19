@@ -1,7 +1,8 @@
 "use client";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { MapPin } from "lucide-react";
+import { MapPin, Plane } from "lucide-react";
+import { tripColor } from "@/lib/trip-color";
 import type { Trip } from "@/lib/models/types";
 
 const MotionLink = motion.create(Link);
@@ -10,12 +11,6 @@ const STATUS_BADGE: Record<Trip["status"], { className: string; label: string }>
   planning: { className: "tint-warning", label: "กำลังวางแผน" },
   active: { className: "tint-primary", label: "กำลังเที่ยว" },
   done: { className: "bg-muted/15 text-muted", label: "จบแล้ว" },
-};
-
-const ACCENT_BAR: Record<Trip["status"], string> = {
-  planning: "bg-warning",
-  active: "gradient-primary",
-  done: "bg-muted/40",
 };
 
 const fmtDate = (d: string) => new Date(d).toLocaleDateString("th-TH", { day: "numeric", month: "short" });
@@ -35,6 +30,7 @@ function countdown(trip: Trip): string {
 
 export function TripCard({ trip }: { trip: Trip }) {
   const badge = STATUS_BADGE[trip.status];
+  const color = tripColor(trip.id);
   return (
     <MotionLink
       href={`/trips/${trip.id}`}
@@ -48,27 +44,36 @@ export function TripCard({ trip }: { trip: Trip }) {
         trip.status === "active" ? "ring-2 ring-primary/40" : "",
       ].join(" ")}
     >
-      <span className={`w-2 shrink-0 rounded-r-full ${ACCENT_BAR[trip.status]}`} aria-hidden="true" />
-      <div className="flex-1 min-w-0 p-4 flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h2 className="font-heading text-lg font-semibold truncate group-hover:text-primary transition-colors">
-            {trip.name}
-          </h2>
-          <p className="flex items-center gap-1 text-sm text-muted mt-0.5">
-            <MapPin size={13} className="shrink-0" />
-            <span className="truncate">{trip.destination}</span>
-          </p>
-          <p className="text-xs text-muted/80 mt-1">{fmtDate(trip.start_date)} - {fmtDate(trip.end_date)}</p>
-          <span className={`inline-flex items-center gap-1.5 mt-2.5 h-6 px-2.5 rounded-full text-xs font-medium ${badge.className}`}>
-            {trip.status === "active" && (
-              <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" aria-hidden="true" />
-            )}
-            {badge.label}
-          </span>
-        </div>
-        <div className="text-right shrink-0">
-          <p className="money text-lg font-semibold text-accent">—</p>
-          <p className="text-xs text-muted mt-1 font-medium">{countdown(trip)}</p>
+      <span className="w-3 shrink-0 rounded-r-full" aria-hidden="true" style={{ backgroundColor: color }} />
+      <div className="flex-1 min-w-0 p-4 flex items-start gap-3">
+        <span
+          className="shrink-0 h-11 w-11 rounded-2xl grid place-items-center mt-0.5"
+          style={{ backgroundColor: `color-mix(in srgb, ${color} 18%, transparent)`, color }}
+          aria-hidden="true"
+        >
+          <Plane size={20} style={{ transform: "rotate(45deg)" }} />
+        </span>
+        <div className="min-w-0 flex-1 flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h2 className="font-heading text-lg font-semibold truncate group-hover:text-primary transition-colors">
+              {trip.name}
+            </h2>
+            <p className="flex items-center gap-1 text-sm text-muted mt-0.5">
+              <MapPin size={13} className="shrink-0" />
+              <span className="truncate">{trip.destination}</span>
+            </p>
+            <p className="text-xs text-muted/80 mt-1">{fmtDate(trip.start_date)} - {fmtDate(trip.end_date)}</p>
+            <span className={`inline-flex items-center gap-1.5 mt-2.5 h-6 px-2.5 rounded-full text-xs font-medium ${badge.className}`}>
+              {trip.status === "active" && (
+                <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" aria-hidden="true" />
+              )}
+              {badge.label}
+            </span>
+          </div>
+          <div className="text-right shrink-0">
+            <p className="money text-lg font-semibold text-accent">—</p>
+            <p className="text-xs text-muted mt-1 font-medium">{countdown(trip)}</p>
+          </div>
         </div>
       </div>
     </MotionLink>

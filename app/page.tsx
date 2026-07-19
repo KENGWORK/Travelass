@@ -13,8 +13,26 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { RefreshButton } from "@/components/ui/RefreshButton";
 
+// Active trips (happening now) float to the top; among the rest, upcoming
+// trips sort soonest-first ("ใกล้มาถึงอยู่บนสุด") and past/done trips sort
+// most-recent-first at the bottom.
+function tripRank(trip: Trip): 0 | 1 | 2 {
+  if (trip.status === "active") return 0;
+  return trip.start_date >= todayISO() ? 1 : 2;
+}
+
+function todayISO(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 const sortTrips = (t: Trip[]) =>
-  [...t].sort((a, b) => (a.status === "active" ? -1 : b.status === "active" ? 1 : b.start_date.localeCompare(a.start_date)));
+  [...t].sort((a, b) => {
+    const ra = tripRank(a);
+    const rb = tripRank(b);
+    if (ra !== rb) return ra - rb;
+    return ra === 2 ? b.start_date.localeCompare(a.start_date) : a.start_date.localeCompare(b.start_date);
+  });
 
 export default function TripListPage() {
   const [trips, setTrips] = useState<Trip[] | null>(null);
