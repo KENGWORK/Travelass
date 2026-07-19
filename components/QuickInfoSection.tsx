@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Reorder } from "framer-motion";
-import { BedDouble, MoreHorizontal, Navigation, Pin, Plus, Info } from "lucide-react";
+import { Reorder, useDragControls } from "framer-motion";
+import { BedDouble, GripVertical, MoreHorizontal, Navigation, Pin, Plus, Info } from "lucide-react";
 import type { Dispatch, SetStateAction } from "react";
 import { apiCreate, apiDelete, apiUpdate } from "@/lib/api";
 import { optimisticCreate, optimisticUpdate, optimisticDelete } from "@/lib/optimistic";
@@ -65,6 +65,127 @@ function PhotoStrip({ fileIds }: { fileIds: string[] }) {
         <PhotoViewer fileIds={fileIds} initialIndex={viewerIndex} onClose={() => setViewerIndex(null)} />
       )}
     </div>
+  );
+}
+
+function DragHandle({ dragControls }: { dragControls: ReturnType<typeof useDragControls> }) {
+  return (
+    <button
+      type="button"
+      aria-label="ลากจัดลำดับ"
+      onPointerDown={(e) => {
+        e.stopPropagation();
+        dragControls.start(e);
+      }}
+      onClick={(e) => e.stopPropagation()}
+      className="absolute top-0.5 right-0.5 h-11 w-11 flex items-center justify-center text-muted/50 cursor-grab active:cursor-grabbing touch-none"
+    >
+      <GripVertical size={18} />
+    </button>
+  );
+}
+
+// Whole-card dragging fought with the page's own vertical scroll on touch
+// (a swipe anywhere on a card reordered instead of scrolling) — same fix as
+// the itinerary page: dragListener={false} + a dedicated grip handle, so
+// only that corner triggers a drag and the rest of the card scrolls/taps
+// normally. useDragControls() must live in its own component instance per
+// row (can't call a hook inside the .map() below), hence this component.
+function QuickInfoCard({
+  row,
+  onDragEnd,
+  onEdit,
+  onCopy,
+}: {
+  row: DisplayItem;
+  onDragEnd: () => void;
+  onEdit: (item: QuickInfo) => void;
+  onCopy: (value: string) => void;
+}) {
+  const dragControls = useDragControls();
+
+  if (row.kind === "hotel") {
+    const b = row.booking;
+    return (
+      <Reorder.Item
+        value={row}
+        dragListener={false}
+        dragControls={dragControls}
+        onDragEnd={onDragEnd}
+        className="relative press rounded-2xl bg-surface shadow-card p-4 pr-11 flex flex-col gap-1"
+      >
+        <div className="flex items-center gap-1.5 text-xs text-muted">
+          <BedDouble size={14} />
+          <span>ที่พัก</span>
+        </div>
+        <p className="text-base font-medium">{b.vendor}</p>
+        {b.detail && <p className="text-sm text-muted whitespace-pre-wrap">{b.detail}</p>}
+        {b.ref_no && <p className="font-mono text-xs text-muted">{b.ref_no}</p>}
+        <DragHandle dragControls={dragControls} />
+      </Reorder.Item>
+    );
+  }
+
+  if (row.kind === "pickup") {
+    const t = row.transport;
+    return (
+      <Reorder.Item
+        value={row}
+        dragListener={false}
+        dragControls={dragControls}
+        onDragEnd={onDragEnd}
+        className="relative press rounded-2xl bg-surface shadow-card p-4 pr-11 flex flex-col gap-2"
+      >
+        <div className="flex items-center gap-1.5 text-xs text-muted">
+          <Navigation size={14} />
+          <span>จุดนัดพบ</span>
+        </div>
+        <p className="text-base font-medium">
+          {t.from} → {t.to}
+        </p>
+        <PhotoStrip fileIds={t.pickup_photo_ids} />
+        <DragHandle dragControls={dragControls} />
+      </Reorder.Item>
+    );
+  }
+
+  const item = row.item;
+  return (
+    <Reorder.Item
+      value={row}
+      dragListener={false}
+      dragControls={dragControls}
+      onDragEnd={onDragEnd}
+      role="button"
+      tabIndex={0}
+      onClick={() => onCopy(item.value)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onCopy(item.value);
+        }
+      }}
+      className="press rounded-2xl bg-surface shadow-card p-4 flex flex-col gap-2 relative cursor-pointer"
+    >
+      <div className="flex items-center gap-1.5 pr-20">
+        {item.pinned && <Pin size={12} className="text-primary shrink-0" />}
+        <span className="text-xs text-muted truncate">{item.label}</span>
+      </div>
+      <p className="text-base whitespace-pre-wrap break-words">{item.value}</p>
+      <PhotoStrip fileIds={item.photo_ids} />
+      <button
+        type="button"
+        aria-label="ตัวเลือกเพิ่มเติม"
+        onClick={(e) => {
+          e.stopPropagation();
+          onEdit(item);
+        }}
+        className="absolute top-0.5 right-11 h-11 w-11 flex items-center justify-center text-muted cursor-pointer"
+      >
+        <MoreHorizontal size={18} />
+      </button>
+      <DragHandle dragControls={dragControls} />
+    </Reorder.Item>
   );
 }
 
@@ -157,83 +278,9 @@ export function QuickInfoSection({
 
       {rows.length > 0 && (
         <Reorder.Group axis="y" values={rows} onReorder={setRows} className="flex flex-col gap-3 list-none">
-          {rows.map((row) => {
-            if (row.kind === "hotel") {
-              const b = row.booking;
-              return (
-                <Reorder.Item
-                  key={row.id}
-                  value={row}
-                  onDragEnd={() => persistOrder(rows)}
-                  className="press rounded-2xl bg-surface shadow-card p-4 flex flex-col gap-1 cursor-grab active:cursor-grabbing"
-                >
-                  <div className="flex items-center gap-1.5 text-xs text-muted">
-                    <BedDouble size={14} />
-                    <span>ที่พัก</span>
-                  </div>
-                  <p className="text-base font-medium">{b.vendor}</p>
-                  {b.detail && <p className="text-sm text-muted whitespace-pre-wrap">{b.detail}</p>}
-                  {b.ref_no && <p className="font-mono text-xs text-muted">{b.ref_no}</p>}
-                </Reorder.Item>
-              );
-            }
-            if (row.kind === "pickup") {
-              const t = row.transport;
-              return (
-                <Reorder.Item
-                  key={row.id}
-                  value={row}
-                  onDragEnd={() => persistOrder(rows)}
-                  className="press rounded-2xl bg-surface shadow-card p-4 flex flex-col gap-2 cursor-grab active:cursor-grabbing"
-                >
-                  <div className="flex items-center gap-1.5 text-xs text-muted">
-                    <Navigation size={14} />
-                    <span>จุดนัดพบ</span>
-                  </div>
-                  <p className="text-base font-medium">
-                    {t.from} → {t.to}
-                  </p>
-                  <PhotoStrip fileIds={t.pickup_photo_ids} />
-                </Reorder.Item>
-              );
-            }
-            const item = row.item;
-            return (
-              <Reorder.Item
-                key={row.id}
-                value={row}
-                onDragEnd={() => persistOrder(rows)}
-                role="button"
-                tabIndex={0}
-                onClick={() => copyValue(item.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    copyValue(item.value);
-                  }
-                }}
-                className="press rounded-2xl bg-surface shadow-card p-4 flex flex-col gap-2 relative cursor-grab active:cursor-grabbing"
-              >
-                <div className="flex items-center gap-1.5 pr-9">
-                  {item.pinned && <Pin size={12} className="text-primary shrink-0" />}
-                  <span className="text-xs text-muted truncate">{item.label}</span>
-                </div>
-                <p className="text-base whitespace-pre-wrap break-words">{item.value}</p>
-                <PhotoStrip fileIds={item.photo_ids} />
-                <button
-                  type="button"
-                  aria-label="ตัวเลือกเพิ่มเติม"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    openEdit(item);
-                  }}
-                  className="absolute top-0.5 right-0.5 h-11 w-11 flex items-center justify-center text-muted cursor-pointer"
-                >
-                  <MoreHorizontal size={18} />
-                </button>
-              </Reorder.Item>
-            );
-          })}
+          {rows.map((row) => (
+            <QuickInfoCard key={row.id} row={row} onDragEnd={() => persistOrder(rows)} onEdit={openEdit} onCopy={copyValue} />
+          ))}
         </Reorder.Group>
       )}
 
