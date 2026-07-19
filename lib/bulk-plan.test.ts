@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { planBulkUpsert, planDedupe } from "./bulk-plan";
+import { planBulkUpsert, planDedupe, planChecklistDedupe } from "./bulk-plan";
 
 describe("planBulkUpsert", () => {
   const rows = [
@@ -80,5 +80,50 @@ describe("planDedupe", () => {
     const plan = planDedupe([["a", "1"], ["a", "2"], ["a", "3"]]);
     expect(plan.unique).toEqual([["a", "1"]]);
     expect(plan.duplicateCount).toBe(2);
+  });
+});
+
+describe("planChecklistDedupe", () => {
+  it("drops later rows with the same trip+group+item, keeping the first", () => {
+    const rows = [
+      { id: "1", trip_id: "t1", group: "เอกสาร", item: "พาสปอร์ต", done: false },
+      { id: "2", trip_id: "t1", group: "เอกสาร", item: "พาสปอร์ต", done: false },
+    ];
+    const removeIds = planChecklistDedupe(rows);
+    expect(removeIds).toEqual(["2"]);
+  });
+
+  it("prefers keeping a done row over an undone duplicate, regardless of order", () => {
+    const rows = [
+      { id: "1", trip_id: "t1", group: "ของใช้", item: "ยา", done: false },
+      { id: "2", trip_id: "t1", group: "ของใช้", item: "ยา", done: true },
+    ];
+    const removeIds = planChecklistDedupe(rows);
+    expect(removeIds).toEqual(["1"]);
+  });
+
+  it("different group with the same item text is not a duplicate", () => {
+    const rows = [
+      { id: "1", trip_id: "t1", group: "เอกสาร", item: "แลกเงิน", done: false },
+      { id: "2", trip_id: "t1", group: "to-do", item: "แลกเงิน", done: false },
+    ];
+    expect(planChecklistDedupe(rows)).toEqual([]);
+  });
+
+  it("same group+item on a different trip is not a duplicate", () => {
+    const rows = [
+      { id: "1", trip_id: "t1", group: "เอกสาร", item: "พาสปอร์ต", done: false },
+      { id: "2", trip_id: "t2", group: "เอกสาร", item: "พาสปอร์ต", done: false },
+    ];
+    expect(planChecklistDedupe(rows)).toEqual([]);
+  });
+
+  it("no duplicates -> nothing removed", () => {
+    const rows = [{ id: "1", trip_id: "t1", group: "เอกสาร", item: "พาสปอร์ต", done: false }];
+    expect(planChecklistDedupe(rows)).toEqual([]);
+  });
+
+  it("empty input", () => {
+    expect(planChecklistDedupe([])).toEqual([]);
   });
 });

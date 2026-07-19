@@ -36,6 +36,34 @@ export function planDedupe(rows: string[][]): DedupePlan {
   return { unique, duplicateCount };
 }
 
+// One-time cleanup for checklist rows duplicated by applying the standard
+// template twice on different devices (each generated its own fresh ids,
+// so the id-based planDedupe above can't see these as duplicates). Two
+// rows are a duplicate if they share the same trip, group, and item text;
+// of each duplicate set, keeps a done:true row if one exists (real
+// progress), otherwise keeps the first. Returns the ids to remove.
+export function planChecklistDedupe(
+  rows: { id: string; trip_id: string; group: string; item: string; done: boolean }[],
+): string[] {
+  const byKey = new Map<string, { id: string; done: boolean }[]>();
+  for (const row of rows) {
+    const key = row.trip_id + "|" + row.group + "|" + row.item;
+    const list = byKey.get(key) ?? [];
+    list.push({ id: row.id, done: row.done });
+    byKey.set(key, list);
+  }
+  const removeIds: string[] = [];
+  for (const list of byKey.values()) {
+    if (list.length <= 1) continue;
+    const keepIndex = list.findIndex((r) => r.done);
+    const keep = keepIndex === -1 ? 0 : keepIndex;
+    list.forEach((r, i) => {
+      if (i !== keep) removeIds.push(r.id);
+    });
+  }
+  return removeIds;
+}
+
 export function planBulkUpsert<T extends { id: string }>(rows: T[], sheetIds: string[]): BulkUpsertPlan<T> {
   const indexById = new Map<string, number>();
   sheetIds.forEach((id, i) => {
