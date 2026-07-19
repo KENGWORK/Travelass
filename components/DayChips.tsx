@@ -1,6 +1,6 @@
 "use client";
 import { tripDays } from "@/lib/days";
-import { CATS } from "@/lib/categories";
+import { dayColor } from "@/lib/day-color";
 
 export function DayChips({
   startDate,
@@ -19,7 +19,7 @@ export function DayChips({
     <div className="sticky top-0 z-20 bg-bg py-2 -mx-4 px-4">
       <div className="flex gap-2 overflow-x-auto no-scrollbar">
         {days.map((d, i) => {
-          const color = CATS[i % CATS.length].color;
+          const color = dayColor(i);
           const active = d.date === selected;
           return (
             <button
