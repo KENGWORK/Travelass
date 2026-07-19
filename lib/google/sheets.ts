@@ -29,11 +29,10 @@ export async function listRows<T>(entity: EntityName, tripId?: string): Promise<
   return tripId ? items.filter((i) => (i as { trip_id?: string }).trip_id === tripId) : items;
 }
 
-async function findRowIndex(entity: EntityName, id: string): Promise<number> {
+async function findRowIndex(entity: EntityName, id: string): Promise<number | null> {
   const res = await getSheets().spreadsheets.values.get({ spreadsheetId: SSID(), range: `${entity}!A2:A` });
   const idx = (res.data.values ?? []).findIndex((r) => r[0] === id);
-  if (idx === -1) throw new Error(`${entity}/${id} not found`);
-  return idx + 2; // 1-based + header
+  return idx === -1 ? null : idx + 2; // 1-based + header
 }
 
 export async function appendRow<T>(entity: EntityName, obj: T): Promise<void> {
@@ -43,8 +42,18 @@ export async function appendRow<T>(entity: EntityName, obj: T): Promise<void> {
   });
 }
 
+// Self-healing: an update for a row that no longer exists (or never made it
+// to Sheets in the first place -- e.g. its own "create" op got dropped from
+// the outbox, or the row was removed some other way) falls back to
+// appending it instead of throwing. An update op that permanently 404s
+// otherwise sits at the head of lib/sync-queue.ts's FIFO outbox forever,
+// blocking every other queued write behind it.
 export async function updateRow<T>(entity: EntityName, id: string, obj: T): Promise<void> {
   const row = await findRowIndex(entity, id);
+  if (row === null) {
+    await appendRow(entity, obj);
+    return;
+  }
   await getSheets().spreadsheets.values.update({
     spreadsheetId: SSID(), range: `${entity}!A${row}`, valueInputOption: "RAW",
     requestBody: { values: [ENTITIES[entity].toRow(obj as never)] },
@@ -99,8 +108,12 @@ export async function dedupeRows(entity: EntityName): Promise<number> {
   return plan.duplicateCount;
 }
 
+// Deleting a row that's already gone (or never made it to Sheets) is a
+// no-op rather than an error, for the same reason updateRow self-heals --
+// an op that fails forever blocks the whole outbox behind it.
 export async function deleteRow(entity: EntityName, id: string): Promise<void> {
   const row = await findRowIndex(entity, id);
+  if (row === null) return;
   const meta = await getSheets().spreadsheets.get({ spreadsheetId: SSID() });
   const sheetId = meta.data.sheets?.find((s) => s.properties?.title === entity)?.properties?.sheetId;
   await getSheets().spreadsheets.batchUpdate({
