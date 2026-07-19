@@ -3,6 +3,7 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { MapPin, Plane } from "lucide-react";
 import { tripColor } from "@/lib/trip-color";
+import { tripCountdown } from "@/lib/trip-countdown";
 import type { Trip } from "@/lib/models/types";
 
 const MotionLink = motion.create(Link);
@@ -14,19 +15,6 @@ const STATUS_BADGE: Record<Trip["status"], { className: string; label: string }>
 };
 
 const fmtDate = (d: string) => new Date(d).toLocaleDateString("th-TH", { day: "numeric", month: "short" });
-
-function countdown(trip: Trip): string {
-  const now = Date.now();
-  const start = Date.parse(trip.start_date);
-  const end = Date.parse(trip.end_date);
-  if (trip.status === "done") return `${fmtDate(trip.start_date)} - ${fmtDate(trip.end_date)}`;
-  if (trip.status === "active") {
-    const day = Math.floor((now - start) / 864e5) + 1;
-    return `วันที่ ${day} ของทริป`;
-  }
-  const days = Math.ceil((start - now) / 864e5);
-  return `อีก ${days} วัน`;
-}
 
 export function TripCard({ trip }: { trip: Trip }) {
   const badge = STATUS_BADGE[trip.status];
@@ -72,7 +60,7 @@ export function TripCard({ trip }: { trip: Trip }) {
           </div>
           <div className="text-right shrink-0">
             <p className="money text-lg font-semibold text-accent">—</p>
-            <p className="text-xs text-muted mt-1 font-medium">{countdown(trip)}</p>
+            <p className="text-xs text-muted mt-1 font-medium">{tripCountdown(trip)}</p>
           </div>
         </div>
       </div>
