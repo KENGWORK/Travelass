@@ -55,54 +55,61 @@ export function ItineraryActivityCard({
               onEdit(item);
             }
           }}
-          className="press w-full text-left rounded-2xl bg-surface shadow-card p-3 flex items-start gap-2 cursor-pointer"
+          className="press w-full text-left rounded-2xl bg-surface shadow-card overflow-hidden flex items-stretch cursor-pointer"
         >
-          <div className="min-w-0 flex-1 flex flex-col gap-1">
-            <p className="font-heading text-base font-medium">{item.title}</p>
-            {item.place && (
-              <p className="text-sm text-muted flex items-center gap-1">
-                {item.place}
-                {item.maps_link && (
-                  <a
-                    href={item.maps_link}
-                    target="_blank"
-                    rel="noreferrer"
-                    onClick={(e) => e.stopPropagation()}
-                    className="relative text-primary inline-flex items-center justify-center p-2.5 before:absolute before:inset-[-5px] before:content-['']"
-                  >
-                    <MapPin size={14} />
-                  </a>
-                )}
-              </p>
-            )}
-            {transport && TransportIcon && (
-              <span className="inline-flex items-center gap-1 text-xs text-primary bg-primary-soft rounded-full px-2 py-1 w-fit mt-1">
-                <TransportIcon size={12} />
-                {transport.duration_min} นาที
-              </span>
-            )}
-          </div>
-
-          <div className="shrink-0 flex flex-col items-end gap-1.5">
-            {item.time && (
-              <div
-                className="flex items-center gap-1 tabular-nums rounded-xl px-2 py-1"
-                style={{ backgroundColor: `color-mix(in srgb, ${accent} 12%, transparent)` }}
-              >
+          {/* Time rail — full card height, so the time is the first thing
+              read scanning down the day, like a timetable's left column. */}
+          <div
+            className="shrink-0 w-16 flex flex-col items-center justify-center gap-0.5 py-2 tabular-nums"
+            style={{ backgroundColor: `color-mix(in srgb, ${accent} 14%, transparent)` }}
+          >
+            {item.time ? (
+              <>
                 <span className="text-base font-semibold leading-tight">{item.time}</span>
                 {item.end_time && (
                   <>
-                    <span className="text-xs text-muted leading-tight">–</span>
+                    <span className="text-[10px] text-muted leading-tight">–</span>
                     <span className="text-base font-semibold leading-tight">{item.end_time}</span>
                   </>
                 )}
-              </div>
+                {durationMin > 0 && (
+                  <span className="text-[10px] leading-tight mt-0.5" style={{ color: accent }}>
+                    {formatDuration(durationMin)}
+                  </span>
+                )}
+              </>
+            ) : (
+              <span className="text-sm text-muted/60">–</span>
             )}
-            {durationMin > 0 && (
-              <span className="text-[11px] leading-tight" style={{ color: accent }}>
-                {formatDuration(durationMin)}
-              </span>
-            )}
+          </div>
+
+          <div className="min-w-0 flex-1 p-3 flex items-start justify-between gap-2">
+            <div className="min-w-0 flex-1 flex flex-col gap-1">
+              <p className="font-heading text-base font-medium">{item.title}</p>
+              {item.place && (
+                <p className="text-sm text-muted flex items-center gap-1">
+                  {item.place}
+                  {item.maps_link && (
+                    <a
+                      href={item.maps_link}
+                      target="_blank"
+                      rel="noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      className="relative text-primary inline-flex items-center justify-center p-2.5 before:absolute before:inset-[-5px] before:content-['']"
+                    >
+                      <MapPin size={14} />
+                    </a>
+                  )}
+                </p>
+              )}
+              {transport && TransportIcon && (
+                <span className="inline-flex items-center gap-1 text-xs text-primary bg-primary-soft rounded-full px-2 py-1 w-fit mt-1">
+                  <TransportIcon size={12} />
+                  {transport.duration_min} นาที
+                </span>
+              )}
+            </div>
+
             {item.photo_ids.length > 0 && (
               <button
                 type="button"
@@ -111,7 +118,7 @@ export function ItineraryActivityCard({
                   e.stopPropagation();
                   onViewPhoto(item);
                 }}
-                className="relative h-11 w-11 cursor-pointer"
+                className="relative h-11 w-11 shrink-0 cursor-pointer"
               >
                 <img src={photoUrl(item.photo_ids[0])} alt="" className="h-11 w-11 rounded-lg object-cover" />
                 {item.photo_ids.length > 1 && (
@@ -131,7 +138,7 @@ export function ItineraryActivityCard({
               dragControls.start(e);
             }}
             onClick={(e) => e.stopPropagation()}
-            className="shrink-0 self-stretch -my-3 -mr-3 pl-1 pr-2 flex items-center text-muted/50 cursor-grab active:cursor-grabbing touch-none"
+            className="shrink-0 pl-1 pr-2 flex items-center text-muted/50 cursor-grab active:cursor-grabbing touch-none"
           >
             <GripVertical size={18} />
           </button>
