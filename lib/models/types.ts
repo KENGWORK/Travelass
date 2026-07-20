@@ -13,9 +13,9 @@ export interface ChecklistItem { id: string; trip_id: string; group: string; ite
 export interface Note { id: string; trip_id: string; date: string; text: string; photo_ids: string[]; }
 export interface QuickInfo { id: string; trip_id: string; label: string; value: string; photo_ids: string[]; pinned: boolean; sort_order: number; }
 export interface Member { id: string; trip_id: string; name: string; color: string; }
-export interface Restaurant { id: string; trip_id: string; name: string; area: string; maps_link: string; note: string; must_try: boolean; price_level: number; visited: boolean; }
-export interface WishItem { id: string; trip_id: string; name: string; area: string; maps_link: string; note: string; star: boolean; visited: boolean; }
+export interface Restaurant { id: string; trip_id: string; name: string; area: string; maps_link: string; note: string; must_try: boolean; price_level: number; visited: boolean; photo_ids: string[]; }
+export interface WishItem { id: string; trip_id: string; name: string; area: string; maps_link: string; note: string; star: boolean; visited: boolean; photo_ids: string[]; }
 export interface TripApp { id: string; trip_id: string; name: string; purpose: string; url: string; }
 export interface LinkItem { id: string; trip_id: string; title: string; url: string; note: string; }
-export interface ShopItem { id: string; trip_id: string; item: string; for_whom: string; price: string; bought: boolean; }
+export interface ShopItem { id: string; trip_id: string; item: string; for_whom: string; price: string; bought: boolean; photo_ids: string[]; }
 export interface Phrase { id: string; trip_id: string; category: string; text: string; pronunciation: string; meaning: string; }

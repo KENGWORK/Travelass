@@ -8,10 +8,13 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { FormField } from "@/components/ui/FormField";
 import { ToggleRow } from "@/components/ui/ToggleRow";
 import { toast } from "@/components/ui/Toast";
+import { PhotoPicker } from "@/components/PhotoPicker";
+import { PhotoViewer } from "@/components/PhotoViewer";
+import { photoUrl } from "@/lib/photo-url";
 import { optimisticCreate, optimisticUpdate, optimisticDelete } from "@/lib/optimistic";
 import type { EntityName } from "@/lib/models/mappers";
 
-export type FieldType = "text" | "textarea" | "url" | "bool" | "price";
+export type FieldType = "text" | "textarea" | "url" | "bool" | "price" | "photos";
 export interface InfoField {
   key: string;
   label: string;
@@ -20,21 +23,47 @@ export interface InfoField {
   primary?: boolean;
 }
 
-type Row = { id: string; trip_id: string; [k: string]: string | number | boolean };
+type FieldValue = string | number | boolean | string[];
+type Row = { id: string; trip_id: string; [k: string]: FieldValue };
 
-function blankRow(fields: InfoField[]): Record<string, string | number | boolean> {
-  const r: Record<string, string | number | boolean> = {};
-  for (const f of fields) r[f.key] = f.type === "bool" ? false : f.type === "price" ? 0 : "";
+function blankRow(fields: InfoField[]): Record<string, FieldValue> {
+  const r: Record<string, FieldValue> = {};
+  for (const f of fields) r[f.key] = f.type === "bool" ? false : f.type === "price" ? 0 : f.type === "photos" ? [] : "";
   return r;
+}
+
+function PhotoStrip({ fileIds }: { fileIds: string[] }) {
+  const [viewerIndex, setViewerIndex] = useState<number | null>(null);
+  if (fileIds.length === 0) return null;
+  return (
+    <div className="flex gap-2 overflow-x-auto" onClick={(e) => e.stopPropagation()}>
+      {fileIds.map((id, i) => (
+        <button
+          key={id}
+          type="button"
+          aria-label="ดูรูป"
+          onClick={() => setViewerIndex(i)}
+          className="h-16 w-16 rounded-xl overflow-hidden shrink-0 cursor-pointer"
+        >
+          <img src={photoUrl(id)} alt="" className="w-full h-full object-cover" />
+        </button>
+      ))}
+      {viewerIndex !== null && (
+        <PhotoViewer fileIds={fileIds} initialIndex={viewerIndex} onClose={() => setViewerIndex(null)} />
+      )}
+    </div>
+  );
 }
 
 export function InfoListSection({
   tripId,
+  tripName,
   entity,
   fields,
   emptyText,
 }: {
   tripId: string;
+  tripName: string;
   entity: EntityName;
   fields: InfoField[];
   emptyText: string;
@@ -42,9 +71,10 @@ export function InfoListSection({
   const [items, setItems] = useState<Row[]>([]);
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState<Record<string, string | number | boolean>>(() => blankRow(fields));
+  const [form, setForm] = useState<Record<string, FieldValue>>(() => blankRow(fields));
 
   const primary = fields.find((f) => f.primary) ?? fields[0];
+  const photoField = fields.find((f) => f.type === "photos");
 
   const load = () => apiList<Row>(entity, tripId).then(setItems);
   useEffect(() => {
@@ -62,7 +92,7 @@ export function InfoListSection({
     setOpen(true);
   };
 
-  const set = (patch: Record<string, string | number | boolean>) => setForm((f) => ({ ...f, ...patch }));
+  const set = (patch: Record<string, FieldValue>) => setForm((f) => ({ ...f, ...patch }));
 
   const save = () => {
     if (!String(form[primary.key] ?? "").trim()) {
@@ -97,52 +127,56 @@ export function InfoListSection({
 
       {items.map((row) => {
         const subtitle = fields.find((f) => !f.primary && (f.type === "text") && String(row[f.key] ?? "").trim());
+        const photos = photoField ? ((row[photoField.key] as string[] | undefined) ?? []) : [];
         return (
-          <div key={row.id} className="rounded-2xl bg-surface shadow-card p-3 flex items-start gap-3">
-            <button type="button" onClick={() => openEdit(row)} className="press flex-1 min-w-0 text-left cursor-pointer">
-              <div className="flex items-center gap-1.5">
-                <span className="font-medium truncate">{String(row[primary.key])}</span>
-                {fields.some((f) => f.type === "bool" && f.key === "must_try") && row.must_try && (
-                  <Star size={14} className="text-warning shrink-0" fill="currentColor" />
+          <div key={row.id} className="rounded-2xl bg-surface shadow-card p-3 flex flex-col gap-2">
+            <div className="flex items-start gap-3">
+              <button type="button" onClick={() => openEdit(row)} className="press flex-1 min-w-0 text-left cursor-pointer">
+                <div className="flex items-center gap-1.5">
+                  <span className="font-medium truncate">{String(row[primary.key])}</span>
+                  {fields.some((f) => f.type === "bool" && f.key === "must_try") && row.must_try && (
+                    <Star size={14} className="text-warning shrink-0" fill="currentColor" />
+                  )}
+                  {fields.some((f) => f.key === "star") && row.star && (
+                    <Star size={14} className="text-warning shrink-0" fill="currentColor" />
+                  )}
+                </div>
+                {subtitle && <span className="block text-sm text-muted truncate">{String(row[subtitle.key])}</span>}
+                {"price_level" in row && Number(row.price_level) > 0 && (
+                  <span className="block text-xs text-muted">{"฿".repeat(Number(row.price_level))}</span>
                 )}
-                {fields.some((f) => f.key === "star") && row.star && (
-                  <Star size={14} className="text-warning shrink-0" fill="currentColor" />
+                {"price" in row && String(row.price).trim() && (
+                  <span className="block text-xs text-muted">{String(row.price)}</span>
+                )}
+              </button>
+
+              <div className="flex items-center gap-1 shrink-0">
+                {String(row.maps_link ?? "").trim() && (
+                  <a href={String(row.maps_link)} target="_blank" rel="noreferrer" aria-label="แผนที่" className="w-11 h-11 grid place-items-center text-primary cursor-pointer">
+                    <MapPin size={18} />
+                  </a>
+                )}
+                {String(row.url ?? "").trim() && (
+                  <a href={String(row.url)} target="_blank" rel="noreferrer" aria-label="เปิดลิงก์" className="w-11 h-11 grid place-items-center text-primary cursor-pointer">
+                    <ExternalLink size={18} />
+                  </a>
+                )}
+                {(["visited", "bought"] as const).map((k) =>
+                  fields.some((f) => f.key === k) ? (
+                    <button
+                      key={k}
+                      type="button"
+                      aria-label={k === "visited" ? "ไปแล้ว" : "ซื้อแล้ว"}
+                      onClick={() => toggleBool(row, k)}
+                      className={`w-11 h-11 grid place-items-center rounded-full cursor-pointer ${row[k] ? "text-success" : "text-muted/50"}`}
+                    >
+                      <Check size={20} />
+                    </button>
+                  ) : null,
                 )}
               </div>
-              {subtitle && <span className="block text-sm text-muted truncate">{String(row[subtitle.key])}</span>}
-              {"price_level" in row && Number(row.price_level) > 0 && (
-                <span className="block text-xs text-muted">{"฿".repeat(Number(row.price_level))}</span>
-              )}
-              {"price" in row && String(row.price).trim() && (
-                <span className="block text-xs text-muted">{String(row.price)}</span>
-              )}
-            </button>
-
-            <div className="flex items-center gap-1 shrink-0">
-              {String(row.maps_link ?? "").trim() && (
-                <a href={String(row.maps_link)} target="_blank" rel="noreferrer" aria-label="แผนที่" className="w-11 h-11 grid place-items-center text-primary cursor-pointer">
-                  <MapPin size={18} />
-                </a>
-              )}
-              {String(row.url ?? "").trim() && (
-                <a href={String(row.url)} target="_blank" rel="noreferrer" aria-label="เปิดลิงก์" className="w-11 h-11 grid place-items-center text-primary cursor-pointer">
-                  <ExternalLink size={18} />
-                </a>
-              )}
-              {(["visited", "bought"] as const).map((k) =>
-                fields.some((f) => f.key === k) ? (
-                  <button
-                    key={k}
-                    type="button"
-                    aria-label={k === "visited" ? "ไปแล้ว" : "ซื้อแล้ว"}
-                    onClick={() => toggleBool(row, k)}
-                    className={`w-11 h-11 grid place-items-center rounded-full cursor-pointer ${row[k] ? "text-success" : "text-muted/50"}`}
-                  >
-                    <Check size={20} />
-                  </button>
-                ) : null,
-              )}
             </div>
+            <PhotoStrip fileIds={photos} />
           </div>
         );
       })}
@@ -189,6 +223,15 @@ export function InfoListSection({
                   rows={2}
                   placeholder={f.placeholder}
                   className="field"
+                />
+              </FormField>
+            ) : f.type === "photos" ? (
+              <FormField key={f.key} label={f.label}>
+                <PhotoPicker
+                  tripName={tripName}
+                  kind="photos"
+                  fileIds={(form[f.key] as string[] | undefined) ?? []}
+                  onChange={(ids) => set({ [f.key]: ids })}
                 />
               </FormField>
             ) : (

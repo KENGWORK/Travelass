@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion, animate } from "framer-motion";
-import { CalendarDays, TrainFront, Ticket, ListChecks, ChevronRight, Trash2, type LucideIcon } from "lucide-react";
+import { CalendarDays, TrainFront, Ticket, ListChecks, ChevronRight, Trash2, Pencil, type LucideIcon } from "lucide-react";
 import { useTrip } from "@/lib/trip-context";
 import { useTripData } from "@/lib/use-trip-data";
 import { apiUpdate } from "@/lib/api";
@@ -17,6 +17,7 @@ import { toast } from "@/components/ui/Toast";
 import { TodayView } from "@/components/TodayView";
 import { MembersCard } from "@/components/MembersCard";
 import { DeleteTripSheet } from "@/components/DeleteTripSheet";
+import { EditTripSheet } from "@/components/EditTripSheet";
 import type { Trip } from "@/lib/models/types";
 
 const MotionLink = motion.create(Link);
@@ -152,9 +153,10 @@ const SHORTCUTS: { href: string; icon: LucideIcon; label: string; tint: string }
 
 export default function TripDashboardPage() {
   const { trip, refresh, setTrip } = useTrip();
-  const { bookings, summary, loading, reload } = useTripData(trip.id);
+  const { bookings, itinerary, transports, summary, loading, reload, setItinerary, setTransports, setBookings } = useTripData(trip.id);
   const router = useRouter();
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
 
   const setStatus = (status: Trip["status"]) => {
     if (status === trip.status) return;
@@ -174,7 +176,17 @@ export default function TripDashboardPage() {
       <header className="flex items-start justify-between gap-3">
         <div className="flex flex-col gap-3 min-w-0">
           <div>
-            <h1 className="font-heading text-[28px] font-bold">{trip.name}</h1>
+            <div className="flex items-center gap-1.5">
+              <h1 className="font-heading text-[28px] font-bold">{trip.name}</h1>
+              <button
+                type="button"
+                aria-label="แก้ไขทริป"
+                onClick={() => setEditOpen(true)}
+                className="relative h-9 w-9 shrink-0 grid place-items-center rounded-full text-muted hover:bg-primary/8 active:scale-90 transition-transform cursor-pointer"
+              >
+                <Pencil size={16} />
+              </button>
+            </div>
             <p className="text-sm text-muted mt-0.5">
               {fmtDate(trip.start_date)} - {fmtDate(trip.end_date)}
             </p>
@@ -246,6 +258,19 @@ export default function TripDashboardPage() {
         open={deleteOpen}
         onClose={() => setDeleteOpen(false)}
         onDeleted={() => router.replace("/")}
+      />
+
+      <EditTripSheet
+        trip={trip}
+        itinerary={itinerary}
+        transports={transports}
+        bookings={bookings}
+        setTrip={setTrip}
+        setItinerary={setItinerary}
+        setTransports={setTransports}
+        setBookings={setBookings}
+        open={editOpen}
+        onClose={() => setEditOpen(false)}
       />
     </div>
   );

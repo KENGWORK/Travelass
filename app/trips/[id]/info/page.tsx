@@ -35,6 +35,7 @@ const FIELDS: Record<string, InfoField[]> = {
     { key: "must_try", label: "ต้องลอง", type: "bool" },
     { key: "price_level", label: "ระดับราคา", type: "price" },
     { key: "visited", label: "ไปแล้ว", type: "bool" },
+    { key: "photo_ids", label: "รูปภาพ", type: "photos" },
   ],
   wishlist: [
     { key: "name", label: "ชื่อสถานที่", type: "text", primary: true, placeholder: "เช่น พระราชวัง" },
@@ -43,6 +44,7 @@ const FIELDS: Record<string, InfoField[]> = {
     { key: "note", label: "โน้ต", type: "textarea" },
     { key: "star", label: "อยากไปมาก", type: "bool" },
     { key: "visited", label: "ไปแล้ว", type: "bool" },
+    { key: "photo_ids", label: "รูปภาพ", type: "photos" },
   ],
   apps: [
     { key: "name", label: "ชื่อแอพ", type: "text", primary: true, placeholder: "เช่น Naver Map" },
@@ -59,6 +61,7 @@ const FIELDS: Record<string, InfoField[]> = {
     { key: "for_whom", label: "ให้ใคร", type: "text", placeholder: "เช่น แม่" },
     { key: "price", label: "ราคา", type: "text", placeholder: "~500 บาท" },
     { key: "bought", label: "ซื้อแล้ว", type: "bool" },
+    { key: "photo_ids", label: "รูปภาพ", type: "photos" },
   ],
 };
 
@@ -156,7 +159,7 @@ export default function InfoPage() {
           />
         )}
         {(["restaurants", "wishlist", "apps", "links", "shopping"] as const).includes(tab as never) && (
-          <InfoListSection tripId={trip.id} entity={tab as never} fields={FIELDS[tab]} emptyText={EMPTY_TEXT[tab]} />
+          <InfoListSection tripId={trip.id} tripName={trip.name} entity={tab as never} fields={FIELDS[tab]} emptyText={EMPTY_TEXT[tab]} />
         )}
         {tab === "phrases" && <PhraseSection tripId={trip.id} />}
         {tab === "diary" &&
