@@ -61,7 +61,6 @@ export function PhotoPicker({ tripName, kind, fileIds, onChange }: PhotoPickerPr
         ref={inputRef}
         type="file"
         accept="image/*"
-        capture="environment"
         multiple
         className="hidden"
         onChange={(e) => {
