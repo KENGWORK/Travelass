@@ -10,7 +10,7 @@ import { BookingCard } from "@/components/BookingCard";
 import { BookingFormSheet, type BookingFormValues } from "@/components/BookingFormSheet";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { toast } from "@/components/ui/Toast";
-import { RefreshButton } from "@/components/ui/RefreshButton";
+import { DashboardButton } from "@/components/ui/DashboardButton";
 import { SearchButton } from "@/components/ui/SearchButton";
 import { UploadButton } from "@/components/ui/UploadButton";
 import { optimisticCreate, optimisticUpdate, optimisticDelete } from "@/lib/optimistic";
@@ -25,7 +25,7 @@ const SECTIONS: { type: BookingType; label: string; icon: LucideIcon }[] = [
 
 export default function BookingsPage() {
   const { trip } = useTrip();
-  const { bookings, loading, reload, setBookings } = useTripData(trip.id);
+  const { bookings, loading, setBookings } = useTripData(trip.id);
 
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editingBooking, setEditingBooking] = useState<Booking | null>(null);
@@ -84,7 +84,7 @@ export default function BookingsPage() {
           <div className="flex items-center">
             <SearchButton />
             <UploadButton />
-            <RefreshButton onRefresh={reload} />
+            <DashboardButton tripId={trip.id} />
           </div>
         </div>
         <PlanBookSegment tripId={trip.id} active="bookings" />

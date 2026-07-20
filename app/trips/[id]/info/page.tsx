@@ -9,7 +9,7 @@ import { DiarySection } from "@/components/DiarySection";
 import { InfoListSection, type InfoField } from "@/components/InfoListSection";
 import { PhraseSection } from "@/components/PhraseSection";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { RefreshButton } from "@/components/ui/RefreshButton";
+import { DashboardButton } from "@/components/ui/DashboardButton";
 import { SearchButton } from "@/components/ui/SearchButton";
 import { UploadButton } from "@/components/ui/UploadButton";
 import type { Note, QuickInfo } from "@/lib/models/types";
@@ -72,7 +72,7 @@ const EMPTY_TEXT: Record<string, string> = {
 
 export default function InfoPage() {
   const { trip } = useTrip();
-  const { bookings, transports, loading: tripDataLoading, reload: reloadTripData } = useTripData(trip.id);
+  const { bookings, transports, loading: tripDataLoading } = useTripData(trip.id);
   const searchParams = useSearchParams();
   const tabParam = searchParams.get("tab");
   const [tab, setTab] = useState<TabKey>(
@@ -90,7 +90,6 @@ export default function InfoPage() {
   const [notesLoaded, setNotesLoaded] = useState(false);
   const [quickInfo, setQuickInfo] = useState<QuickInfo[]>([]);
   const [quickInfoLoading, setQuickInfoLoading] = useState(true);
-  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -118,15 +117,6 @@ export default function InfoPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trip.id]);
 
-  // Refreshes whichever tab-owned data isn't covered by useTripData: quick
-  // info + notes here, and a key bump so InfoListSection/DiarySection (which
-  // fetch their own tab's entity internally) remount and refetch too.
-  const refreshActive = async () => {
-    const notesPromise = apiList<Note>("notes", trip.id).then(setNotes);
-    await Promise.all([reloadTripData(), reloadQuickInfo(), notesPromise]);
-    setRefreshKey((k) => k + 1);
-  };
-
   return (
     <div className="max-w-3xl mx-auto">
       <div className="px-4 pt-4 flex items-center justify-between">
@@ -134,7 +124,7 @@ export default function InfoPage() {
         <div className="flex items-center">
           <SearchButton />
           <UploadButton />
-          <RefreshButton onRefresh={refreshActive} />
+          <DashboardButton tripId={trip.id} />
         </div>
       </div>
       <div className="sticky top-12 z-20 bg-bg">
@@ -166,12 +156,12 @@ export default function InfoPage() {
           />
         )}
         {(["restaurants", "wishlist", "apps", "links", "shopping"] as const).includes(tab as never) && (
-          <InfoListSection key={refreshKey} tripId={trip.id} entity={tab as never} fields={FIELDS[tab]} emptyText={EMPTY_TEXT[tab]} />
+          <InfoListSection tripId={trip.id} entity={tab as never} fields={FIELDS[tab]} emptyText={EMPTY_TEXT[tab]} />
         )}
-        {tab === "phrases" && <PhraseSection key={refreshKey} tripId={trip.id} />}
+        {tab === "phrases" && <PhraseSection tripId={trip.id} />}
         {tab === "diary" &&
           (notesLoaded ? (
-            <DiarySection key={refreshKey} trip={trip} initialNotes={notes} />
+            <DiarySection trip={trip} initialNotes={notes} />
           ) : (
             <div className="flex flex-col gap-3">
               <Skeleton className="h-32" />

@@ -14,7 +14,7 @@ import { ExpenseEditSheet } from "@/components/ExpenseEditSheet";
 import { Chip } from "@/components/ui/Chip";
 import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { RefreshButton } from "@/components/ui/RefreshButton";
+import { DashboardButton } from "@/components/ui/DashboardButton";
 import { SearchButton } from "@/components/ui/SearchButton";
 import { UploadButton } from "@/components/ui/UploadButton";
 import type { Expense } from "@/lib/models/types";
@@ -45,7 +45,7 @@ const MODES: { key: FilterMode; label: string }[] = [
 export default function MoneyPage() {
   const { trip } = useTrip();
   const router = useRouter();
-  const { expenses, bookings, transports, summary, loading, reload } = useTripData(trip.id);
+  const { expenses, bookings, transports, summary, loading } = useTripData(trip.id);
 
   const days = tripDays(trip.start_date, trip.end_date);
   const [mode, setMode] = useState<FilterMode>("today");
@@ -105,7 +105,7 @@ export default function MoneyPage() {
         <div className="flex items-center">
           <SearchButton />
           <UploadButton />
-          <RefreshButton onRefresh={reload} />
+          <DashboardButton tripId={trip.id} />
         </div>
       </div>
 

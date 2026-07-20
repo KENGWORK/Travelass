@@ -9,7 +9,7 @@ import { Checkbox } from "@/components/ui/Checkbox";
 import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { toast } from "@/components/ui/Toast";
-import { RefreshButton } from "@/components/ui/RefreshButton";
+import { DashboardButton } from "@/components/ui/DashboardButton";
 import { SearchButton } from "@/components/ui/SearchButton";
 import { UploadButton } from "@/components/ui/UploadButton";
 import { optimisticCreate, optimisticUpdate } from "@/lib/optimistic";
@@ -85,7 +85,7 @@ export default function ChecklistPage() {
         <div className="flex items-center">
           <SearchButton />
           <UploadButton />
-          <RefreshButton onRefresh={reload} />
+          <DashboardButton tripId={trip.id} />
         </div>
       </div>
 

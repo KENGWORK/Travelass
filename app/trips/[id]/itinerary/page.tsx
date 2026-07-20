@@ -17,7 +17,7 @@ import { PullIntoPlanSheet } from "@/components/PullIntoPlanSheet";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { toast } from "@/components/ui/Toast";
-import { RefreshButton } from "@/components/ui/RefreshButton";
+import { DashboardButton } from "@/components/ui/DashboardButton";
 import { SearchButton } from "@/components/ui/SearchButton";
 import { UploadButton } from "@/components/ui/UploadButton";
 import { optimisticCreate, optimisticUpdate, optimisticDelete } from "@/lib/optimistic";
@@ -37,7 +37,7 @@ function initialSelectedDate(startDate: string, endDate: string): string {
 
 export default function ItineraryPage() {
   const { trip } = useTrip();
-  const { itinerary, transports, loading, reload, setItinerary } = useTripData(trip.id);
+  const { itinerary, transports, loading, setItinerary } = useTripData(trip.id);
   const searchParams = useSearchParams();
   const dayParam = searchParams.get("day");
 
@@ -152,7 +152,7 @@ export default function ItineraryPage() {
         <div className="flex items-center">
           <SearchButton />
           <UploadButton />
-          <RefreshButton onRefresh={reload} />
+          <DashboardButton tripId={trip.id} />
         </div>
       </div>
 
