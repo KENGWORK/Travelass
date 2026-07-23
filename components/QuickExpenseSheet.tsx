@@ -39,7 +39,7 @@ function Key({ label, onPress }: { label: string; onPress: () => void }) {
 }
 
 export function QuickExpenseSheet({ trip, open, onClose }: { trip: Trip; open: boolean; onClose: () => void }) {
-  const { setExpenses } = useTripData();
+  const { expenses, setExpenses } = useTripData();
   const [digits, setDigits] = useState("");
   const [currency, setCurrency] = useState(trip.trip_currency);
   const [currencyPicking, setCurrencyPicking] = useState(false);
@@ -58,6 +58,17 @@ export function QuickExpenseSheet({ trip, open, onClose }: { trip: Trip; open: b
   const amount = parseFloat(digits) || 0;
   const amountTHB = isTHB ? amount : convertToTHB(amount, fxRate);
   const activeColor = CATS.find((c) => c.name === category)?.color ?? "var(--color-primary)";
+
+  // Most-used currency first: count this trip's past expenses per currency,
+  // then stable-sort the base list by that count descending. Array.sort is
+  // stable, so currencies tied at 0 uses keep the original fallback order
+  // (trip currency, then THB, then the rest) instead of shuffling randomly.
+  const currencyOptions = (() => {
+    const counts = new Map<string, number>();
+    for (const e of expenses) counts.set(e.currency, (counts.get(e.currency) ?? 0) + 1);
+    const base = [...new Set([trip.trip_currency, "THB", ...SUPPORTED_CURRENCIES])];
+    return base.sort((a, b) => (counts.get(b) ?? 0) - (counts.get(a) ?? 0));
+  })();
 
   useEffect(() => {
     let alive = true;
@@ -148,7 +159,7 @@ export function QuickExpenseSheet({ trip, open, onClose }: { trip: Trip; open: b
               transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }} className="overflow-hidden"
             >
               <div className="flex gap-2 overflow-x-auto pb-1">
-                {[...new Set([trip.trip_currency, "THB", ...SUPPORTED_CURRENCIES])].map((c) => (
+                {currencyOptions.map((c) => (
                   <button key={c} type="button"
                     onClick={() => { setCurrency(c); setFxRate(c === "THB" ? 1 : 0); setCurrencyPicking(false); }}
                     className={`press h-9 px-4 rounded-full text-sm shrink-0 cursor-pointer ${c === currency ? "bg-primary text-white" : "bg-muted/10 text-muted"}`}
