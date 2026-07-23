@@ -5,7 +5,7 @@ import { apiRate } from "@/lib/api";
 
 export interface MoneyValue { amount: number; currency: string; fx_rate: number; amount_thb: number; }
 
-export function MoneyInput({ value, onChange, tripCurrency, size = "md" }: { value: MoneyValue; onChange: (v: MoneyValue) => void; tripCurrency: string; size?: "md" | "lg" }) {
+export function MoneyInput({ value, onChange, tripCurrency }: { value: MoneyValue; onChange: (v: MoneyValue) => void; tripCurrency: string }) {
   const [editingRate, setEditingRate] = useState(false);
   const valueRef = useRef(value);
   valueRef.current = value;
@@ -52,11 +52,10 @@ export function MoneyInput({ value, onChange, tripCurrency, size = "md" }: { val
   return (
     <div>
       <div className="flex gap-2 items-center">
-        <input inputMode="decimal" autoFocus
-          className={`money flex-1 rounded-2xl border border-muted/30 bg-surface px-4 ${size === "lg" ? "text-5xl h-20" : "text-2xl h-12"}`}
+        <input inputMode="decimal" autoFocus className="money text-2xl flex-1 h-12 rounded-2xl border border-muted/30 bg-surface px-4"
           value={value.amount || ""} placeholder="0"
           onChange={(e) => emit({ amount: Number(e.target.value) || 0 })} />
-        <select className={`rounded-2xl border border-muted/30 bg-surface px-2 cursor-pointer ${size === "lg" ? "h-20 text-lg" : "h-12"}`}
+        <select className="h-12 rounded-2xl border border-muted/30 bg-surface px-2 cursor-pointer"
           value={value.currency} onChange={(e) => setCurrency(e.target.value)}>
           {[...new Set([tripCurrency, "THB", ...SUPPORTED_CURRENCIES])].map((c) => <option key={c}>{c}</option>)}
         </select>
