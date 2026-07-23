@@ -1,11 +1,12 @@
 "use client";
 /* Hallmark · component: bottom-sheet form · genre: playful · mood: fast/fluid
- * redesign v2: full structural rebuild — calculator-dial macrostructure
- * (giant tap-to-type readout + numeric keypad) replaces the stacked-field
- * form. Category tints the readout; currency is a tap-to-cycle chip, not a
- * <select>; payer/note/photo fold into a details drawer below the fold.
- * MoneyInput/Chip untouched — this sheet no longer uses them for the
- * amount, so the other three MoneyInput call sites are unaffected.
+ * redesign v3: payer becomes a required field, pulled out of the details
+ * drawer into the primary flow — a colored-dot avatar row that echoes the
+ * category dial's visual language (same dot-in-ring construction, same
+ * selected-state ring treatment) instead of PayerChips' pill style, so the
+ * "who paid" decision reads as the same kind of choice as "what category."
+ * PayerChips itself stays untouched (still used by the other 3 forms);
+ * this sheet fetches members locally instead.
  */
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
@@ -13,14 +14,13 @@ import { Delete, Plus, Minus } from "lucide-react";
 import { BottomSheet } from "@/components/ui/BottomSheet";
 import { Button } from "@/components/ui/Button";
 import { PhotoPicker } from "@/components/PhotoPicker";
-import { PayerChips } from "@/components/PayerChips";
 import { toast } from "@/components/ui/Toast";
-import { apiCreate, apiRate } from "@/lib/api";
+import { apiCreate, apiList, apiRate } from "@/lib/api";
 import { useTripData } from "@/lib/use-trip-data";
 import { optimisticCreate } from "@/lib/optimistic";
 import { convertToTHB, SUPPORTED_CURRENCIES } from "@/lib/fx";
 import { CATS } from "@/lib/categories";
-import type { Trip, Expense, Category } from "@/lib/models/types";
+import type { Trip, Expense, Category, Member } from "@/lib/models/types";
 
 const KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", ".", "0", "⌫"];
 
@@ -45,7 +45,9 @@ export function QuickExpenseSheet({ trip, open, onClose }: { trip: Trip; open: b
   const [currencyPicking, setCurrencyPicking] = useState(false);
   const [fxRate, setFxRate] = useState(0);
   const [category, setCategory] = useState<Category>("อาหาร");
-  const [payer, setPayer] = useState("ฉัน");
+  const [members, setMembers] = useState<Member[]>([]);
+  const [payer, setPayer] = useState("");
+  const [payerCustom, setPayerCustom] = useState(false);
   const [description, setDescription] = useState("");
   const [slips, setSlips] = useState<string[]>([]);
   const [detailsOpen, setDetailsOpen] = useState(false);
@@ -56,6 +58,14 @@ export function QuickExpenseSheet({ trip, open, onClose }: { trip: Trip; open: b
   const amount = parseFloat(digits) || 0;
   const amountTHB = isTHB ? amount : convertToTHB(amount, fxRate);
   const activeColor = CATS.find((c) => c.name === category)?.color ?? "var(--color-primary)";
+
+  useEffect(() => {
+    let alive = true;
+    const load = () => apiList<Member>("members", trip.id).then((m) => { if (alive) setMembers(m); });
+    load();
+    window.addEventListener("members-changed", load);
+    return () => { alive = false; window.removeEventListener("members-changed", load); };
+  }, [trip.id]);
 
   // Same auto-fetch shape as MoneyInput's, kept local since this sheet no
   // longer renders MoneyInput at all.
@@ -80,11 +90,18 @@ export function QuickExpenseSheet({ trip, open, onClose }: { trip: Trip; open: b
 
   const reset = () => {
     setDigits(""); setCurrency(trip.trip_currency); setFxRate(0); setCategory("อาหาร");
-    setPayer("ฉัน"); setDescription(""); setSlips([]); setDetailsOpen(false); setCurrencyPicking(false);
+    setPayer(""); setPayerCustom(false); setDescription(""); setSlips([]); setDetailsOpen(false); setCurrencyPicking(false);
     onClose();
   };
 
+  const knownPayers: { name: string; color: string }[] = members.length
+    ? members.map((m) => ({ name: m.name, color: m.color }))
+    : [{ name: "ฉัน", color: "var(--color-primary)" }];
+
+  const canSave = amount > 0 && payer.trim() !== "";
+
   const save = () => {
+    if (!canSave) return;
     const exp: Expense = {
       id: crypto.randomUUID(), trip_id: trip.id, datetime: new Date().toISOString(),
       category, description, amount, currency,
@@ -164,6 +181,55 @@ export function QuickExpenseSheet({ trip, open, onClose }: { trip: Trip; open: b
           ))}
         </div>
 
+        {/* Payer — required. Same dot-in-ring construction as the category
+            dial above (colored circle, ring on select) so "who paid" reads
+            as the same kind of decision, not a separate bolted-on field. */}
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs font-semibold text-muted">ใครจ่าย</span>
+            <span className="text-xs text-danger">*</span>
+          </div>
+          <div className="flex gap-3 overflow-x-auto pb-1">
+            {knownPayers.map((p) => {
+              const selected = !payerCustom && payer === p.name;
+              return (
+                <button key={p.name} type="button"
+                  onClick={() => { setPayerCustom(false); setPayer(p.name); }}
+                  className="press flex flex-col items-center gap-1 shrink-0 cursor-pointer">
+                  <span
+                    className="h-10 w-10 rounded-full flex items-center justify-center text-sm font-semibold"
+                    style={{
+                      backgroundColor: selected ? p.color : `color-mix(in srgb, ${p.color} 18%, transparent)`,
+                      color: selected ? "white" : p.color,
+                      boxShadow: selected ? `0 0 0 3px color-mix(in srgb, ${p.color} 30%, transparent)` : undefined,
+                    }}
+                  >
+                    {p.name.slice(0, 1)}
+                  </span>
+                  <span className={`text-xs ${selected ? "font-semibold text-text" : "text-muted"}`}>{p.name}</span>
+                </button>
+              );
+            })}
+            <button type="button" onClick={() => setPayerCustom(true)}
+              className="press flex flex-col items-center gap-1 shrink-0 cursor-pointer">
+              <span
+                className="h-10 w-10 rounded-full flex items-center justify-center text-muted"
+                style={{
+                  backgroundColor: "color-mix(in srgb, var(--color-muted) 14%, transparent)",
+                  boxShadow: payerCustom ? "0 0 0 3px color-mix(in srgb, var(--color-muted) 30%, transparent)" : undefined,
+                }}
+              >
+                <Plus size={16} />
+              </span>
+              <span className={`text-xs ${payerCustom ? "font-semibold text-text" : "text-muted"}`}>อื่นๆ</span>
+            </button>
+          </div>
+          {payerCustom && (
+            <input autoFocus className="field h-11" placeholder="ชื่อคนจ่าย"
+              value={payer} onChange={(e) => setPayer(e.target.value)} />
+          )}
+        </div>
+
         {/* Keypad — replaces the native number input + on-screen keyboard,
             which used to cover half the sheet on a phone. */}
         <div className="grid grid-cols-3 gap-2">
@@ -173,7 +239,7 @@ export function QuickExpenseSheet({ trip, open, onClose }: { trip: Trip; open: b
         <button type="button" onClick={() => setDetailsOpen((v) => !v)}
           className="press inline-flex items-center gap-1.5 self-start text-sm text-muted cursor-pointer">
           {detailsOpen ? <Minus size={14} /> : <Plus size={14} />}
-          ใคร / โน้ต / รูป (ไม่บังคับ)
+          โน้ต / รูป (ไม่บังคับ)
         </button>
 
         <AnimatePresence initial={false}>
@@ -183,7 +249,6 @@ export function QuickExpenseSheet({ trip, open, onClose }: { trip: Trip; open: b
               transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }} className="overflow-hidden"
             >
               <div className="flex flex-col gap-3 pt-1">
-                <PayerChips tripId={trip.id} value={payer} onChange={setPayer} />
                 <input className="field h-11" placeholder="โน๊ตสั้นๆ"
                   value={description} onChange={(e) => setDescription(e.target.value)} />
                 <PhotoPicker tripName={trip.name} kind="slips" fileIds={slips} onChange={setSlips} />
@@ -192,7 +257,7 @@ export function QuickExpenseSheet({ trip, open, onClose }: { trip: Trip; open: b
           )}
         </AnimatePresence>
 
-        <Button variant="primary" full onClick={save} disabled={amount <= 0}>
+        <Button variant="primary" full onClick={save} disabled={!canSave}>
           {amount > 0 ? `บันทึก ฿${amountTHB.toLocaleString()}` : "บันทึก"}
         </Button>
       </div>
