@@ -210,7 +210,7 @@ export function QuickExpenseSheet({ trip, open, onClose }: { trip: Trip; open: b
                 </button>
               );
             })}
-            <button type="button" onClick={() => setPayerCustom(true)}
+            <button type="button" onClick={() => { setPayerCustom(true); setPayer(""); }}
               className="press flex flex-col items-center gap-1 shrink-0 cursor-pointer">
               <span
                 className="h-10 w-10 rounded-full flex items-center justify-center text-muted"
