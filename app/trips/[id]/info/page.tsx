@@ -5,6 +5,7 @@ import { useTrip } from "@/lib/trip-context";
 import { useTripData } from "@/lib/use-trip-data";
 import { apiList } from "@/lib/api";
 import { QuickInfoSection } from "@/components/QuickInfoSection";
+import { QuickNotesSection } from "@/components/QuickNotesSection";
 import { DiarySection } from "@/components/DiarySection";
 import { InfoListSection, type InfoField } from "@/components/InfoListSection";
 import { PhraseSection } from "@/components/PhraseSection";
@@ -28,11 +29,6 @@ const TABS = [
 type TabKey = (typeof TABS)[number]["key"];
 
 const FIELDS: Record<string, InfoField[]> = {
-  quicknotes: [
-    { key: "title", label: "หัวข้อ", type: "text", primary: true, placeholder: "เช่น เบอร์โรงแรม" },
-    { key: "content", label: "เนื้อหา", type: "textarea", placeholder: "รายละเอียด" },
-    { key: "photo_ids", label: "รูปภาพ", type: "photos" },
-  ],
   restaurants: [
     { key: "name", label: "ชื่อร้าน", type: "text", primary: true, placeholder: "เช่น ร้านปิ้งย่าง" },
     { key: "area", label: "โซน / ย่าน", type: "text", placeholder: "เช่น มยองดง" },
@@ -72,7 +68,6 @@ const FIELDS: Record<string, InfoField[]> = {
 };
 
 const EMPTY_TEXT: Record<string, string> = {
-  quicknotes: "ยังไม่มีโน้ต — จดอะไรก็ได้ที่อยากเก็บไว้",
   restaurants: "ยังไม่มีร้าน — เพิ่มร้านที่อยากลอง",
   wishlist: "ยังไม่มีสถานที่ — เพิ่มที่อยากไป",
   apps: "ยังไม่มีแอพ — เพิ่มแอพที่ควรโหลดก่อนไป",
@@ -165,7 +160,8 @@ export default function InfoPage() {
             loading={quickInfoLoading || tripDataLoading}
           />
         )}
-        {(["quicknotes", "restaurants", "wishlist", "apps", "links", "shopping"] as const).includes(tab as never) && (
+        {tab === "quicknotes" && <QuickNotesSection tripId={trip.id} tripName={trip.name} />}
+        {(["restaurants", "wishlist", "apps", "links", "shopping"] as const).includes(tab as never) && (
           <InfoListSection tripId={trip.id} tripName={trip.name} entity={tab as never} fields={FIELDS[tab]} emptyText={EMPTY_TEXT[tab]} />
         )}
         {tab === "phrases" && <PhraseSection tripId={trip.id} />}
