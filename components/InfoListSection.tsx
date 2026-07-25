@@ -126,7 +126,7 @@ export function InfoListSection({
       {items.length === 0 && <EmptyState icon={ListPlus} title={emptyText} />}
 
       {items.map((row) => {
-        const subtitle = fields.find((f) => !f.primary && (f.type === "text") && String(row[f.key] ?? "").trim());
+        const subtitle = fields.find((f) => !f.primary && (f.type === "text" || f.type === "textarea") && String(row[f.key] ?? "").trim());
         const photos = photoField ? ((row[photoField.key] as string[] | undefined) ?? []) : [];
         return (
           <div key={row.id} className="rounded-2xl bg-surface shadow-card p-3 flex flex-col gap-2">

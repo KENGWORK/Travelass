@@ -19,3 +19,4 @@ export interface TripApp { id: string; trip_id: string; name: string; purpose: s
 export interface LinkItem { id: string; trip_id: string; title: string; url: string; note: string; }
 export interface ShopItem { id: string; trip_id: string; item: string; for_whom: string; price: string; bought: boolean; photo_ids: string[]; }
 export interface Phrase { id: string; trip_id: string; category: string; text: string; pronunciation: string; meaning: string; }
+export interface QuickNote { id: string; trip_id: string; title: string; content: string; photo_ids: string[]; }
