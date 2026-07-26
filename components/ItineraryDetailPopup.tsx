@@ -60,20 +60,34 @@ export function ItineraryDetailPopup({
 
         <div className="min-h-0 overflow-y-auto p-5 flex flex-col gap-4">
           {/* Orientation strap — already seen on the card, so this stays
-              small and muted rather than repeating the hierarchy. */}
-          <div className="pr-8 flex items-baseline gap-2 text-sm text-muted tabular-nums">
-            <span className="font-medium" style={{ color: accent }}>
-              {item.time || "–"}
-              {item.end_time && <> – {item.end_time}</>}
-            </span>
-            {durationMin > 0 && <span>· {formatDuration(durationMin)}</span>}
-            <span className="truncate">{item.title}</span>
+              small and muted rather than repeating the hierarchy. Time/
+              duration and title get their own rows so neither has to
+              truncate or wrap into the other. */}
+          <div className="pr-8 flex flex-col gap-1">
+            <div className="flex items-baseline gap-1.5 text-sm tabular-nums">
+              <span className="font-semibold" style={{ color: accent }}>
+                {item.time || "–"}
+                {item.end_time && <> – {item.end_time}</>}
+              </span>
+              {durationMin > 0 && <span className="text-muted">· {formatDuration(durationMin)}</span>}
+            </div>
+            <p className="text-sm text-muted leading-snug">{item.title}</p>
           </div>
 
           {/* Notes — the reason this popup exists. Everything else here is
-              secondary to it. */}
+              secondary to it. Each line of the note is its own paragraph
+              (not one pre-wrapped block) so a numbered list or separate
+              thoughts read as distinct lines, not a run-on block. */}
           {item.notes ? (
-            <p className="text-lg leading-relaxed whitespace-pre-wrap break-words">{item.notes}</p>
+            <div className="flex flex-col gap-2.5 text-lg leading-relaxed">
+              {item.notes.split("\n").map((line, i) =>
+                line.trim() ? (
+                  <p key={i} className="whitespace-pre-wrap break-words">{line}</p>
+                ) : (
+                  <div key={i} className="h-1" />
+                ),
+              )}
+            </div>
           ) : (
             <p className="text-sm text-muted/70 italic">ไม่มีโน้ตสำหรับกิจกรรมนี้</p>
           )}
