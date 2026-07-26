@@ -13,6 +13,7 @@ import { MapPin, X } from "lucide-react";
 import { PhotoViewer } from "@/components/PhotoViewer";
 import { photoUrl } from "@/lib/photo-url";
 import { computeDurationMin, formatDuration } from "@/lib/time";
+import { CATS } from "@/lib/categories";
 import type { ItineraryItem, Transport } from "@/lib/models/types";
 import type { LucideIcon } from "lucide-react";
 
@@ -75,18 +76,33 @@ export function ItineraryDetailPopup({
           </div>
 
           {/* Notes — the reason this popup exists. Everything else here is
-              secondary to it. Each line of the note is its own paragraph
-              (not one pre-wrapped block) so a numbered list or separate
-              thoughts read as distinct lines, not a run-on block. */}
+              secondary to it. Each line is its own tinted, bordered block
+              (not one pre-wrapped paragraph) cycling through the app's own
+              6-color category palette, so a numbered list or separate
+              thoughts read as distinct steps at a glance, not a run-on
+              block of text. */}
           {item.notes ? (
-            <div className="flex flex-col gap-2.5 text-lg leading-relaxed">
-              {item.notes.split("\n").map((line, i) =>
-                line.trim() ? (
-                  <p key={i} className="whitespace-pre-wrap break-words">{line}</p>
-                ) : (
-                  <div key={i} className="h-1" />
-                ),
-              )}
+            <div className="flex flex-col gap-2 text-lg leading-relaxed">
+              {(() => {
+                let colorIdx = 0;
+                return item.notes.split("\n").map((line, i) => {
+                  if (!line.trim()) return <div key={i} className="h-1" />;
+                  const color = CATS[colorIdx % CATS.length].color;
+                  colorIdx += 1;
+                  return (
+                    <p
+                      key={i}
+                      className="whitespace-pre-wrap break-words rounded-xl border px-3 py-2"
+                      style={{
+                        backgroundColor: `color-mix(in srgb, ${color} 12%, transparent)`,
+                        borderColor: `color-mix(in srgb, ${color} 35%, transparent)`,
+                      }}
+                    >
+                      {line}
+                    </p>
+                  );
+                });
+              })()}
             </div>
           ) : (
             <p className="text-sm text-muted/70 italic">ไม่มีโน้ตสำหรับกิจกรรมนี้</p>
