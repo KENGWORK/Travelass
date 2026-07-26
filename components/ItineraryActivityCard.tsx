@@ -13,6 +13,7 @@ export function ItineraryActivityCard({
   accent,
   isLast,
   onEdit,
+  onOpenDetail,
   onViewPhoto,
   onDragEnd,
 }: {
@@ -22,6 +23,7 @@ export function ItineraryActivityCard({
   accent: string;
   isLast: boolean;
   onEdit: (item: ItineraryItem) => void;
+  onOpenDetail: (item: ItineraryItem) => void;
   onViewPhoto: (item: ItineraryItem) => void;
   onDragEnd: () => void;
 }) {
@@ -45,22 +47,21 @@ export function ItineraryActivityCard({
           className="absolute left-0 top-1.5 w-[18px] h-[18px] rounded-full border-2 border-bg"
           style={{ backgroundColor: accent }}
         />
-        <div
-          role="button"
-          tabIndex={0}
-          onClick={() => onEdit(item)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") {
-              e.preventDefault();
-              onEdit(item);
-            }
-          }}
-          className="press w-full text-left rounded-2xl bg-surface shadow-card overflow-hidden flex items-stretch cursor-pointer"
-        >
-          {/* Time rail — full card height, so the time is the first thing
-              read scanning down the day, like a timetable's left column. */}
+        <div className="w-full rounded-2xl bg-surface shadow-card overflow-hidden flex items-stretch">
+          {/* Time rail is its own tap target: opens the edit sheet. Full
+              card height, so the time is also the first thing read scanning
+              down the day, like a timetable's left column. */}
           <div
-            className="shrink-0 w-16 flex flex-col items-center justify-center gap-0.5 py-2 tabular-nums"
+            role="button"
+            tabIndex={0}
+            onClick={() => onEdit(item)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onEdit(item);
+              }
+            }}
+            className="press shrink-0 w-16 flex flex-col items-center justify-center gap-0.5 py-2 tabular-nums cursor-pointer"
             style={{ backgroundColor: `color-mix(in srgb, ${accent} 14%, transparent)` }}
           >
             {item.time ? (
@@ -83,7 +84,18 @@ export function ItineraryActivityCard({
             )}
           </div>
 
-          <div className="min-w-0 flex-1 p-3 flex items-start justify-between gap-2">
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={() => onOpenDetail(item)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onOpenDetail(item);
+              }
+            }}
+            className="press min-w-0 flex-1 p-3 flex items-start justify-between gap-2 cursor-pointer"
+          >
             <div className="min-w-0 flex-1 flex flex-col gap-1">
               <p className="font-heading text-base font-medium">{item.title}</p>
               {item.place && (

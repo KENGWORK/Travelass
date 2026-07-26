@@ -12,6 +12,7 @@ import { sessionOf } from "@/lib/day-session";
 import { DayChips } from "@/components/DayChips";
 import { PhotoViewer } from "@/components/PhotoViewer";
 import { ItineraryActivityCard } from "@/components/ItineraryActivityCard";
+import { ItineraryDetailPopup } from "@/components/ItineraryDetailPopup";
 import { ItineraryFormSheet, type ItineraryFormValues } from "@/components/ItineraryFormSheet";
 import { PullIntoPlanSheet } from "@/components/PullIntoPlanSheet";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -55,6 +56,7 @@ export default function ItineraryPage() {
   const [pullOpen, setPullOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<ItineraryItem | null>(null);
   const [viewerItem, setViewerItem] = useState<ItineraryItem | null>(null);
+  const [detailItem, setDetailItem] = useState<ItineraryItem | null>(null);
 
   useEffect(() => {
     const dayItems = itinerary
@@ -212,6 +214,7 @@ export default function ItineraryPage() {
                     accent={accent}
                     isLast={i === items.length - 1}
                     onEdit={openEdit}
+                    onOpenDetail={setDetailItem}
                     onViewPhoto={setViewerItem}
                     onDragEnd={() => persistOrder(items)}
                   />
@@ -260,6 +263,20 @@ export default function ItineraryPage() {
 
       {viewerItem && (
         <PhotoViewer fileIds={viewerItem.photo_ids} initialIndex={0} onClose={() => setViewerItem(null)} />
+      )}
+
+      {detailItem && (
+        <ItineraryDetailPopup
+          item={detailItem}
+          transport={detailItem.linked_transport_id ? transports.find((t) => t.id === detailItem.linked_transport_id) : undefined}
+          TransportIcon={
+            detailItem.linked_transport_id
+              ? transportIcon(transports.find((t) => t.id === detailItem.linked_transport_id)?.mode ?? "")
+              : null
+          }
+          accent={accent}
+          onClose={() => setDetailItem(null)}
+        />
       )}
     </div>
   );
