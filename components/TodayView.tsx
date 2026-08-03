@@ -105,7 +105,7 @@ function ItineraryCard({
           {item.maps_link && (
             <button
               type="button"
-              onClick={() => window.open(item.maps_link, "_blank", "noreferrer")}
+              onClick={() => window.location.assign(item.maps_link)}
               className="relative h-10 px-3 rounded-full bg-primary-soft text-primary text-sm inline-flex items-center gap-1.5 cursor-pointer before:absolute before:inset-[-4px] before:content-['']"
             >
               <Navigation size={14} />

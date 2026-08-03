@@ -185,7 +185,7 @@ export default function MoneyPage() {
       <SpendList items={listItems} days={days} onPick={pick} />
 
       {process.env.NEXT_PUBLIC_SHEET_URL && (
-        <a href={process.env.NEXT_PUBLIC_SHEET_URL} target="_blank" rel="noreferrer">
+        <a href={process.env.NEXT_PUBLIC_SHEET_URL}>
           <Button variant="ghost" full className="inline-flex items-center justify-center gap-2">
             <ExternalLink size={16} />
             เปิดใน Google Sheets

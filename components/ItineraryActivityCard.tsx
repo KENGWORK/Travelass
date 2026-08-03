@@ -104,8 +104,6 @@ export function ItineraryActivityCard({
                   {item.maps_link && (
                     <a
                       href={item.maps_link}
-                      target="_blank"
-                      rel="noreferrer"
                       onClick={(e) => e.stopPropagation()}
                       className="relative text-primary inline-flex items-center justify-center p-2.5 before:absolute before:inset-[-5px] before:content-['']"
                     >

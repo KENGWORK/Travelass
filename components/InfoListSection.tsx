@@ -152,12 +152,12 @@ export function InfoListSection({
 
               <div className="flex items-center gap-1 shrink-0">
                 {String(row.maps_link ?? "").trim() && (
-                  <a href={String(row.maps_link)} target="_blank" rel="noreferrer" aria-label="แผนที่" className="w-11 h-11 grid place-items-center text-primary cursor-pointer">
+                  <a href={String(row.maps_link)} aria-label="แผนที่" className="w-11 h-11 grid place-items-center text-primary cursor-pointer">
                     <MapPin size={18} />
                   </a>
                 )}
                 {String(row.url ?? "").trim() && (
-                  <a href={String(row.url)} target="_blank" rel="noreferrer" aria-label="เปิดลิงก์" className="w-11 h-11 grid place-items-center text-primary cursor-pointer">
+                  <a href={String(row.url)} aria-label="เปิดลิงก์" className="w-11 h-11 grid place-items-center text-primary cursor-pointer">
                     <ExternalLink size={18} />
                   </a>
                 )}
