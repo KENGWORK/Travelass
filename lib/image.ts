@@ -35,13 +35,22 @@ export async function fileToDataUrl(file: File, maxDim = 1280, quality = 0.72): 
   return canvas.toDataURL("image/jpeg", quality);
 }
 
-// Same downscale as fileToDataUrl but returns a JPEG Blob for upload.
-// Vercel serverless functions hard-cap request bodies at 4.5MB, well under
-// what a phone camera photo (HEIC/JPEG, often 3-15MB) produces uncompressed —
-// so uploads to Drive must always go through this, not the raw File.
-export async function fileToUploadBlob(file: File, maxDim = 1600, quality = 0.8): Promise<Blob> {
-  const { img } = await decodeImage(file);
+const SAFE_UPLOAD_SIZE = 4 * 1024 * 1024; // margin under Vercel's 4.5MB request-body cap
 
+function canvasToBlob(canvas: HTMLCanvasElement, quality: number): Promise<Blob | null> {
+  return new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", quality));
+}
+
+// Downscale only as much as needed to clear Vercel's 4.5MB request-body cap.
+// Files already under that (the vast majority of camera/gallery photos) pass
+// through untouched — full original quality, sharp at any zoom. Only the
+// rare oversized shot gets re-encoded, starting at a large 2400px/90% pass
+// and stepping quality down further only if that single pass isn't enough.
+export async function fileToUploadBlob(file: File): Promise<Blob> {
+  if (file.size <= SAFE_UPLOAD_SIZE) return file;
+
+  const { img } = await decodeImage(file);
+  const maxDim = 2400;
   const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
   const w = Math.max(1, Math.round(img.width * scale));
   const h = Math.max(1, Math.round(img.height * scale));
@@ -50,8 +59,12 @@ export async function fileToUploadBlob(file: File, maxDim = 1600, quality = 0.8)
   canvas.height = h;
   const ctx = canvas.getContext("2d");
   if (!ctx) return file;
-
   ctx.drawImage(img, 0, 0, w, h);
-  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", quality));
-  return blob ?? file;
+
+  for (const quality of [0.9, 0.8, 0.65, 0.5]) {
+    const blob = await canvasToBlob(canvas, quality);
+    if (blob && blob.size <= SAFE_UPLOAD_SIZE) return blob;
+    if (blob && quality === 0.5) return blob; // last attempt, ship it even if still large
+  }
+  return file;
 }
