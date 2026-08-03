@@ -1,8 +1,11 @@
 "use client";
-import { useEffect, useState } from "react";
-import { MapPin, UtensilsCrossed } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
+import { MapPin, UtensilsCrossed, ChevronDown } from "lucide-react";
 import { BottomSheet } from "@/components/ui/BottomSheet";
 import { apiList } from "@/lib/api";
+import { useTrip } from "@/lib/trip-context";
+import { tripDays } from "@/lib/days";
 import { transportIcon } from "@/lib/transport-icon";
 import { itineraryFromTransport, itineraryFromPlace } from "@/lib/plan-from";
 import type { Transport, Restaurant, WishItem, ItineraryItem } from "@/lib/models/types";
@@ -22,16 +25,33 @@ export function PullIntoPlanSheet({
   day: string;
   onPick: (item: ItineraryItem) => void;
 }) {
+  const { trip } = useTrip();
   const [transports, setTransports] = useState<Transport[]>([]);
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [wishlist, setWishlist] = useState<WishItem[]>([]);
+  const [openDays, setOpenDays] = useState<Set<string>>(() => new Set([day]));
 
   useEffect(() => {
     if (!open) return;
     apiList<Transport>("transports", tripId).then(setTransports);
     apiList<Restaurant>("restaurants", tripId).then(setRestaurants);
     apiList<WishItem>("wishlist", tripId).then(setWishlist);
-  }, [open, tripId]);
+    // Re-default to just this day expanded every time the sheet reopens --
+    // it's opened from a specific day's tab in the itinerary, so that's the
+    // one the user almost certainly wants without an extra tap.
+    setOpenDays(new Set([day]));
+  }, [open, tripId, day]);
+
+  const toggleDay = (date: string) => {
+    setOpenDays((prev) => {
+      const next = new Set(prev);
+      if (next.has(date)) next.delete(date);
+      else next.add(date);
+      return next;
+    });
+  };
+
+  const days = useMemo(() => tripDays(trip.start_date, trip.end_date), [trip.start_date, trip.end_date]);
 
   const take = (item: ItineraryItem) => {
     onPick({ ...item, trip_id: tripId });
@@ -47,16 +67,57 @@ export function PullIntoPlanSheet({
         <section className="flex flex-col gap-2">
           <h3 className="font-heading font-semibold text-sm text-muted">การเดินทาง</h3>
           {transports.length === 0 && <p className="text-sm text-muted">ยังไม่มีการเดินทาง</p>}
-          {transports.map((t) => {
-            const Icon = transportIcon(t.mode);
+          {days.map((d) => {
+            const dayTransports = transports.filter((t) => t.day_date === d.date);
+            if (dayTransports.length === 0) return null;
+            const isOpen = openDays.has(d.date);
             return (
-              <button key={t.id} type="button" className={rowClass} onClick={() => take(itineraryFromTransport(t, day, crypto.randomUUID()))}>
-                <Icon size={18} className="text-primary shrink-0" />
-                <span className="min-w-0">
-                  <span className="block font-medium truncate">{t.from} → {t.to}</span>
-                  {t.depart_time && <span className="block text-xs text-muted">ออก {t.depart_time}{t.arrive_time && ` · ถึง ${t.arrive_time}`}</span>}
-                </span>
-              </button>
+              <div key={d.date} className="rounded-2xl bg-bg border border-muted/20 overflow-hidden">
+                <button
+                  type="button"
+                  aria-expanded={isOpen}
+                  onClick={() => toggleDay(d.date)}
+                  className="w-full min-h-11 px-3 py-2 flex items-center gap-2 cursor-pointer"
+                >
+                  <span className="flex-1 text-left text-sm font-medium">
+                    {d.label} <span className="text-muted font-normal">({dayTransports.length})</span>
+                  </span>
+                  <motion.span animate={{ rotate: isOpen ? 180 : 0 }} transition={{ duration: 0.2 }} className="text-muted shrink-0">
+                    <ChevronDown size={16} />
+                  </motion.span>
+                </button>
+                <AnimatePresence initial={false}>
+                  {isOpen && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: "auto", opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="px-2 pb-2 flex flex-col gap-2">
+                        {dayTransports.map((t) => {
+                          const Icon = transportIcon(t.mode);
+                          return (
+                            <button
+                              key={t.id}
+                              type="button"
+                              className="w-full text-left rounded-xl bg-surface p-3 flex items-center gap-3 cursor-pointer"
+                              onClick={() => take(itineraryFromTransport(t, day, crypto.randomUUID()))}
+                            >
+                              <Icon size={18} className="text-primary shrink-0" />
+                              <span className="min-w-0">
+                                <span className="block font-medium truncate">{t.from} → {t.to}</span>
+                                {t.depart_time && <span className="block text-xs text-muted">ออก {t.depart_time}{t.arrive_time && ` · ถึง ${t.arrive_time}`}</span>}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
             );
           })}
         </section>
