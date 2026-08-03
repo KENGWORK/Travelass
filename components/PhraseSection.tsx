@@ -11,14 +11,47 @@ import { PhraseFormSheet, type PhraseFormValues } from "@/components/PhraseFormS
 import { PHRASE_CATEGORIES, PHRASE_SEED } from "@/lib/phrase-seed";
 import type { Phrase } from "@/lib/models/types";
 
-function speak(text: string) {
+let voicesReady: Promise<SpeechSynthesisVoice[]> | null = null;
+
+// getVoices() can return an empty list on first call (iOS Safari loads them
+// async) -- wait for voiceschanged once, then cache for every later speak().
+function loadVoices(): Promise<SpeechSynthesisVoice[]> {
+  if (!voicesReady) {
+    voicesReady = new Promise((resolve) => {
+      const existing = window.speechSynthesis.getVoices();
+      if (existing.length > 0) {
+        resolve(existing);
+        return;
+      }
+      window.speechSynthesis.onvoiceschanged = () => resolve(window.speechSynthesis.getVoices());
+    });
+  }
+  return voicesReady;
+}
+
+async function speak(text: string) {
   if (typeof window === "undefined" || !("speechSynthesis" in window)) {
     toast("อุปกรณ์นี้ไม่รองรับการอ่านออกเสียง");
     return;
   }
+  window.speechSynthesis.cancel();
+  // iOS Safari sometimes leaves speechSynthesis stuck "paused" after the tab
+  // is backgrounded and foregrounded again -- speak() silently no-ops unless
+  // resume() runs first.
+  window.speechSynthesis.resume();
+
+  const voices = await loadVoices();
   const utter = new SpeechSynthesisUtterance(text);
   utter.lang = "zh-CN";
-  window.speechSynthesis.cancel();
+  const zhVoice = voices.find((v) => v.lang.toLowerCase().startsWith("zh"));
+  if (zhVoice) {
+    utter.voice = zhVoice;
+  } else if (voices.length > 0) {
+    // Voices loaded fine, just none for Chinese -- iOS needs the voice pack
+    // downloaded manually (Settings > Accessibility > Spoken Content > Voices),
+    // unlike desktop browsers which usually ship it built in.
+    toast("อุปกรณ์นี้ไม่มีเสียงพูดภาษาจีน ลองเพิ่มใน Settings > การช่วยการเข้าถึง > เนื้อหาพูด > เสียง");
+  }
   window.speechSynthesis.speak(utter);
 }
 
