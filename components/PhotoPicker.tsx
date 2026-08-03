@@ -4,7 +4,7 @@ import { Camera, X } from "lucide-react";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { PhotoViewer } from "@/components/PhotoViewer";
 import { toast } from "@/components/ui/Toast";
-import { fileToDataUrl } from "@/lib/image";
+import { fileToDataUrl, fileToUploadBlob } from "@/lib/image";
 import { photoUrl } from "@/lib/photo-url";
 import { isGoogleConfigured } from "@/lib/backend";
 
@@ -16,8 +16,11 @@ export interface PhotoPickerProps {
 }
 
 async function uploadToGoogle(file: File, tripName: string, kind: "photos" | "slips"): Promise<string> {
+  // Vercel caps request bodies at 4.5MB — raw camera photos blow past that
+  // and fail with no useful error, so always downscale before sending.
+  const blob = await fileToUploadBlob(file);
   const form = new FormData();
-  form.append("file", file);
+  form.append("file", blob, file.name);
   form.append("tripName", tripName);
   form.append("kind", kind);
   const res = await fetch("/api/upload", { method: "POST", body: form });
