@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
-import { motion } from "framer-motion";
-import { Plane, BedDouble, Car, Ticket, Plus, type LucideIcon } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
+import { Plane, BedDouble, Car, Ticket, Plus, ChevronDown, type LucideIcon } from "lucide-react";
 import { useTrip } from "@/lib/trip-context";
 import { useTripData } from "@/lib/use-trip-data";
 import { apiCreate, apiUpdate, apiDelete } from "@/lib/api";
@@ -30,6 +30,16 @@ export default function BookingsPage() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editingBooking, setEditingBooking] = useState<Booking | null>(null);
   const [createType, setCreateType] = useState<BookingType>("flight");
+  const [openTypes, setOpenTypes] = useState<Set<BookingType>>(() => new Set());
+
+  const toggleType = (type: BookingType) => {
+    setOpenTypes((prev) => {
+      const next = new Set(prev);
+      if (next.has(type)) next.delete(type);
+      else next.add(type);
+      return next;
+    });
+  };
 
   const total = bookings.length;
   const booked = bookings.filter((b) => b.paid || b.ref_no !== "").length;
@@ -39,6 +49,7 @@ export default function BookingsPage() {
     setEditingBooking(null);
     setCreateType(type);
     setSheetOpen(true);
+    setOpenTypes((prev) => new Set(prev).add(type));
   };
 
   const openEdit = (booking: Booking) => {
@@ -105,40 +116,79 @@ export default function BookingsPage() {
         )}
       </div>
 
-      <div className="px-4 py-3 flex flex-col gap-6">
+      <div className="px-4 py-3 flex flex-col gap-3">
         {loading ? (
           <>
-            <Skeleton className="h-24" />
-            <Skeleton className="h-24" />
+            <Skeleton className="h-16" />
+            <Skeleton className="h-16" />
           </>
         ) : (
           SECTIONS.map((section) => {
             const sectionBookings = bookings.filter((b) => b.type === section.type);
             const Icon = section.icon;
+            const isOpen = openTypes.has(section.type);
+            const bookedCount = sectionBookings.filter((b) => b.paid || b.ref_no !== "").length;
+
             return (
-              <section key={section.type} className="flex flex-col gap-3">
-                <h2 className="font-heading text-lg font-semibold flex items-center gap-2">
-                  <Icon size={18} className="text-primary" />
-                  {section.label}
-                  <span className="text-sm font-normal text-muted">({sectionBookings.length})</span>
-                </h2>
-                {sectionBookings.length === 0 ? (
-                  <p className="text-muted text-sm py-2">ยังไม่มีข้อมูลการจอง</p>
-                ) : (
-                  <div className="flex flex-col gap-3">
-                    {sectionBookings.map((b) => (
-                      <BookingCard key={b.id} booking={b} onEdit={() => openEdit(b)} />
-                    ))}
-                  </div>
-                )}
+              <section key={section.type} className="rounded-2xl bg-surface shadow-card overflow-hidden">
                 <button
                   type="button"
-                  onClick={() => openCreate(section.type)}
-                  className="h-14 rounded-2xl border-2 border-dashed border-muted/30 text-muted flex items-center justify-center gap-2 cursor-pointer"
+                  aria-expanded={isOpen}
+                  onClick={() => toggleType(section.type)}
+                  className="press w-full min-h-16 px-4 py-3 flex items-center gap-3 cursor-pointer"
                 >
-                  <Plus size={18} />
-                  เพิ่มการจอง
+                  <span className="h-8 w-8 rounded-full bg-primary-soft grid place-items-center shrink-0">
+                    <Icon size={16} className="text-primary" />
+                  </span>
+                  <span className="min-w-0 flex-1 text-left">
+                    <span className="font-heading text-base font-semibold block truncate">{section.label}</span>
+                    {sectionBookings.length > 0 && (
+                      <span className="text-xs text-muted">
+                        {sectionBookings.length} รายการ · จองแล้ว {bookedCount}/{sectionBookings.length}
+                      </span>
+                    )}
+                  </span>
+                  {sectionBookings.length === 0 && (
+                    <span className="text-xs text-muted shrink-0">ว่าง</span>
+                  )}
+                  <motion.span
+                    animate={{ rotate: isOpen ? 180 : 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="text-muted shrink-0"
+                  >
+                    <ChevronDown size={18} />
+                  </motion.span>
                 </button>
+
+                <AnimatePresence initial={false}>
+                  {isOpen && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: "auto", opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="px-4 pb-4 flex flex-col gap-3 border-t border-muted/10 pt-3">
+                        {sectionBookings.length === 0 ? (
+                          <p className="text-muted text-sm py-2">ยังไม่มีข้อมูลการจอง</p>
+                        ) : (
+                          sectionBookings.map((b) => (
+                            <BookingCard key={b.id} booking={b} onEdit={() => openEdit(b)} />
+                          ))
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => openCreate(section.type)}
+                          className="h-14 rounded-2xl border-2 border-dashed border-muted/30 text-muted flex items-center justify-center gap-2 cursor-pointer"
+                        >
+                          <Plus size={18} />
+                          เพิ่มการจอง
+                        </button>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </section>
             );
           })
