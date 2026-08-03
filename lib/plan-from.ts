@@ -12,7 +12,7 @@ export function itineraryFromTransport(t: Transport, day: string, id: string): I
     title: `${t.from} → ${t.to}`,
     place: t.to,
     maps_link: "",
-    notes: "",
+    notes: t.notes,
     status: "planned",
     moved_to_date: "",
     linked_transport_id: t.id,
@@ -23,7 +23,7 @@ export function itineraryFromTransport(t: Transport, day: string, id: string): I
 }
 
 export function itineraryFromPlace(
-  place: { name: string; area: string; maps_link: string },
+  place: { name: string; area: string; maps_link: string; note: string },
   day: string,
   id: string,
 ): ItineraryItem {
@@ -36,7 +36,7 @@ export function itineraryFromPlace(
     title: place.name,
     place: place.area,
     maps_link: place.maps_link,
-    notes: "",
+    notes: place.note,
     status: "planned",
     moved_to_date: "",
     linked_transport_id: "",

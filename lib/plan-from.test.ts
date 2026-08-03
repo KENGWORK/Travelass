@@ -24,12 +24,17 @@ describe("itineraryFromTransport", () => {
       status: "planned",
     });
   });
+
+  it("carries the transport's notes over", () => {
+    const item = itineraryFromTransport(transport({ notes: "จุดขึ้นรถอยู่ประตู 3" }), "2026-09-11", "new-id");
+    expect(item.notes).toBe("จุดขึ้นรถอยู่ประตู 3");
+  });
 });
 
 describe("itineraryFromPlace", () => {
   it("snapshots name/area/maps without a live link", () => {
     const item = itineraryFromPlace(
-      { name: "ตลาดมยองดง", area: "มยองดง", maps_link: "https://maps.example/x" },
+      { name: "ตลาดมยองดง", area: "มยองดง", maps_link: "https://maps.example/x", note: "" },
       "2026-09-12",
       "id2",
     );
@@ -42,5 +47,14 @@ describe("itineraryFromPlace", () => {
       linked_transport_id: "",
       status: "planned",
     });
+  });
+
+  it("carries the place's note over", () => {
+    const item = itineraryFromPlace(
+      { name: "ตลาดมยองดง", area: "มยองดง", maps_link: "https://maps.example/x", note: "เปิด 10 โมง" },
+      "2026-09-12",
+      "id2",
+    );
+    expect(item.notes).toBe("เปิด 10 โมง");
   });
 });

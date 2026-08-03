@@ -65,7 +65,7 @@ export function PullIntoPlanSheet({
           <h3 className="font-heading font-semibold text-sm text-muted">ร้านอาหาร</h3>
           {restaurants.length === 0 && <p className="text-sm text-muted">ยังไม่มีร้าน</p>}
           {restaurants.map((r) => (
-            <button key={r.id} type="button" className={rowClass} onClick={() => take(itineraryFromPlace({ name: r.name, area: r.area, maps_link: r.maps_link }, day, crypto.randomUUID()))}>
+            <button key={r.id} type="button" className={rowClass} onClick={() => take(itineraryFromPlace({ name: r.name, area: r.area, maps_link: r.maps_link, note: r.note }, day, crypto.randomUUID()))}>
               <UtensilsCrossed size={18} className="text-primary shrink-0" />
               <span className="min-w-0">
                 <span className="block font-medium truncate">{r.name}</span>
@@ -79,7 +79,7 @@ export function PullIntoPlanSheet({
           <h3 className="font-heading font-semibold text-sm text-muted">ที่อยากไป</h3>
           {wishlist.length === 0 && <p className="text-sm text-muted">ยังไม่มีสถานที่</p>}
           {wishlist.map((w) => (
-            <button key={w.id} type="button" className={rowClass} onClick={() => take(itineraryFromPlace({ name: w.name, area: w.area, maps_link: w.maps_link }, day, crypto.randomUUID()))}>
+            <button key={w.id} type="button" className={rowClass} onClick={() => take(itineraryFromPlace({ name: w.name, area: w.area, maps_link: w.maps_link, note: w.note }, day, crypto.randomUUID()))}>
               <MapPin size={18} className="text-primary shrink-0" />
               <span className="min-w-0">
                 <span className="block font-medium truncate">{w.name}</span>
