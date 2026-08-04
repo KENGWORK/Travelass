@@ -268,16 +268,16 @@ export function QuickExpenseSheet({ trip, open, onClose }: { trip: Trip; open: b
           <div className="flex flex-col">
             <div
               className="rounded-3xl px-5 pt-6 pb-8 flex flex-col items-center"
-              style={{ backgroundColor: "#F5E9D6" }}
+              style={{ backgroundColor: "color-mix(in srgb, var(--color-accent) 75%, black)" }}
             >
               <button
                 type="button"
                 onClick={() => setToCurrencyPicking((v) => !v)}
-                className="press h-7 px-3 rounded-full bg-black/10 text-xs font-semibold text-black cursor-pointer mb-2"
+                className="press h-7 px-3 rounded-full bg-white/20 text-xs font-semibold text-white cursor-pointer mb-2"
               >
                 {toCurrency} ▾
               </button>
-              <p className="money text-6xl text-black leading-none tabular-nums">
+              <p className="money text-6xl text-white leading-none tabular-nums">
                 ≈ {convertedAmount.toLocaleString()}
               </p>
               {editingRate ? (
@@ -294,7 +294,7 @@ export function QuickExpenseSheet({ trip, open, onClose }: { trip: Trip; open: b
                 <button
                   type="button"
                   onClick={() => setEditingRate(true)}
-                  className="press inline-flex items-center gap-1 text-xs text-black/70 mt-2 cursor-pointer"
+                  className="press inline-flex items-center gap-1 text-xs text-white/80 mt-2 cursor-pointer"
                 >
                   rate {effectiveRate || 0} <Pencil size={11} />
                 </button>
