@@ -500,10 +500,10 @@ export function QuickExpenseSheet({ trip, open, onClose }: { trip: Trip; open: b
               type="button"
               disabled={payer.trim() === ""}
               onClick={() => setSplitOpen((v) => !v)}
-              className="press inline-flex items-center gap-1.5 self-start h-9 px-3 rounded-full border cursor-pointer text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50"
+              className="press inline-flex items-center gap-1.5 self-start h-9 px-3 rounded-xl border cursor-pointer text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50"
               style={
                 splitMode !== "none"
-                  ? { backgroundColor: "color-mix(in srgb, var(--color-accent) 14%, transparent)", borderColor: "color-mix(in srgb, var(--color-accent) 35%, transparent)", color: "var(--color-accent)" }
+                  ? { backgroundColor: "var(--color-accent)", borderColor: "var(--color-accent)", color: "white" }
                   : { borderColor: "color-mix(in srgb, var(--color-muted) 30%, transparent)", color: "var(--color-muted)" }
               }
             >
