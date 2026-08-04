@@ -268,7 +268,7 @@ export function QuickExpenseSheet({ trip, open, onClose }: { trip: Trip; open: b
           <div className="flex flex-col">
             <div
               className="rounded-3xl px-5 pt-6 pb-8 flex flex-col items-center"
-              style={{ backgroundColor: "var(--color-accent)" }}
+              style={{ backgroundColor: "color-mix(in srgb, var(--color-accent) 75%, black)" }}
             >
               <button
                 type="button"
@@ -326,8 +326,11 @@ export function QuickExpenseSheet({ trip, open, onClose }: { trip: Trip; open: b
                 type="button"
                 onClick={swapCalcCurrencies}
                 aria-label="สลับสกุลเงิน"
-                className="press h-10 w-10 rounded-full bg-accent text-white ring-4 flex items-center justify-center cursor-pointer shadow-card"
-                style={{ ["--tw-ring-color" as string]: "var(--color-surface)" }}
+                className="press h-10 w-10 rounded-full text-white ring-4 flex items-center justify-center cursor-pointer shadow-card"
+                style={{
+                  backgroundColor: "color-mix(in srgb, var(--color-accent) 75%, black)",
+                  ["--tw-ring-color" as string]: "var(--color-surface)",
+                }}
               >
                 <ArrowLeftRight size={18} />
               </button>
