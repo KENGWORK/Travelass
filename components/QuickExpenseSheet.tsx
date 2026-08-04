@@ -10,7 +10,7 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Delete, Plus, Minus, ArrowLeftRight, Pencil, Wallet, Calculator, Users, X } from "lucide-react";
+import { Delete, Plus, Minus, ArrowLeftRight, Pencil, Wallet, Calculator, Users, X, Equal, ListTree } from "lucide-react";
 import { BottomSheet } from "@/components/ui/BottomSheet";
 import { Button } from "@/components/ui/Button";
 import { PhotoPicker } from "@/components/PhotoPicker";
@@ -31,6 +31,11 @@ interface ItemRow { id: string; label: string; amount: string; name: string; }
 const MODE_TABS = [
   { key: "expense" as const, label: "บันทึกรายจ่าย", Icon: Wallet, color: "var(--color-primary)" },
   { key: "calc" as const, label: "คิดเลขอย่างเดียว", Icon: Calculator, color: "var(--color-accent)" },
+];
+
+const SPLIT_MODE_TABS = [
+  { key: "equal" as const, label: "หารเท่า", Icon: Equal },
+  { key: "itemized" as const, label: "หารตามรายการ", Icon: ListTree },
 ];
 
 function Key({ label, onPress }: { label: string; onPress: () => void }) {
@@ -518,23 +523,41 @@ export function QuickExpenseSheet({ trip, open, onClose }: { trip: Trip; open: b
                 >
                   <div className="flex flex-col gap-3 rounded-2xl bg-muted/5 p-3">
                     <div className="flex items-center gap-2">
-                      <div className="flex h-9 rounded-full bg-muted/10 p-0.5 flex-1">
-                        {(["equal", "itemized"] as const).map((m) => (
-                          <button
-                            key={m}
-                            type="button"
-                            onClick={() => setSplitMode(m)}
-                            className={`press flex-1 rounded-full text-xs font-semibold cursor-pointer ${splitMode === m ? "bg-accent text-white" : "text-muted"}`}
-                          >
-                            {m === "equal" ? "หารเท่า" : "หารตามรายการ"}
-                          </button>
-                        ))}
+                      <div className="relative flex h-12 rounded-xl bg-muted/10 p-1 gap-1 flex-1">
+                        {SPLIT_MODE_TABS.map((tab) => {
+                          const active = splitMode === tab.key;
+                          return (
+                            <button
+                              key={tab.key}
+                              type="button"
+                              onClick={() => setSplitMode(tab.key)}
+                              aria-pressed={active}
+                              className="press relative flex-1 rounded-lg cursor-pointer overflow-hidden"
+                            >
+                              {active && (
+                                <motion.span
+                                  layoutId="split-mode-fill"
+                                  className="absolute inset-0 rounded-lg"
+                                  style={{ backgroundColor: "var(--color-accent)" }}
+                                  transition={{ type: "spring", stiffness: 500, damping: 35 }}
+                                />
+                              )}
+                              <span
+                                className="relative z-10 flex items-center justify-center gap-1.5 h-full"
+                                style={{ color: active ? "white" : "var(--color-muted)" }}
+                              >
+                                <tab.Icon size={14} strokeWidth={2.25} />
+                                <span className="text-xs font-semibold">{tab.label}</span>
+                              </span>
+                            </button>
+                          );
+                        })}
                       </div>
                       <button
                         type="button"
                         aria-label="ปิดการหารเงิน"
                         onClick={() => { setSplitOpen(false); setSplitMode("none"); setEqualParticipants(new Set()); setItemRows([]); }}
-                        className="press h-9 w-9 rounded-full flex items-center justify-center text-muted cursor-pointer shrink-0"
+                        className="press h-12 w-9 rounded-xl flex items-center justify-center text-muted cursor-pointer shrink-0"
                       >
                         <X size={16} />
                       </button>
@@ -595,51 +618,58 @@ export function QuickExpenseSheet({ trip, open, onClose }: { trip: Trip; open: b
                     {splitMode === "itemized" && (
                       <div className="flex flex-col gap-2">
                         {itemRows.map((row) => (
-                          <div key={row.id} className="flex items-center gap-1.5">
-                            <input
-                              className="field h-9 min-w-0 flex-1 text-sm"
-                              placeholder="ชื่อของ"
-                              value={row.label}
-                              onChange={(e) => setItemRows((rows) => rows.map((r) => (r.id === row.id ? { ...r, label: e.target.value } : r)))}
-                            />
-                            <input
-                              className="field h-9 shrink-0 text-sm text-right"
-                              style={{ width: "5rem" }}
-                              placeholder="0"
-                              inputMode="decimal"
-                              value={row.amount}
-                              onChange={(e) => setItemRows((rows) => rows.map((r) => (r.id === row.id ? { ...r, amount: e.target.value } : r)))}
-                            />
-                            {/* Only one possible owner (2-person trip) — nothing to
-                                actually choose, so show it as a fact, not a picker. */}
-                            {otherMembers.length === 1 ? (
-                              <span
-                                className="h-9 shrink-0 px-2 rounded-xl text-xs font-semibold flex items-center justify-center"
-                                style={{ width: "5rem", backgroundColor: `color-mix(in srgb, ${otherMembers[0].color} 16%, transparent)`, color: otherMembers[0].color }}
+                          <div key={row.id} className="rounded-xl bg-surface p-2.5 flex flex-col gap-2">
+                            {/* Row 1: what it is — full width, room to actually read/type it. */}
+                            <div className="flex items-center gap-1.5">
+                              <input
+                                className="field h-9 min-w-0 flex-1 text-sm"
+                                placeholder="ชื่อของ เช่น ตุ๊กตา A"
+                                value={row.label}
+                                onChange={(e) => setItemRows((rows) => rows.map((r) => (r.id === row.id ? { ...r, label: e.target.value } : r)))}
+                              />
+                              <button
+                                type="button"
+                                aria-label="ลบรายการ"
+                                onClick={() => setItemRows((rows) => rows.filter((r) => r.id !== row.id))}
+                                className="press h-9 w-9 flex items-center justify-center text-muted cursor-pointer shrink-0"
                               >
-                                {otherMembers[0].name}
-                              </span>
-                            ) : (
-                              <select
-                                className="field h-9 shrink-0 text-sm"
-                                style={{ width: "5rem" }}
-                                value={row.name}
-                                onChange={(e) => setItemRows((rows) => rows.map((r) => (r.id === row.id ? { ...r, name: e.target.value } : r)))}
-                              >
-                                <option value="">ของใคร</option>
-                                {otherMembers.map((p) => (
-                                  <option key={p.name} value={p.name}>{p.name}</option>
-                                ))}
-                              </select>
-                            )}
-                            <button
-                              type="button"
-                              aria-label="ลบรายการ"
-                              onClick={() => setItemRows((rows) => rows.filter((r) => r.id !== row.id))}
-                              className="press h-9 w-9 flex items-center justify-center text-muted cursor-pointer shrink-0"
-                            >
-                              <X size={14} />
-                            </button>
+                                <X size={14} />
+                              </button>
+                            </div>
+                            {/* Row 2: how much, of whom — grouped together since they
+                                answer the same question ("who owes what for this"). */}
+                            <div className="flex items-center gap-1.5">
+                              <input
+                                className="field h-9 min-w-0 flex-1 text-sm"
+                                placeholder="0"
+                                inputMode="decimal"
+                                value={row.amount}
+                                onChange={(e) => setItemRows((rows) => rows.map((r) => (r.id === row.id ? { ...r, amount: e.target.value } : r)))}
+                              />
+                              <span className="text-xs text-muted shrink-0">{currency}</span>
+                              <span className="text-muted shrink-0">·</span>
+                              {/* Only one possible owner (2-person trip) — nothing to
+                                  actually choose, so show it as a fact, not a picker. */}
+                              {otherMembers.length === 1 ? (
+                                <span
+                                  className="h-9 shrink-0 px-3 rounded-xl text-xs font-semibold flex items-center justify-center"
+                                  style={{ backgroundColor: `color-mix(in srgb, ${otherMembers[0].color} 16%, transparent)`, color: otherMembers[0].color }}
+                                >
+                                  {otherMembers[0].name}
+                                </span>
+                              ) : (
+                                <select
+                                  className="field h-9 shrink-0 text-sm"
+                                  value={row.name}
+                                  onChange={(e) => setItemRows((rows) => rows.map((r) => (r.id === row.id ? { ...r, name: e.target.value } : r)))}
+                                >
+                                  <option value="">ของใคร</option>
+                                  {otherMembers.map((p) => (
+                                    <option key={p.name} value={p.name}>{p.name}</option>
+                                  ))}
+                                </select>
+                              )}
+                            </div>
                           </div>
                         ))}
                         <button
@@ -650,7 +680,7 @@ export function QuickExpenseSheet({ trip, open, onClose }: { trip: Trip; open: b
                               { id: crypto.randomUUID(), label: "", amount: "", name: otherMembers.length === 1 ? otherMembers[0].name : "" },
                             ])
                           }
-                          className="press h-9 rounded-xl border border-dashed text-muted text-sm flex items-center justify-center gap-1.5 cursor-pointer"
+                          className="press h-10 rounded-xl border border-dashed text-muted text-sm flex items-center justify-center gap-1.5 cursor-pointer"
                         >
                           <Plus size={14} /> เพิ่มรายการ
                         </button>
