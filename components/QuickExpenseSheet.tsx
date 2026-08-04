@@ -192,6 +192,10 @@ export function QuickExpenseSheet({ trip, open, onClose }: { trip: Trip; open: b
   const knownPayers: { name: string; color: string }[] = members.length
     ? members.map((m) => ({ name: m.name, color: m.color }))
     : [{ name: "ฉัน", color: "var(--color-primary)" }];
+  // Everyone else in the trip besides the payer — the only people a split can
+  // name. On a 2-person trip this is exactly one name, so there's nothing to
+  // actually choose (see itemized row rendering below).
+  const otherMembers = knownPayers.filter((p) => p.name !== payer);
 
   const canSave = amount > 0 && payer.trim() !== "" && !itemsOverBudget;
 
@@ -552,7 +556,7 @@ export function QuickExpenseSheet({ trip, open, onClose }: { trip: Trip; open: b
                     {splitMode === "equal" && (
                       <div className="flex flex-col gap-2">
                         <div className="flex gap-2 flex-wrap">
-                          {knownPayers.filter((p) => p.name !== payer).map((p) => {
+                          {otherMembers.map((p) => {
                             const selected = equalParticipants.has(p.name);
                             return (
                               <button
@@ -606,17 +610,28 @@ export function QuickExpenseSheet({ trip, open, onClose }: { trip: Trip; open: b
                               value={row.amount}
                               onChange={(e) => setItemRows((rows) => rows.map((r) => (r.id === row.id ? { ...r, amount: e.target.value } : r)))}
                             />
-                            <select
-                              className="field h-9 shrink-0 text-sm"
-                              style={{ width: "5rem" }}
-                              value={row.name}
-                              onChange={(e) => setItemRows((rows) => rows.map((r) => (r.id === row.id ? { ...r, name: e.target.value } : r)))}
-                            >
-                              <option value="">ของใคร</option>
-                              {knownPayers.filter((p) => p.name !== payer).map((p) => (
-                                <option key={p.name} value={p.name}>{p.name}</option>
-                              ))}
-                            </select>
+                            {/* Only one possible owner (2-person trip) — nothing to
+                                actually choose, so show it as a fact, not a picker. */}
+                            {otherMembers.length === 1 ? (
+                              <span
+                                className="h-9 shrink-0 px-2 rounded-xl text-xs font-semibold flex items-center justify-center"
+                                style={{ width: "5rem", backgroundColor: `color-mix(in srgb, ${otherMembers[0].color} 16%, transparent)`, color: otherMembers[0].color }}
+                              >
+                                {otherMembers[0].name}
+                              </span>
+                            ) : (
+                              <select
+                                className="field h-9 shrink-0 text-sm"
+                                style={{ width: "5rem" }}
+                                value={row.name}
+                                onChange={(e) => setItemRows((rows) => rows.map((r) => (r.id === row.id ? { ...r, name: e.target.value } : r)))}
+                              >
+                                <option value="">ของใคร</option>
+                                {otherMembers.map((p) => (
+                                  <option key={p.name} value={p.name}>{p.name}</option>
+                                ))}
+                              </select>
+                            )}
                             <button
                               type="button"
                               aria-label="ลบรายการ"
@@ -629,7 +644,12 @@ export function QuickExpenseSheet({ trip, open, onClose }: { trip: Trip; open: b
                         ))}
                         <button
                           type="button"
-                          onClick={() => setItemRows((rows) => [...rows, { id: crypto.randomUUID(), label: "", amount: "", name: "" }])}
+                          onClick={() =>
+                            setItemRows((rows) => [
+                              ...rows,
+                              { id: crypto.randomUUID(), label: "", amount: "", name: otherMembers.length === 1 ? otherMembers[0].name : "" },
+                            ])
+                          }
                           className="press h-9 rounded-xl border border-dashed text-muted text-sm flex items-center justify-center gap-1.5 cursor-pointer"
                         >
                           <Plus size={14} /> เพิ่มรายการ

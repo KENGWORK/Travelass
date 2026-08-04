@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { netBalances, simplifyDebts } from "./settle";
+import { netBalances, simplifyDebts, expensesBetween } from "./settle";
 import type { Expense } from "./models/types";
 
 const e = (over: Partial<Expense>): Expense => ({
@@ -68,5 +68,26 @@ describe("simplifyDebts", () => {
     const total = settlements.reduce((s, x) => s + x.amount, 0);
     expect(total).toBe(400);
     for (const s of settlements) expect(["มิว", "ปุ๊ก"]).toContain(s.from);
+  });
+});
+
+describe("expensesBetween", () => {
+  it("finds lines in both directions between a pair, sorted by date", () => {
+    const lines = expensesBetween(
+      [
+        e({ id: "e1", description: "ตุ๊กตา", datetime: "2026-07-13T09:00:00.000Z", payer: "เก่ง", splits: [{ name: "โอ", amount_thb: 100 }] }),
+        e({ id: "e2", description: "ค่าแท็กซี่", datetime: "2026-07-12T09:00:00.000Z", payer: "โอ", splits: [{ name: "เก่ง", amount_thb: 50 }] }),
+        e({ id: "e3", description: "ไม่เกี่ยว", payer: "มิว", splits: [{ name: "เก่ง", amount_thb: 30 }] }),
+      ],
+      "เก่ง", "โอ",
+    );
+    expect(lines).toEqual([
+      { id: "e2", description: "ค่าแท็กซี่", category: "อาหาร", datetime: "2026-07-12T09:00:00.000Z", amount_thb: 50, from: "เก่ง", to: "โอ" },
+      { id: "e1", description: "ตุ๊กตา", category: "อาหาร", datetime: "2026-07-13T09:00:00.000Z", amount_thb: 100, from: "โอ", to: "เก่ง" },
+    ]);
+  });
+
+  it("ignores expenses involving a third person", () => {
+    expect(expensesBetween([e({ payer: "มิว", splits: [{ name: "เก่ง", amount_thb: 30 }] })], "เก่ง", "โอ")).toEqual([]);
   });
 });
