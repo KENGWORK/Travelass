@@ -10,7 +10,7 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Delete, Plus, Minus, ArrowLeftRight, Pencil } from "lucide-react";
+import { Delete, Plus, Minus, ArrowLeftRight, Pencil, Wallet, Calculator } from "lucide-react";
 import { BottomSheet } from "@/components/ui/BottomSheet";
 import { Button } from "@/components/ui/Button";
 import { PhotoPicker } from "@/components/PhotoPicker";
@@ -23,6 +23,11 @@ import { CATS } from "@/lib/categories";
 import type { Trip, Expense, Category, Member } from "@/lib/models/types";
 
 const KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", ".", "0", "⌫"];
+
+const MODE_TABS = [
+  { key: "expense" as const, label: "บันทึกรายจ่าย", Icon: Wallet, color: "var(--color-primary)" },
+  { key: "calc" as const, label: "คิดเลขอย่างเดียว", Icon: Calculator, color: "var(--color-accent)" },
+];
 
 function Key({ label, onPress }: { label: string; onPress: () => void }) {
   return (
@@ -170,20 +175,40 @@ export function QuickExpenseSheet({ trip, open, onClose }: { trip: Trip; open: b
       <div className="flex flex-col gap-4">
         {/* Mode toggle — same sheet, same FAB, two purposes: log a real
             expense (writes to Sheets) or just convert a number (never
-            writes anything, resets on close). */}
-        <div className="flex h-11 rounded-full bg-muted/10 p-0.5">
-          {(["expense", "calc"] as const).map((m) => (
-            <button
-              key={m}
-              type="button"
-              onClick={() => setMode(m)}
-              className={`press flex-1 rounded-full text-sm font-medium cursor-pointer transition-colors ${
-                mode === m ? "bg-primary text-white" : "text-muted"
-              }`}
-            >
-              {m === "expense" ? "บันทึกรายจ่าย" : "คิดเลขอย่างเดียว"}
-            </button>
-          ))}
+            writes anything, resets on close). Each side keeps its own hue
+            (teal wallet / coral converter) whether active or not, and the
+            active pill is solid-filled with a sliding highlight — so which
+            mode you're in reads from color + icon alone, not just label
+            text position. */}
+        <div className="relative flex h-14 rounded-2xl bg-muted/10 p-1 gap-1">
+          {MODE_TABS.map((tab) => {
+            const active = mode === tab.key;
+            return (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => setMode(tab.key)}
+                aria-pressed={active}
+                className="press relative flex-1 rounded-xl cursor-pointer overflow-hidden"
+              >
+                {active && (
+                  <motion.span
+                    layoutId="expense-mode-fill"
+                    className="absolute inset-0 rounded-xl"
+                    style={{ backgroundColor: tab.color }}
+                    transition={{ type: "spring", stiffness: 500, damping: 35 }}
+                  />
+                )}
+                <span
+                  className="relative z-10 flex flex-col items-center justify-center gap-0.5 h-full"
+                  style={{ color: active ? "white" : tab.color }}
+                >
+                  <tab.Icon size={18} strokeWidth={2.25} />
+                  <span className="text-xs font-semibold">{tab.label}</span>
+                </span>
+              </button>
+            );
+          })}
         </div>
 
         {/* Readout — the number is the whole reason this sheet exists.
@@ -221,7 +246,8 @@ export function QuickExpenseSheet({ trip, open, onClose }: { trip: Trip; open: b
                 type="button"
                 onClick={swapCalcCurrencies}
                 aria-label="สลับสกุลเงิน"
-                className="press h-9 w-9 rounded-full bg-primary-soft text-primary flex items-center justify-center cursor-pointer shrink-0"
+                className="press h-9 w-9 rounded-full flex items-center justify-center cursor-pointer shrink-0"
+                style={{ backgroundColor: "color-mix(in srgb, var(--color-accent) 16%, transparent)", color: "var(--color-accent)" }}
               >
                 <ArrowLeftRight size={16} />
               </button>
@@ -244,7 +270,7 @@ export function QuickExpenseSheet({ trip, open, onClose }: { trip: Trip; open: b
                     {currencyOptions.map((c) => (
                       <button key={c} type="button"
                         onClick={() => { setToCurrency(c); setToRate(c === "THB" ? 1 : 0); setToCurrencyPicking(false); setManualRate(null); }}
-                        className={`press h-9 px-4 rounded-full text-sm shrink-0 cursor-pointer ${c === toCurrency ? "bg-primary text-white" : "bg-muted/10 text-muted"}`}
+                        className={`press h-9 px-4 rounded-full text-sm shrink-0 cursor-pointer ${c === toCurrency ? "bg-accent text-white" : "bg-muted/10 text-muted"}`}
                       >
                         {c}
                       </button>
@@ -255,7 +281,7 @@ export function QuickExpenseSheet({ trip, open, onClose }: { trip: Trip; open: b
             </AnimatePresence>
 
             <div className="text-center">
-              <p className="money text-4xl text-primary leading-none">
+              <p className="money text-4xl text-accent leading-none">
                 ≈ {toCurrency} {convertedAmount.toLocaleString()}
               </p>
               {editingRate ? (
