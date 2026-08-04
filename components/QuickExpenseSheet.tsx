@@ -565,20 +565,22 @@ export function QuickExpenseSheet({ trip, open, onClose }: { trip: Trip; open: b
                         {itemRows.map((row) => (
                           <div key={row.id} className="flex items-center gap-1.5">
                             <input
-                              className="field h-9 flex-1 text-sm"
+                              className="field h-9 min-w-0 flex-1 text-sm"
                               placeholder="ชื่อของ"
                               value={row.label}
                               onChange={(e) => setItemRows((rows) => rows.map((r) => (r.id === row.id ? { ...r, label: e.target.value } : r)))}
                             />
                             <input
-                              className="field h-9 w-20 text-sm text-right"
+                              className="field h-9 shrink-0 text-sm text-right"
+                              style={{ width: "5rem" }}
                               placeholder="0"
                               inputMode="decimal"
                               value={row.amount}
                               onChange={(e) => setItemRows((rows) => rows.map((r) => (r.id === row.id ? { ...r, amount: e.target.value } : r)))}
                             />
                             <select
-                              className="field h-9 text-sm w-20"
+                              className="field h-9 shrink-0 text-sm"
+                              style={{ width: "5rem" }}
                               value={row.name}
                               onChange={(e) => setItemRows((rows) => rows.map((r) => (r.id === row.id ? { ...r, name: e.target.value } : r)))}
                             >
