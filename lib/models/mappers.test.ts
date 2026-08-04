@@ -6,6 +6,7 @@ const expense: Expense = {
   id: "e1", trip_id: "t1", datetime: "2026-07-12T09:30:00.000Z",
   category: "อาหาร", description: "ราเมง", amount: 3200, currency: "JPY",
   fx_rate: 0.23, amount_thb: 736, payer: "เรา", slip_photo_ids: ["f1", "f2"],
+  splits: [{ name: "แฟน", amount_thb: 368 }],
 };
 
 const transport: Transport = {
@@ -31,6 +32,7 @@ describe("mappers", () => {
     const e = fromRow(["e2", "t1", "2026-07-12T00:00:00.000Z", "อื่นๆ", "", "100", "THB", "1", "100", "เรา"]);
     expect(e.slip_photo_ids).toEqual([]);
     expect(e.amount_thb).toBe(100);
+    expect(e.splits).toEqual([]);
   });
   it("columns match toRow length for every entity", () => {
     for (const [name, def] of Object.entries(ENTITIES)) {

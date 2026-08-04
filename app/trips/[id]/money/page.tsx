@@ -11,6 +11,7 @@ import { toSpendItems, type SpendItem } from "@/lib/spend";
 import { CategoryDonut } from "@/components/CategoryDonut";
 import { SpendList } from "@/components/SpendList";
 import { PersonSpendList } from "@/components/PersonSpendList";
+import { SettleSummary } from "@/components/SettleSummary";
 import { ExpenseEditSheet } from "@/components/ExpenseEditSheet";
 import { Chip } from "@/components/ui/Chip";
 import { Button } from "@/components/ui/Button";
@@ -21,7 +22,7 @@ import { UploadButton } from "@/components/ui/UploadButton";
 import { apiList } from "@/lib/api";
 import type { Expense, Member } from "@/lib/models/types";
 
-type FilterMode = "person" | "day" | "all";
+type FilterMode = "person" | "day" | "all" | "settle";
 
 function CountUpMoney({ value }: { value: number }) {
   const [display, setDisplay] = useState(0);
@@ -37,6 +38,7 @@ const MODES: { key: FilterMode; label: string }[] = [
   { key: "person", label: "รายคน" },
   { key: "day", label: "รายวัน" },
   { key: "all", label: "ทั้งทริป" },
+  { key: "settle", label: "สรุปหนี้" },
 ];
 
 export default function MoneyPage() {
@@ -111,7 +113,7 @@ export default function MoneyPage() {
         </div>
       </div>
 
-      <div className="relative h-11 grid grid-cols-3 rounded-full bg-muted/10 p-0.5">
+      <div className="relative h-11 grid grid-cols-4 rounded-full bg-muted/10 p-0.5">
         {MODES.map((m) => (
           <button
             key={m.key}
@@ -144,51 +146,57 @@ export default function MoneyPage() {
         </div>
       )}
 
-      <div className="flex flex-col items-center gap-1 py-2">
-        <CountUpMoney value={bigTotal} />
-        <p className="text-sm text-muted">
-          จ่ายล่วงหน้า ฿{summary.prepaidTHB.toLocaleString()} · หน้างาน ฿{summary.onsiteTHB.toLocaleString()}{" "}
-          <span className="text-xs">(ทั้งทริป)</span>
-        </p>
-      </div>
-
-      {mode === "person" ? (
-        <PersonSpendList items={allItems} members={members} onPick={pick} />
+      {mode === "settle" ? (
+        <SettleSummary expenses={expenses} members={members} />
       ) : (
         <>
-          <CategoryDonut data={scoped.byCategory} total={bigTotal} selected={category} onSelect={setCategory} />
+          <div className="flex flex-col items-center gap-1 py-2">
+            <CountUpMoney value={bigTotal} />
+            <p className="text-sm text-muted">
+              จ่ายล่วงหน้า ฿{summary.prepaidTHB.toLocaleString()} · หน้างาน ฿{summary.onsiteTHB.toLocaleString()}{" "}
+              <span className="text-xs">(ทั้งทริป)</span>
+            </p>
+          </div>
 
-          {Object.keys(summary.byPayer).length > 0 && (
-            <div className="flex flex-col gap-2">
-              <h2 className="font-heading text-sm font-semibold text-muted">
-                แบ่งตามคนจ่าย <span className="font-normal text-xs">(ทั้งทริป)</span>
-              </h2>
-              <div className="flex h-3 rounded-full overflow-hidden bg-muted/10">
-                {Object.entries(summary.byPayer).map(([payer, amount], i) => (
-                  <div
-                    key={payer}
-                    style={{
-                      flex: amount,
-                      backgroundColor: i % 2 === 0 ? "var(--color-primary)" : "var(--color-accent)",
-                    }}
-                  />
-                ))}
-              </div>
-              <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
-                {Object.entries(summary.byPayer).map(([payer, amount], i) => (
-                  <span key={payer} className="inline-flex items-center gap-1.5">
-                    <span
-                      className="h-2.5 w-2.5 rounded-full"
-                      style={{ backgroundColor: i % 2 === 0 ? "var(--color-primary)" : "var(--color-accent)" }}
-                    />
-                    {payer} <span className="money font-medium">฿{Math.round(amount).toLocaleString()}</span>
-                  </span>
-                ))}
-              </div>
-            </div>
+          {mode === "person" ? (
+            <PersonSpendList items={allItems} members={members} onPick={pick} />
+          ) : (
+            <>
+              <CategoryDonut data={scoped.byCategory} total={bigTotal} selected={category} onSelect={setCategory} />
+
+              {Object.keys(summary.byPayer).length > 0 && (
+                <div className="flex flex-col gap-2">
+                  <h2 className="font-heading text-sm font-semibold text-muted">
+                    แบ่งตามคนจ่าย <span className="font-normal text-xs">(ทั้งทริป)</span>
+                  </h2>
+                  <div className="flex h-3 rounded-full overflow-hidden bg-muted/10">
+                    {Object.entries(summary.byPayer).map(([payer, amount], i) => (
+                      <div
+                        key={payer}
+                        style={{
+                          flex: amount,
+                          backgroundColor: i % 2 === 0 ? "var(--color-primary)" : "var(--color-accent)",
+                        }}
+                      />
+                    ))}
+                  </div>
+                  <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
+                    {Object.entries(summary.byPayer).map(([payer, amount], i) => (
+                      <span key={payer} className="inline-flex items-center gap-1.5">
+                        <span
+                          className="h-2.5 w-2.5 rounded-full"
+                          style={{ backgroundColor: i % 2 === 0 ? "var(--color-primary)" : "var(--color-accent)" }}
+                        />
+                        {payer} <span className="money font-medium">฿{Math.round(amount).toLocaleString()}</span>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <SpendList items={listItems} days={days} members={members} onPick={pick} />
+            </>
           )}
-
-          <SpendList items={listItems} days={days} members={members} onPick={pick} />
         </>
       )}
 

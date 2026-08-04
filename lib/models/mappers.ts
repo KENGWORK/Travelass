@@ -1,6 +1,6 @@
 import type { Trip, ItineraryItem, Transport, Booking, Expense, ChecklistItem, Note, QuickInfo, Member, Restaurant, WishItem, TripApp, LinkItem, ShopItem, Phrase, QuickNote } from "./types";
 
-type Kind = "s" | "n" | "b" | "a"; // string, number, bool, string-array
+type Kind = "s" | "n" | "b" | "a" | "j"; // string, number, bool, string-array, json
 
 function makeMapper<T>(fields: [keyof T & string, Kind][]) {
   return {
@@ -11,6 +11,7 @@ function makeMapper<T>(fields: [keyof T & string, Kind][]) {
         if (kind === "n") return String(v ?? 0);
         if (kind === "b") return v ? "TRUE" : "FALSE";
         if (kind === "a") return ((v as string[] | undefined) ?? []).join(",");
+        if (kind === "j") return JSON.stringify(v ?? []);
         return String(v ?? "");
       });
     },
@@ -21,7 +22,9 @@ function makeMapper<T>(fields: [keyof T & string, Kind][]) {
         if (kind === "n") obj[k] = cell === "" ? 0 : Number(cell);
         else if (kind === "b") obj[k] = cell === "TRUE";
         else if (kind === "a") obj[k] = cell === "" ? [] : cell.split(",");
-        else obj[k] = cell;
+        else if (kind === "j") {
+          try { obj[k] = cell === "" ? [] : JSON.parse(cell); } catch { obj[k] = []; }
+        } else obj[k] = cell;
       });
       return obj as T;
     },
@@ -33,7 +36,7 @@ export const ENTITIES = {
   itinerary: makeMapper<ItineraryItem>([["id","s"],["trip_id","s"],["day_date","s"],["time","s"],["end_time","s"],["title","s"],["place","s"],["maps_link","s"],["notes","s"],["status","s"],["moved_to_date","s"],["linked_transport_id","s"],["linked_booking_id","s"],["sort_order","n"],["photo_ids","a"]]),
   transports: makeMapper<Transport>([["id","s"],["trip_id","s"],["day_date","s"],["from","s"],["to","s"],["mode","s"],["pickup_point","s"],["pickup_photo_ids","a"],["departure_times","a"],["depart_time","s"],["arrive_time","s"],["duration_min","n"],["alt_option","s"],["price_amount","n"],["price_currency","s"],["fx_rate","n"],["price_thb","n"],["payer","s"],["pay_timing","s"],["paid","b"],["slip_photo_ids","a"],["notes","s"]]),
   bookings: makeMapper<Booking>([["id","s"],["trip_id","s"],["type","s"],["vendor","s"],["ref_no","s"],["date_from","s"],["date_to","s"],["detail","s"],["amount","n"],["currency","s"],["fx_rate","n"],["amount_thb","n"],["payer","s"],["pay_timing","s"],["paid","b"],["slip_photo_ids","a"],["notes","s"]]),
-  expenses: makeMapper<Expense>([["id","s"],["trip_id","s"],["datetime","s"],["category","s"],["description","s"],["amount","n"],["currency","s"],["fx_rate","n"],["amount_thb","n"],["payer","s"],["slip_photo_ids","a"]]),
+  expenses: makeMapper<Expense>([["id","s"],["trip_id","s"],["datetime","s"],["category","s"],["description","s"],["amount","n"],["currency","s"],["fx_rate","n"],["amount_thb","n"],["payer","s"],["slip_photo_ids","a"],["splits","j"]]),
   checklist: makeMapper<ChecklistItem>([["id","s"],["trip_id","s"],["group","s"],["item","s"],["done","b"],["from_template","b"]]),
   notes: makeMapper<Note>([["id","s"],["trip_id","s"],["date","s"],["text","s"],["photo_ids","a"]]),
   quickinfo: makeMapper<QuickInfo>([["id","s"],["trip_id","s"],["label","s"],["value","s"],["photo_ids","a"],["pinned","b"],["sort_order","n"]]),

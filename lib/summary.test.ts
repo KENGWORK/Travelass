@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { summarize } from "./summary";
 import type { Expense, Booking, Transport } from "./models/types";
 
-const e = (over: Partial<Expense>): Expense => ({ id: "e", trip_id: "t", datetime: "2026-07-12T09:00:00.000Z", category: "อาหาร", description: "", amount: 0, currency: "THB", fx_rate: 1, amount_thb: 0, payer: "เรา", slip_photo_ids: [], ...over });
+const e = (over: Partial<Expense>): Expense => ({ id: "e", trip_id: "t", datetime: "2026-07-12T09:00:00.000Z", category: "อาหาร", description: "", amount: 0, currency: "THB", fx_rate: 1, amount_thb: 0, payer: "เรา", slip_photo_ids: [], splits: [], ...over });
 const b = (over: Partial<Booking>): Booking => ({ id: "b", trip_id: "t", type: "hotel", vendor: "", ref_no: "", date_from: "", date_to: "", detail: "", amount: 0, currency: "THB", fx_rate: 1, amount_thb: 0, payer: "เรา", pay_timing: "prepaid", paid: true, slip_photo_ids: [], notes: "", ...over });
 const tr = (over: Partial<Transport>): Transport => ({ id: "tr", trip_id: "t", day_date: "", from: "", to: "", mode: "", pickup_point: "", pickup_photo_ids: [], departure_times: [], depart_time: "", arrive_time: "", duration_min: 0, alt_option: "", price_amount: 0, price_currency: "THB", fx_rate: 1, price_thb: 0, payer: "เรา", pay_timing: "prepaid", paid: true, slip_photo_ids: [], notes: "", ...over });
 
