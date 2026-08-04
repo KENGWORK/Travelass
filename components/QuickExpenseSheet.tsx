@@ -215,8 +215,12 @@ export function QuickExpenseSheet({ trip, open, onClose }: { trip: Trip; open: b
             Tinted by category so the color decision reads as "painting"
             the receipt, not a separate form field. */}
         <div
-          className="rounded-3xl px-5 py-6 flex flex-col items-center transition-colors duration-200"
-          style={{ backgroundColor: `color-mix(in srgb, ${activeColor} 14%, var(--color-surface))` }}
+          className={`rounded-3xl flex flex-col items-center transition-colors duration-200 ${
+            mode === "calc" ? "px-5 py-4" : "px-5 py-6"
+          }`}
+          style={{
+            backgroundColor: `color-mix(in srgb, ${mode === "calc" ? "var(--color-accent)" : activeColor} 14%, var(--color-surface))`,
+          }}
         >
           <button
             type="button"
@@ -225,7 +229,9 @@ export function QuickExpenseSheet({ trip, open, onClose }: { trip: Trip; open: b
           >
             {currency} ▾
           </button>
-          <div className="money text-6xl leading-none tabular-nums">
+          {/* Input stays small + muted in calc mode — it's just the operand,
+              the converted number below is the answer the user came for. */}
+          <div className={`money leading-none tabular-nums ${mode === "calc" ? "text-3xl text-muted" : "text-6xl"}`}>
             {digits === "" ? <span className="text-muted/40">0</span> : digits}
           </div>
           {mode === "expense" && !isTHB && (
@@ -281,7 +287,7 @@ export function QuickExpenseSheet({ trip, open, onClose }: { trip: Trip; open: b
             </AnimatePresence>
 
             <div className="text-center">
-              <p className="money text-4xl text-accent leading-none">
+              <p className="money text-6xl text-accent leading-none">
                 ≈ {toCurrency} {convertedAmount.toLocaleString()}
               </p>
               {editingRate ? (
