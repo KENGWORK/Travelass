@@ -10,7 +10,7 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Delete, Plus, Minus } from "lucide-react";
+import { Delete, Plus, Minus, ArrowLeftRight, Pencil } from "lucide-react";
 import { BottomSheet } from "@/components/ui/BottomSheet";
 import { Button } from "@/components/ui/Button";
 import { PhotoPicker } from "@/components/PhotoPicker";
@@ -40,10 +40,20 @@ function Key({ label, onPress }: { label: string; onPress: () => void }) {
 
 export function QuickExpenseSheet({ trip, open, onClose }: { trip: Trip; open: boolean; onClose: () => void }) {
   const { expenses, setExpenses } = useTripData();
+  const [mode, setMode] = useState<"expense" | "calc">("expense");
   const [digits, setDigits] = useState("");
   const [currency, setCurrency] = useState(trip.trip_currency);
   const [currencyPicking, setCurrencyPicking] = useState(false);
   const [fxRate, setFxRate] = useState(0);
+  const [toCurrency, setToCurrency] = useState("THB");
+  const [toCurrencyPicking, setToCurrencyPicking] = useState(false);
+  const [toRate, setToRate] = useState(1);
+  const [manualRate, setManualRate] = useState<number | null>(null);
+  const [editingRate, setEditingRate] = useState(false);
+  const toRateRef = useRef({ toCurrency, toRate });
+  useEffect(() => {
+    toRateRef.current = { toCurrency, toRate };
+  });
   const [category, setCategory] = useState<Category>("อาหาร");
   const [members, setMembers] = useState<Member[]>([]);
   const [payer, setPayer] = useState("");
@@ -58,6 +68,14 @@ export function QuickExpenseSheet({ trip, open, onClose }: { trip: Trip; open: b
   const amount = parseFloat(digits) || 0;
   const amountTHB = isTHB ? amount : convertToTHB(amount, fxRate);
   const activeColor = CATS.find((c) => c.name === category)?.color ?? "var(--color-primary)";
+
+  // calc mode: from-currency -> THB -> to-currency, two rate legs so any
+  // pair works (not just X -> THB like the expense-mode readout above).
+  const fromRateTHB = currency === "THB" ? 1 : fxRate;
+  const toRateTHB = toCurrency === "THB" ? 1 : toRate;
+  const autoRate = toRateTHB > 0 ? fromRateTHB / toRateTHB : 0;
+  const effectiveRate = manualRate ?? autoRate;
+  const convertedAmount = Math.round(amount * effectiveRate * 100) / 100;
 
   // Most-used currency first: count this trip's past expenses per currency,
   // then stable-sort the base list by that count descending. Array.sort is
@@ -92,6 +110,18 @@ export function QuickExpenseSheet({ trip, open, onClose }: { trip: Trip; open: b
     return () => { cancelled = true; };
   }, [currency, fxRate, isTHB]);
 
+  useEffect(() => {
+    if (mode !== "calc" || toCurrency === "THB") return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { rate } = await apiRate(toCurrency);
+        if (!cancelled && toRateRef.current.toCurrency === toCurrency) setToRate(rate);
+      } catch {}
+    })();
+    return () => { cancelled = true; };
+  }, [mode, toCurrency]);
+
   const press = (k: string) => {
     if (k === "⌫") return setDigits((d) => d.slice(0, -1));
     if (k === "." && (digits.includes(".") || digits === "")) return setDigits((d) => (d === "" ? "0." : d));
@@ -102,7 +132,18 @@ export function QuickExpenseSheet({ trip, open, onClose }: { trip: Trip; open: b
   const reset = () => {
     setDigits(""); setCurrency(trip.trip_currency); setFxRate(0); setCategory("อาหาร");
     setPayer(""); setPayerCustom(false); setDescription(""); setSlips([]); setDetailsOpen(false); setCurrencyPicking(false);
+    setMode("expense"); setToCurrency("THB"); setToRate(1); setManualRate(null); setEditingRate(false); setToCurrencyPicking(false);
     onClose();
+  };
+
+  const swapCalcCurrencies = () => {
+    const prevCurrency = currency;
+    const prevFxRate = fxRate;
+    setCurrency(toCurrency);
+    setFxRate(toRate);
+    setToCurrency(prevCurrency);
+    setToRate(prevFxRate);
+    setManualRate(null);
   };
 
   const knownPayers: { name: string; color: string }[] = members.length
@@ -127,6 +168,24 @@ export function QuickExpenseSheet({ trip, open, onClose }: { trip: Trip; open: b
   return (
     <BottomSheet open={open} onClose={reset} title="จดค่าใช้จ่าย">
       <div className="flex flex-col gap-4">
+        {/* Mode toggle — same sheet, same FAB, two purposes: log a real
+            expense (writes to Sheets) or just convert a number (never
+            writes anything, resets on close). */}
+        <div className="flex h-11 rounded-full bg-muted/10 p-0.5">
+          {(["expense", "calc"] as const).map((m) => (
+            <button
+              key={m}
+              type="button"
+              onClick={() => setMode(m)}
+              className={`press flex-1 rounded-full text-sm font-medium cursor-pointer transition-colors ${
+                mode === m ? "bg-primary text-white" : "text-muted"
+              }`}
+            >
+              {m === "expense" ? "บันทึกรายจ่าย" : "คิดเลขอย่างเดียว"}
+            </button>
+          ))}
+        </div>
+
         {/* Readout — the number is the whole reason this sheet exists.
             Tinted by category so the color decision reads as "painting"
             the receipt, not a separate form field. */}
@@ -144,7 +203,7 @@ export function QuickExpenseSheet({ trip, open, onClose }: { trip: Trip; open: b
           <div className="money text-6xl leading-none tabular-nums">
             {digits === "" ? <span className="text-muted/40">0</span> : digits}
           </div>
-          {!isTHB && (
+          {mode === "expense" && !isTHB && (
             <p className="text-sm text-muted mt-2">
               ≈ <span className="money">฿{amountTHB.toLocaleString()}</span>
               {fxRate > 0 && <> · rate {fxRate}</>}
@@ -152,8 +211,78 @@ export function QuickExpenseSheet({ trip, open, onClose }: { trip: Trip; open: b
           )}
         </div>
 
+        {mode === "calc" && (
+          <div className="flex flex-col items-center gap-3">
+            <div className="flex items-center gap-3">
+              <span className="press h-9 px-4 rounded-full bg-muted/10 text-sm font-semibold text-muted flex items-center">
+                {currency}
+              </span>
+              <button
+                type="button"
+                onClick={swapCalcCurrencies}
+                aria-label="สลับสกุลเงิน"
+                className="press h-9 w-9 rounded-full bg-primary-soft text-primary flex items-center justify-center cursor-pointer shrink-0"
+              >
+                <ArrowLeftRight size={16} />
+              </button>
+              <button
+                type="button"
+                onClick={() => setToCurrencyPicking((v) => !v)}
+                className="press h-9 px-4 rounded-full bg-muted/10 text-sm font-semibold text-muted cursor-pointer"
+              >
+                {toCurrency} ▾
+              </button>
+            </div>
+
+            <AnimatePresence initial={false}>
+              {toCurrencyPicking && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }} className="overflow-hidden w-full"
+                >
+                  <div className="flex gap-2 overflow-x-auto pb-1 justify-center">
+                    {currencyOptions.map((c) => (
+                      <button key={c} type="button"
+                        onClick={() => { setToCurrency(c); setToRate(c === "THB" ? 1 : 0); setToCurrencyPicking(false); setManualRate(null); }}
+                        className={`press h-9 px-4 rounded-full text-sm shrink-0 cursor-pointer ${c === toCurrency ? "bg-primary text-white" : "bg-muted/10 text-muted"}`}
+                      >
+                        {c}
+                      </button>
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            <div className="text-center">
+              <p className="money text-4xl text-primary leading-none">
+                ≈ {toCurrency} {convertedAmount.toLocaleString()}
+              </p>
+              {editingRate ? (
+                <input
+                  autoFocus
+                  type="number"
+                  inputMode="decimal"
+                  className="field h-9 w-32 text-center text-sm mt-2 mx-auto"
+                  value={manualRate ?? effectiveRate}
+                  onChange={(e) => setManualRate(parseFloat(e.target.value) || 0)}
+                  onBlur={() => setEditingRate(false)}
+                />
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setEditingRate(true)}
+                  className="press inline-flex items-center gap-1 text-xs text-muted mt-2 cursor-pointer"
+                >
+                  rate {effectiveRate || 0} <Pencil size={11} />
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
         <AnimatePresence initial={false}>
-          {currencyPicking && (
+          {mode === "expense" && currencyPicking && (
             <motion.div
               initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }}
               transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }} className="overflow-hidden"
@@ -161,7 +290,7 @@ export function QuickExpenseSheet({ trip, open, onClose }: { trip: Trip; open: b
               <div className="flex gap-2 overflow-x-auto pb-1">
                 {currencyOptions.map((c) => (
                   <button key={c} type="button"
-                    onClick={() => { setCurrency(c); setFxRate(c === "THB" ? 1 : 0); setCurrencyPicking(false); }}
+                    onClick={() => { setCurrency(c); setFxRate(c === "THB" ? 1 : 0); setCurrencyPicking(false); setManualRate(null); }}
                     className={`press h-9 px-4 rounded-full text-sm shrink-0 cursor-pointer ${c === currency ? "bg-primary text-white" : "bg-muted/10 text-muted"}`}
                   >
                     {c}
@@ -172,74 +301,78 @@ export function QuickExpenseSheet({ trip, open, onClose }: { trip: Trip; open: b
           )}
         </AnimatePresence>
 
-        {/* Category dial — colored dots, not text chips, so the row reads
-            at a glance instead of being read word by word. */}
-        <div className="flex gap-3 overflow-x-auto pb-1 justify-center">
-          {CATS.map((c) => (
-            <button key={c.name} type="button" onClick={() => setCategory(c.name)}
-              className="press flex flex-col items-center gap-1 shrink-0 cursor-pointer">
-              <span
-                className="h-10 w-10 rounded-full flex items-center justify-center"
-                style={{
-                  backgroundColor: category === c.name ? c.color : `color-mix(in srgb, ${c.color} 18%, transparent)`,
-                  boxShadow: category === c.name ? `0 0 0 3px color-mix(in srgb, ${c.color} 30%, transparent)` : undefined,
-                }}
-              >
-                <span className="h-3 w-3 rounded-full" style={{ backgroundColor: category === c.name ? "white" : c.color }} />
-              </span>
-              <span className={`text-xs ${category === c.name ? "font-semibold text-text" : "text-muted"}`}>{c.name}</span>
-            </button>
-          ))}
-        </div>
-
-        {/* Payer — required. Same dot-in-ring construction as the category
-            dial above (colored circle, ring on select) so "who paid" reads
-            as the same kind of decision, not a separate bolted-on field. */}
-        <div className="flex flex-col gap-2">
-          <div className="flex items-center gap-1.5">
-            <span className="text-xs font-semibold text-muted">ใครจ่าย</span>
-            <span className="text-xs text-danger">*</span>
-          </div>
-          <div className="flex gap-3 overflow-x-auto pb-1">
-            {knownPayers.map((p) => {
-              const selected = !payerCustom && payer === p.name;
-              return (
-                <button key={p.name} type="button"
-                  onClick={() => { setPayerCustom(false); setPayer(p.name); }}
+        {mode === "expense" && (
+          <>
+            {/* Category dial — colored dots, not text chips, so the row reads
+                at a glance instead of being read word by word. */}
+            <div className="flex gap-3 overflow-x-auto pb-1 justify-center">
+              {CATS.map((c) => (
+                <button key={c.name} type="button" onClick={() => setCategory(c.name)}
                   className="press flex flex-col items-center gap-1 shrink-0 cursor-pointer">
                   <span
-                    className="h-10 w-10 rounded-full flex items-center justify-center text-sm font-semibold"
+                    className="h-10 w-10 rounded-full flex items-center justify-center"
                     style={{
-                      backgroundColor: selected ? p.color : `color-mix(in srgb, ${p.color} 18%, transparent)`,
-                      color: selected ? "white" : p.color,
-                      boxShadow: selected ? `0 0 0 3px color-mix(in srgb, ${p.color} 30%, transparent)` : undefined,
+                      backgroundColor: category === c.name ? c.color : `color-mix(in srgb, ${c.color} 18%, transparent)`,
+                      boxShadow: category === c.name ? `0 0 0 3px color-mix(in srgb, ${c.color} 30%, transparent)` : undefined,
                     }}
                   >
-                    {p.name.slice(0, 1)}
+                    <span className="h-3 w-3 rounded-full" style={{ backgroundColor: category === c.name ? "white" : c.color }} />
                   </span>
-                  <span className={`text-xs ${selected ? "font-semibold text-text" : "text-muted"}`}>{p.name}</span>
+                  <span className={`text-xs ${category === c.name ? "font-semibold text-text" : "text-muted"}`}>{c.name}</span>
                 </button>
-              );
-            })}
-            <button type="button" onClick={() => { setPayerCustom(true); setPayer(""); }}
-              className="press flex flex-col items-center gap-1 shrink-0 cursor-pointer">
-              <span
-                className="h-10 w-10 rounded-full flex items-center justify-center text-muted"
-                style={{
-                  backgroundColor: "color-mix(in srgb, var(--color-muted) 14%, transparent)",
-                  boxShadow: payerCustom ? "0 0 0 3px color-mix(in srgb, var(--color-muted) 30%, transparent)" : undefined,
-                }}
-              >
-                <Plus size={16} />
-              </span>
-              <span className={`text-xs ${payerCustom ? "font-semibold text-text" : "text-muted"}`}>อื่นๆ</span>
-            </button>
-          </div>
-          {payerCustom && (
-            <input autoFocus className="field h-11" placeholder="ชื่อคนจ่าย"
-              value={payer} onChange={(e) => setPayer(e.target.value)} />
-          )}
-        </div>
+              ))}
+            </div>
+
+            {/* Payer — required. Same dot-in-ring construction as the category
+                dial above (colored circle, ring on select) so "who paid" reads
+                as the same kind of decision, not a separate bolted-on field. */}
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs font-semibold text-muted">ใครจ่าย</span>
+                <span className="text-xs text-danger">*</span>
+              </div>
+              <div className="flex gap-3 overflow-x-auto pb-1">
+                {knownPayers.map((p) => {
+                  const selected = !payerCustom && payer === p.name;
+                  return (
+                    <button key={p.name} type="button"
+                      onClick={() => { setPayerCustom(false); setPayer(p.name); }}
+                      className="press flex flex-col items-center gap-1 shrink-0 cursor-pointer">
+                      <span
+                        className="h-10 w-10 rounded-full flex items-center justify-center text-sm font-semibold"
+                        style={{
+                          backgroundColor: selected ? p.color : `color-mix(in srgb, ${p.color} 18%, transparent)`,
+                          color: selected ? "white" : p.color,
+                          boxShadow: selected ? `0 0 0 3px color-mix(in srgb, ${p.color} 30%, transparent)` : undefined,
+                        }}
+                      >
+                        {p.name.slice(0, 1)}
+                      </span>
+                      <span className={`text-xs ${selected ? "font-semibold text-text" : "text-muted"}`}>{p.name}</span>
+                    </button>
+                  );
+                })}
+                <button type="button" onClick={() => { setPayerCustom(true); setPayer(""); }}
+                  className="press flex flex-col items-center gap-1 shrink-0 cursor-pointer">
+                  <span
+                    className="h-10 w-10 rounded-full flex items-center justify-center text-muted"
+                    style={{
+                      backgroundColor: "color-mix(in srgb, var(--color-muted) 14%, transparent)",
+                      boxShadow: payerCustom ? "0 0 0 3px color-mix(in srgb, var(--color-muted) 30%, transparent)" : undefined,
+                    }}
+                  >
+                    <Plus size={16} />
+                  </span>
+                  <span className={`text-xs ${payerCustom ? "font-semibold text-text" : "text-muted"}`}>อื่นๆ</span>
+                </button>
+              </div>
+              {payerCustom && (
+                <input autoFocus className="field h-11" placeholder="ชื่อคนจ่าย"
+                  value={payer} onChange={(e) => setPayer(e.target.value)} />
+              )}
+            </div>
+          </>
+        )}
 
         {/* Keypad — replaces the native number input + on-screen keyboard,
             which used to cover half the sheet on a phone. */}
@@ -247,30 +380,34 @@ export function QuickExpenseSheet({ trip, open, onClose }: { trip: Trip; open: b
           {KEYS.map((k) => <Key key={k} label={k} onPress={() => press(k)} />)}
         </div>
 
-        <button type="button" onClick={() => setDetailsOpen((v) => !v)}
-          className="press inline-flex items-center gap-1.5 self-start text-sm text-muted cursor-pointer">
-          {detailsOpen ? <Minus size={14} /> : <Plus size={14} />}
-          โน้ต / รูป (ไม่บังคับ)
-        </button>
+        {mode === "expense" && (
+          <>
+            <button type="button" onClick={() => setDetailsOpen((v) => !v)}
+              className="press inline-flex items-center gap-1.5 self-start text-sm text-muted cursor-pointer">
+              {detailsOpen ? <Minus size={14} /> : <Plus size={14} />}
+              โน้ต / รูป (ไม่บังคับ)
+            </button>
 
-        <AnimatePresence initial={false}>
-          {detailsOpen && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }} className="overflow-hidden"
-            >
-              <div className="flex flex-col gap-3 pt-1">
-                <input className="field h-11" placeholder="โน๊ตสั้นๆ"
-                  value={description} onChange={(e) => setDescription(e.target.value)} />
-                <PhotoPicker tripName={trip.name} kind="slips" fileIds={slips} onChange={setSlips} />
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+            <AnimatePresence initial={false}>
+              {detailsOpen && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }} className="overflow-hidden"
+                >
+                  <div className="flex flex-col gap-3 pt-1">
+                    <input className="field h-11" placeholder="โน๊ตสั้นๆ"
+                      value={description} onChange={(e) => setDescription(e.target.value)} />
+                    <PhotoPicker tripName={trip.name} kind="slips" fileIds={slips} onChange={setSlips} />
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
-        <Button variant="primary" full onClick={save} disabled={!canSave}>
-          {amount > 0 ? `บันทึก ฿${amountTHB.toLocaleString()}` : "บันทึก"}
-        </Button>
+            <Button variant="primary" full onClick={save} disabled={!canSave}>
+              {amount > 0 ? `บันทึก ฿${amountTHB.toLocaleString()}` : "บันทึก"}
+            </Button>
+          </>
+        )}
       </div>
     </BottomSheet>
   );
