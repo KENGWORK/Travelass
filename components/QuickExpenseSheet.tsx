@@ -214,102 +214,27 @@ export function QuickExpenseSheet({ trip, open, onClose }: { trip: Trip; open: b
         {/* Readout — the number is the whole reason this sheet exists.
             Tinted by category so the color decision reads as "painting"
             the receipt, not a separate form field. */}
-        <div
-          className={`rounded-3xl flex flex-col items-center transition-colors duration-200 ${
-            mode === "calc" ? "px-5 py-4" : "px-5 py-6"
-          }`}
-          style={{
-            backgroundColor: `color-mix(in srgb, ${mode === "calc" ? "var(--color-accent)" : activeColor} 14%, var(--color-surface))`,
-          }}
-        >
-          <button
-            type="button"
-            onClick={() => setCurrencyPicking((v) => !v)}
-            className="press h-7 px-3 rounded-full bg-surface text-xs font-semibold text-muted cursor-pointer mb-2"
+        {mode === "expense" && (
+          <div
+            className="rounded-3xl px-5 py-6 flex flex-col items-center transition-colors duration-200"
+            style={{ backgroundColor: `color-mix(in srgb, ${activeColor} 14%, var(--color-surface))` }}
           >
-            {currency} ▾
-          </button>
-          {/* Input stays small + muted in calc mode — it's just the operand,
-              the converted number below is the answer the user came for. */}
-          <div className={`money leading-none tabular-nums ${mode === "calc" ? "text-3xl text-muted" : "text-6xl"}`}>
-            {digits === "" ? <span className="text-muted/40">0</span> : digits}
-          </div>
-          {mode === "expense" && !isTHB && (
-            <p className="text-sm text-muted mt-2">
-              ≈ <span className="money">฿{amountTHB.toLocaleString()}</span>
-              {fxRate > 0 && <> · rate {fxRate}</>}
-            </p>
-          )}
-        </div>
-
-        {mode === "calc" && (
-          <div className="flex flex-col items-center gap-3">
-            <div className="flex items-center gap-3">
-              <span className="press h-9 px-4 rounded-full bg-muted/10 text-sm font-semibold text-muted flex items-center">
-                {currency}
-              </span>
-              <button
-                type="button"
-                onClick={swapCalcCurrencies}
-                aria-label="สลับสกุลเงิน"
-                className="press h-9 w-9 rounded-full flex items-center justify-center cursor-pointer shrink-0"
-                style={{ backgroundColor: "color-mix(in srgb, var(--color-accent) 16%, transparent)", color: "var(--color-accent)" }}
-              >
-                <ArrowLeftRight size={16} />
-              </button>
-              <button
-                type="button"
-                onClick={() => setToCurrencyPicking((v) => !v)}
-                className="press h-9 px-4 rounded-full bg-muted/10 text-sm font-semibold text-muted cursor-pointer"
-              >
-                {toCurrency} ▾
-              </button>
+            <button
+              type="button"
+              onClick={() => setCurrencyPicking((v) => !v)}
+              className="press h-7 px-3 rounded-full bg-surface text-xs font-semibold text-muted cursor-pointer mb-2"
+            >
+              {currency} ▾
+            </button>
+            <div className="money text-6xl leading-none tabular-nums">
+              {digits === "" ? <span className="text-muted/40">0</span> : digits}
             </div>
-
-            <AnimatePresence initial={false}>
-              {toCurrencyPicking && (
-                <motion.div
-                  initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }}
-                  transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }} className="overflow-hidden w-full"
-                >
-                  <div className="flex gap-2 overflow-x-auto pb-1 justify-center">
-                    {currencyOptions.map((c) => (
-                      <button key={c} type="button"
-                        onClick={() => { setToCurrency(c); setToRate(c === "THB" ? 1 : 0); setToCurrencyPicking(false); setManualRate(null); }}
-                        className={`press h-9 px-4 rounded-full text-sm shrink-0 cursor-pointer ${c === toCurrency ? "bg-accent text-white" : "bg-muted/10 text-muted"}`}
-                      >
-                        {c}
-                      </button>
-                    ))}
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            <div className="text-center">
-              <p className="money text-6xl text-accent leading-none">
-                ≈ {toCurrency} {convertedAmount.toLocaleString()}
+            {!isTHB && (
+              <p className="text-sm text-muted mt-2">
+                ≈ <span className="money">฿{amountTHB.toLocaleString()}</span>
+                {fxRate > 0 && <> · rate {fxRate}</>}
               </p>
-              {editingRate ? (
-                <input
-                  autoFocus
-                  type="number"
-                  inputMode="decimal"
-                  className="field h-9 w-32 text-center text-sm mt-2 mx-auto"
-                  value={manualRate ?? effectiveRate}
-                  onChange={(e) => setManualRate(parseFloat(e.target.value) || 0)}
-                  onBlur={() => setEditingRate(false)}
-                />
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setEditingRate(true)}
-                  className="press inline-flex items-center gap-1 text-xs text-muted mt-2 cursor-pointer"
-                >
-                  rate {effectiveRate || 0} <Pencil size={11} />
-                </button>
-              )}
-            </div>
+            )}
           </div>
         )}
 
@@ -332,6 +257,119 @@ export function QuickExpenseSheet({ trip, open, onClose }: { trip: Trip; open: b
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* Calc mode — the answer is the hero: solid accent card on top,
+            everything white-on-accent. The swap button straddles the seam
+            between it and the (demoted, tinted-not-solid) input card below,
+            reading as the hinge that flips one into the other. Input's own
+            currency picker lives with the input; the result's with the
+            result — no field appears twice. */}
+        {mode === "calc" && (
+          <div className="flex flex-col">
+            <div
+              className="rounded-3xl px-5 pt-6 pb-8 flex flex-col items-center"
+              style={{ backgroundColor: "var(--color-accent)" }}
+            >
+              <button
+                type="button"
+                onClick={() => setToCurrencyPicking((v) => !v)}
+                className="press h-7 px-3 rounded-full bg-white/20 text-xs font-semibold text-white cursor-pointer mb-2"
+              >
+                {toCurrency} ▾
+              </button>
+              <p className="money text-6xl text-white leading-none tabular-nums">
+                ≈ {convertedAmount.toLocaleString()}
+              </p>
+              {editingRate ? (
+                <input
+                  autoFocus
+                  type="number"
+                  inputMode="decimal"
+                  className="field h-9 w-32 text-center text-sm mt-2"
+                  value={manualRate ?? effectiveRate}
+                  onChange={(e) => setManualRate(parseFloat(e.target.value) || 0)}
+                  onBlur={() => setEditingRate(false)}
+                />
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setEditingRate(true)}
+                  className="press inline-flex items-center gap-1 text-xs text-white/80 mt-2 cursor-pointer"
+                >
+                  rate {effectiveRate || 0} <Pencil size={11} />
+                </button>
+              )}
+            </div>
+
+            <AnimatePresence initial={false}>
+              {toCurrencyPicking && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }} className="overflow-hidden"
+                >
+                  <div className="flex gap-2 overflow-x-auto py-2 justify-center">
+                    {currencyOptions.map((c) => (
+                      <button key={c} type="button"
+                        onClick={() => { setToCurrency(c); setToRate(c === "THB" ? 1 : 0); setToCurrencyPicking(false); setManualRate(null); }}
+                        className={`press h-9 px-4 rounded-full text-sm shrink-0 cursor-pointer ${c === toCurrency ? "bg-accent text-white" : "bg-muted/10 text-muted"}`}
+                      >
+                        {c}
+                      </button>
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            <div className="flex justify-center -my-4 relative z-10">
+              <button
+                type="button"
+                onClick={swapCalcCurrencies}
+                aria-label="สลับสกุลเงิน"
+                className="press h-10 w-10 rounded-full bg-accent text-white ring-4 flex items-center justify-center cursor-pointer shadow-card"
+                style={{ ["--tw-ring-color" as string]: "var(--color-surface)" }}
+              >
+                <ArrowLeftRight size={18} />
+              </button>
+            </div>
+
+            <div
+              className="rounded-3xl px-5 pt-8 pb-4 flex flex-col items-center"
+              style={{ backgroundColor: "color-mix(in srgb, var(--color-accent) 10%, var(--color-surface))" }}
+            >
+              <button
+                type="button"
+                onClick={() => setCurrencyPicking((v) => !v)}
+                className="press h-7 px-3 rounded-full bg-surface text-xs font-semibold text-muted cursor-pointer mb-2"
+              >
+                {currency} ▾
+              </button>
+              <div className="money text-3xl text-muted leading-none tabular-nums">
+                {digits === "" ? <span className="text-muted/40">0</span> : digits}
+              </div>
+            </div>
+
+            <AnimatePresence initial={false}>
+              {currencyPicking && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }} className="overflow-hidden"
+                >
+                  <div className="flex gap-2 overflow-x-auto pt-2 justify-center">
+                    {currencyOptions.map((c) => (
+                      <button key={c} type="button"
+                        onClick={() => { setCurrency(c); setFxRate(c === "THB" ? 1 : 0); setCurrencyPicking(false); setManualRate(null); }}
+                        className={`press h-9 px-4 rounded-full text-sm shrink-0 cursor-pointer ${c === currency ? "bg-accent text-white" : "bg-muted/10 text-muted"}`}
+                      >
+                        {c}
+                      </button>
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        )}
 
         {mode === "expense" && (
           <>
