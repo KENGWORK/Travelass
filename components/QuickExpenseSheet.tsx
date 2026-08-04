@@ -85,8 +85,13 @@ export function QuickExpenseSheet({ trip, open, onClose }: { trip: Trip; open: b
   // Splits never store the payer's own share — it's always the remainder, so
   // it can't drift out of sync with amountTHB. See docs/superpowers/specs/
   // 2026-08-05-expense-splitting-design.md for the full split/settlement design.
+  //
+  // Itemized rows are typed in the same currency as what was actually paid
+  // (`currency`/`amount`, e.g. CNY) — not THB — so the recheck-against-total
+  // compares like units. Each row only converts to THB once, going into
+  // computedSplits, same as the total itself does.
   const itemsTotal = r2(itemRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0));
-  const itemsOverBudget = splitMode === "itemized" && itemsTotal > amountTHB + 0.001;
+  const itemsOverBudget = splitMode === "itemized" && itemsTotal > amount + 0.001;
   const computedSplits: ExpenseSplit[] =
     splitMode === "equal"
       ? (() => {
@@ -96,9 +101,15 @@ export function QuickExpenseSheet({ trip, open, onClose }: { trip: Trip; open: b
           return others.map((name) => ({ name, amount_thb: share }));
         })()
       : splitMode === "itemized"
-        ? itemRows.filter((r) => r.name && parseFloat(r.amount) > 0).map((r) => ({ name: r.name, amount_thb: r2(parseFloat(r.amount)) }))
+        ? itemRows
+            .filter((r) => r.name && parseFloat(r.amount) > 0)
+            .map((r) => {
+              const rowAmount = parseFloat(r.amount);
+              return { name: r.name, amount_thb: isTHB ? r2(rowAmount) : convertToTHB(rowAmount, fxRate) };
+            })
         : [];
   const payerOwnShare = computedSplits.length > 0 ? r2(amountTHB - computedSplits.reduce((s, sp) => s + sp.amount_thb, 0)) : amountTHB;
+  const itemsRemainingNative = r2(amount - itemsTotal);
 
   // calc mode: from-currency -> THB -> to-currency, two rate legs so any
   // pair works (not just X -> THB like the expense-mode readout above).
@@ -525,9 +536,16 @@ export function QuickExpenseSheet({ trip, open, onClose }: { trip: Trip; open: b
                       </button>
                     </div>
 
-                    {(splitMode === "equal" || splitMode === "itemized") && (
+                    {splitMode === "equal" && (
                       <p className="text-xs text-muted -mt-1">
                         ยอดรวมทั้งหมด (จากคีย์แพดด้านล่าง) <span className="money font-semibold text-text">฿{amountTHB.toLocaleString()}</span>
+                      </p>
+                    )}
+                    {splitMode === "itemized" && (
+                      <p className="text-xs text-muted -mt-1">
+                        ยอดรวมทั้งหมด (จากคีย์แพดด้านล่าง) — พิมพ์รายการเป็น{" "}
+                        <span className="font-semibold text-text">{currency}</span> สกุลเดียวกับที่จ่าย:{" "}
+                        <span className="money font-semibold text-text">{currency} {amount.toLocaleString()}</span>
                       </p>
                     )}
 
@@ -617,11 +635,11 @@ export function QuickExpenseSheet({ trip, open, onClose }: { trip: Trip; open: b
                           <Plus size={14} /> เพิ่มรายการ
                         </button>
                         <div className="flex justify-between text-xs text-muted">
-                          <span>รวมรายการ ฿{itemsTotal.toLocaleString()}</span>
-                          <span>{payer || "คนจ่าย"} เอง ฿{payerOwnShare.toLocaleString()}</span>
+                          <span>รวมรายการ {currency} {itemsTotal.toLocaleString()}</span>
+                          <span>{payer || "คนจ่าย"} เอง {currency} {itemsRemainingNative.toLocaleString()}</span>
                         </div>
                         {itemsOverBudget && (
-                          <p className="text-xs text-danger font-medium">ยอดรวมรายการเกินยอดที่พิมพ์ไว้ (฿{amountTHB.toLocaleString()})</p>
+                          <p className="text-xs text-danger font-medium">ยอดรวมรายการเกินยอดที่พิมพ์ไว้ ({currency} {amount.toLocaleString()})</p>
                         )}
                       </div>
                     )}
