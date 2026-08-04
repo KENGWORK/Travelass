@@ -188,7 +188,7 @@ export default function MoneyPage() {
             </div>
           )}
 
-          <SpendList items={listItems} days={days} onPick={pick} />
+          <SpendList items={listItems} days={days} members={members} onPick={pick} />
         </>
       )}
 

@@ -2,9 +2,20 @@
 import { CATS } from "@/lib/categories";
 import { photoUrl } from "@/lib/photo-url";
 import type { SpendItem } from "@/lib/spend";
+import type { Member } from "@/lib/models/types";
 
 function colorFor(key: string): string {
   return CATS.find((c) => c.name === key)?.color ?? "var(--color-cat-other)";
+}
+
+// Stable color for a payer with no matching member row (custom-typed name),
+// so the pill isn't always the same gray for everyone who isn't a set-up
+// member — same hash-to-palette trick, just keyed off the name instead of
+// list position since rows aren't grouped by payer here.
+function fallbackPayerColor(name: string): string {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
+  return CATS[hash % CATS.length].color;
 }
 
 const SOURCE_LABEL: Record<SpendItem["source"], string | null> = {
@@ -20,10 +31,12 @@ const SOURCE_LABEL: Record<SpendItem["source"], string | null> = {
 export function SpendList({
   items,
   days,
+  members,
   onPick,
 }: {
   items: SpendItem[];
   days: { date: string; label: string }[];
+  members: Member[];
   onPick: (item: SpendItem) => void;
 }) {
   const groups = new Map<string, SpendItem[]>();
@@ -49,6 +62,7 @@ export function SpendList({
             <div className="flex flex-col gap-2">
               {dayItems.map((it) => {
                 const badge = SOURCE_LABEL[it.source];
+                const payerColor = members.find((m) => m.name === it.payer)?.color ?? fallbackPayerColor(it.payer || "?");
                 return (
                   <button
                     key={`${it.source}-${it.id}`}
@@ -59,7 +73,15 @@ export function SpendList({
                     <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: colorFor(it.category) }} />
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium truncate">{it.description}</p>
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        {it.payer && (
+                          <span
+                            className="text-[11px] font-semibold leading-none px-1.5 py-0.5 rounded-full shrink-0"
+                            style={{ backgroundColor: `color-mix(in srgb, ${payerColor} 18%, transparent)`, color: payerColor }}
+                          >
+                            {it.payer}
+                          </span>
+                        )}
                         {badge && (
                           <span className="text-[11px] leading-none px-1.5 py-0.5 rounded-full bg-muted/15 text-muted shrink-0">
                             {badge}
