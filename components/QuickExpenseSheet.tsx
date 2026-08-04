@@ -478,8 +478,9 @@ export function QuickExpenseSheet({ trip, open, onClose }: { trip: Trip; open: b
                 the money page's สรุปหนี้ tab). */}
             <button
               type="button"
+              disabled={payer.trim() === ""}
               onClick={() => setSplitOpen((v) => !v)}
-              className="press inline-flex items-center gap-1.5 self-start h-9 px-3 rounded-full border cursor-pointer text-sm font-medium"
+              className="press inline-flex items-center gap-1.5 self-start h-9 px-3 rounded-full border cursor-pointer text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50"
               style={
                 splitMode !== "none"
                   ? { backgroundColor: "color-mix(in srgb, var(--color-accent) 14%, transparent)", borderColor: "color-mix(in srgb, var(--color-accent) 35%, transparent)", color: "var(--color-accent)" }
@@ -490,6 +491,9 @@ export function QuickExpenseSheet({ trip, open, onClose }: { trip: Trip; open: b
               หารเงิน
               {computedSplits.length > 0 && ` (${computedSplits.length})`}
             </button>
+            {payer.trim() === "" && (
+              <p className="text-xs text-muted -mt-2">เลือกคนจ่ายก่อนถึงจะหารเงินได้</p>
+            )}
 
             <AnimatePresence initial={false}>
               {splitOpen && (
@@ -520,6 +524,12 @@ export function QuickExpenseSheet({ trip, open, onClose }: { trip: Trip; open: b
                         <X size={16} />
                       </button>
                     </div>
+
+                    {(splitMode === "equal" || splitMode === "itemized") && (
+                      <p className="text-xs text-muted -mt-1">
+                        ยอดรวมทั้งหมด (จากคีย์แพดด้านล่าง) <span className="money font-semibold text-text">฿{amountTHB.toLocaleString()}</span>
+                      </p>
+                    )}
 
                     {splitMode === "equal" && (
                       <div className="flex flex-col gap-2">
