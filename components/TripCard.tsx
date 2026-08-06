@@ -34,7 +34,7 @@ export function TripCard({ trip, index = 0 }: { trip: Trip; index?: number }) {
       whileTap={{ scale: 0.97, y: 0 }}
       transition={{ type: "spring", stiffness: 320, damping: 18, delay: index * 0.05 }}
       className={[
-        "group relative block aspect-[4/5] overflow-hidden rounded-2xl shadow-card hover:shadow-card-hover",
+        "group relative block aspect-[4/5] overflow-hidden rounded-[1.25rem] ring-1 ring-black/5 shadow-card hover:shadow-card-hover",
         trip.status === "active" ? "ring-2 ring-primary/50" : "",
       ].join(" ")}
     >
@@ -51,23 +51,28 @@ export function TripCard({ trip, index = 0 }: { trip: Trip; index?: number }) {
           aria-hidden="true"
         />
       )}
-      <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/10 to-transparent" aria-hidden="true" />
+      {/* Scrim reaches from both ends — top just enough to keep the header
+          row legible over a bright sky, bottom strong enough that text
+          contrast never depends on what the photo happens to show there. */}
+      <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/25 to-black/10" aria-hidden="true" />
 
-      <span className="absolute top-2.5 right-2.5 h-6 px-2 rounded-full bg-black/30 backdrop-blur-sm text-[11px] font-semibold text-white flex items-center">
-        {tripCountdown(trip)}
-      </span>
-
-      <div className="absolute inset-x-0 bottom-0 p-3">
-        <span className={`inline-flex items-center gap-1 mb-1.5 h-5 px-2 rounded-full text-[10px] font-semibold uppercase tracking-[0.06em] ${badge.className}`}>
+      <div className="absolute inset-x-0 top-0 p-2.5 flex items-start justify-between gap-2">
+        <span className={`inline-flex items-center gap-1 h-6 px-2.5 rounded-full text-[10px] font-semibold uppercase tracking-[0.06em] ${badge.className}`}>
           {trip.status === "active" && <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" aria-hidden="true" />}
           {badge.label}
         </span>
-        <h2 className="font-heading text-sm font-semibold text-white leading-tight line-clamp-2">{trip.name}</h2>
-        <p className="flex items-center gap-1 text-[11px] text-white/75 mt-1">
-          <MapPin size={11} className="shrink-0" />
+        <span className="shrink-0 h-6 px-2.5 rounded-full bg-black/30 backdrop-blur-sm text-[11px] font-semibold text-white flex items-center">
+          {tripCountdown(trip)}
+        </span>
+      </div>
+
+      <div className="absolute inset-x-0 bottom-0 p-3.5">
+        <h2 className="font-heading text-base font-semibold text-white leading-tight line-clamp-2">{trip.name}</h2>
+        <p className="flex items-center gap-1 text-xs text-white/80 mt-1.5">
+          <MapPin size={12} className="shrink-0" />
           <span className="truncate">{trip.destination}</span>
+          <span className="text-white/50 shrink-0">· {fmtDate(trip.start_date)}-{fmtDate(trip.end_date)}</span>
         </p>
-        <p className="text-[10px] text-white/55 mt-0.5">{fmtDate(trip.start_date)} - {fmtDate(trip.end_date)}</p>
       </div>
     </MotionLink>
   );
