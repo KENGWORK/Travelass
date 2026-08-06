@@ -35,9 +35,9 @@ export function MembersCard({ tripId }: { tripId: string }) {
   };
 
   return (
-    <div className="rounded-2xl bg-surface shadow-card p-4">
-      <h2 className="font-heading text-lg font-semibold mb-2">สมาชิก</h2>
-      <div className="flex flex-wrap gap-2 mb-3">
+    <div className="rounded-3xl bg-surface border border-black/[0.04] shadow-card p-5">
+      <h2 className="font-heading text-lg font-semibold mb-3">สมาชิก</h2>
+      <div className="flex flex-wrap gap-2 mb-4">
         {members.length === 0 && <span className="text-sm text-muted">ยังไม่มีสมาชิก</span>}
         {members.map((m) => (
           <span

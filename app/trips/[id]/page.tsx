@@ -64,7 +64,7 @@ function StatCard({ label, children }: { label: string; children: React.ReactNod
     <motion.div
       whileHover={{ y: -2, rotate: -1 }}
       transition={{ type: "spring", stiffness: 320, damping: 16 }}
-      className="rounded-3xl bg-surface shadow-card hover:shadow-card-hover p-3.5 flex flex-col gap-1"
+      className="rounded-3xl bg-surface border border-black/[0.04] shadow-card hover:shadow-card-hover p-4 flex flex-col gap-1.5"
     >
       <p className="text-xs text-muted font-medium">{label}</p>
       {children}
@@ -128,7 +128,7 @@ function ShortcutCard({
       whileHover={{ y: -4, rotate: -0.5 }}
       whileTap={{ scale: 0.96, y: 0, rotate: 0 }}
       transition={{ type: "spring", stiffness: 320, damping: 16 }}
-      className="group flex items-center gap-3 rounded-3xl bg-surface shadow-card hover:shadow-card-hover p-4"
+      className="group flex items-center gap-3 rounded-3xl bg-surface border border-black/[0.04] shadow-card hover:shadow-card-hover p-5"
     >
       <motion.span
         whileHover={{ rotate: [0, -12, 12, -6, 0], scale: 1.08 }}
@@ -172,7 +172,7 @@ export default function TripDashboardPage() {
   const bookedCount = bookings.filter((b) => b.paid || b.ref_no.trim() !== "").length;
 
   return (
-    <div className="p-4 max-w-3xl mx-auto flex flex-col gap-4">
+    <div className="p-6 max-w-3xl mx-auto flex flex-col gap-6">
       <header className="flex items-start justify-between gap-3">
         <div className="flex flex-col gap-3 min-w-0">
           <div>
@@ -202,17 +202,17 @@ export default function TripDashboardPage() {
       </header>
 
       {loading ? (
-        <div className="grid grid-cols-3 grid-rows-2 gap-3 h-[136px]">
+        <div className="grid grid-cols-3 grid-rows-2 gap-4 h-[144px]">
           <Skeleton className="col-span-2 row-span-2" />
           <Skeleton />
           <Skeleton />
         </div>
       ) : (
-        <div className="grid grid-cols-3 grid-rows-2 gap-3">
+        <div className="grid grid-cols-3 grid-rows-2 gap-4">
           <motion.div
             whileHover={{ y: -2, rotate: -0.5 }}
             transition={{ type: "spring", stiffness: 320, damping: 16 }}
-            className="col-span-2 row-span-2 rounded-3xl gradient-primary text-white shadow-card hover:shadow-card-hover p-4 flex items-center justify-between gap-3"
+            className="col-span-2 row-span-2 rounded-3xl gradient-primary text-white shadow-card hover:shadow-card-hover p-5 flex items-center justify-between gap-3"
           >
             <div>
               <p className="text-xs text-white/75 font-medium">ใช้ไปแล้ว</p>
@@ -236,7 +236,7 @@ export default function TripDashboardPage() {
       {trip.status === "active" ? (
         <TodayView tripId={trip.id} />
       ) : (
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-4">
           {SHORTCUTS.map((s) => (
             <ShortcutCard key={s.href} tripId={trip.id} {...s} />
           ))}
