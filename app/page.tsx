@@ -70,8 +70,8 @@ export default function TripListPage() {
         </div>
       </header>
       {trips === null && (
-        <div className="grid grid-cols-2 gap-3">
-          {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="aspect-[4/5] rounded-2xl" />)}
+        <div className="flex flex-col gap-3">
+          {[1, 2].map((i) => <Skeleton key={i} className="aspect-[2.8/1] rounded-2xl" />)}
         </div>
       )}
 
@@ -85,7 +85,7 @@ export default function TripListPage() {
             )}
 
             {activeTrips.length > 0 && (
-              <div className="grid grid-cols-2 gap-3">
+              <div className="flex flex-col gap-3">
                 {activeTrips.map((t, i) => <TripCard key={t.id} trip={t} index={i} />)}
               </div>
             )}
@@ -111,7 +111,7 @@ export default function TripListPage() {
                       initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }}
                       transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }} className="overflow-hidden"
                     >
-                      <div className="grid grid-cols-2 gap-3 pt-3">
+                      <div className="flex flex-col gap-3 pt-3">
                         {doneTrips.map((t, i) => <TripCard key={t.id} trip={t} index={i} />)}
                       </div>
                     </motion.div>
