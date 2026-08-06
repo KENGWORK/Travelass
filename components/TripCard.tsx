@@ -31,31 +31,35 @@ export function TripCard({ trip }: { trip: Trip }) {
         whileTap={{ scale: 0.98, y: 0 }}
         transition={{ type: "spring", stiffness: 320, damping: 16 }}
         className={[
-          "group relative block h-48 overflow-hidden rounded-3xl shadow-card hover:shadow-card-hover",
+          "group relative block overflow-hidden rounded-3xl bg-surface shadow-card hover:shadow-card-hover",
           trip.status === "active" ? "ring-2 ring-primary/40" : "",
         ].join(" ")}
       >
-        <img
-          src={photoUrl(trip.cover_photo_id)}
-          alt=""
-          className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-        />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-black/10" aria-hidden="true" />
-
-        <div className="absolute top-4 right-4 text-right">
-          <p className="money text-sm font-semibold text-white drop-shadow">{tripCountdown(trip)}</p>
+        {/* Photo is purely visual — every word lives on plain surface below,
+            so legibility never depends on how bright the photo happens to be. */}
+        <div className="relative h-36 overflow-hidden">
+          <img
+            src={photoUrl(trip.cover_photo_id)}
+            alt=""
+            className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+          />
+          <span className="absolute top-3 right-3 h-7 px-2.5 rounded-full bg-surface/90 backdrop-blur-sm text-xs font-semibold text-text flex items-center shadow-card">
+            {tripCountdown(trip)}
+          </span>
         </div>
 
-        <div className="absolute inset-x-0 bottom-0 p-5">
-          <span className={`inline-flex items-center gap-1.5 mb-2 h-6 px-2.5 rounded-full text-xs font-medium backdrop-blur-sm ${badge.className}`}>
+        <div className="p-4">
+          <span className={`inline-flex items-center gap-1.5 mb-2 h-6 px-2.5 rounded-full text-xs font-medium ${badge.className}`}>
             {trip.status === "active" && <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" aria-hidden="true" />}
             {badge.label}
           </span>
-          <h2 className="font-heading text-xl font-semibold text-white truncate drop-shadow">{trip.name}</h2>
-          <p className="flex items-center gap-1 text-sm text-white/85 mt-1">
+          <h2 className="font-heading text-lg font-semibold truncate group-hover:text-primary transition-colors">
+            {trip.name}
+          </h2>
+          <p className="flex items-center gap-1 text-sm text-muted mt-0.5">
             <MapPin size={13} className="shrink-0" />
             <span className="truncate">{trip.destination}</span>
-            <span className="text-white/60">· {fmtDate(trip.start_date)} - {fmtDate(trip.end_date)}</span>
+            <span className="text-muted/70 shrink-0">· {fmtDate(trip.start_date)} - {fmtDate(trip.end_date)}</span>
           </p>
         </div>
       </MotionLink>
