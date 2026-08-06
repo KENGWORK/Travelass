@@ -56,20 +56,20 @@ export default function TripListPage() {
   useEffect(() => subscribe("trips", () => setTrips(sortTrips(dbList("trips") as unknown as Trip[]))), []);
 
   return (
-    <main className="p-5 max-w-3xl mx-auto">
-      <header className="flex items-center justify-between h-14 mb-2">
+    <main className="p-6 max-w-3xl mx-auto">
+      <header className="flex items-center justify-between h-14 mb-6">
         <h1 className="font-heading text-[28px] font-bold">ทริปของเรา</h1>
         <div className="flex items-center gap-1">
           <RefreshButton onRefresh={load} />
           <button aria-label="สร้างทริป" onClick={() => setOpen(true)}
-            className="wiggle-idle w-12 h-12 rounded-full gradient-primary text-white shadow-card hover:shadow-card-hover grid place-items-center cursor-pointer active:scale-[0.9] transition-transform duration-200 border-2 border-surface">
+            className="wiggle-idle w-12 h-12 rounded-full gradient-primary text-white shadow-card hover:shadow-card-hover hover:scale-105 grid place-items-center cursor-pointer active:scale-[0.9] transition-transform duration-200 border-2 border-surface">
             <Plus size={26} />
           </button>
         </div>
       </header>
-      <div className="flex flex-col gap-5 mt-4">
+      <div className="flex flex-col gap-6">
         {trips === null && [1, 2].map((i) => <Skeleton key={i} className="h-[120px]" />)}
-        {trips?.map((t) => <TripCard key={t.id} trip={t} />)}
+        {trips?.map((t, i) => <TripCard key={t.id} trip={t} index={i} />)}
         {trips?.length === 0 && (
           <EmptyState icon={Plane} title="ยังไม่มีทริป" subtitle="กด + มุมขวาบนเพื่อเริ่มวางแผนทริปแรกของคุณ" />
         )}
