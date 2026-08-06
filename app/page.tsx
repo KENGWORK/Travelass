@@ -56,8 +56,8 @@ export default function TripListPage() {
   useEffect(() => subscribe("trips", () => setTrips(sortTrips(dbList("trips") as unknown as Trip[]))), []);
 
   return (
-    <main className="p-4 max-w-3xl mx-auto">
-      <header className="flex items-center justify-between h-14">
+    <main className="p-5 max-w-3xl mx-auto">
+      <header className="flex items-center justify-between h-14 mb-2">
         <h1 className="font-heading text-[28px] font-bold">ทริปของเรา</h1>
         <div className="flex items-center gap-1">
           <RefreshButton onRefresh={load} />
@@ -67,7 +67,7 @@ export default function TripListPage() {
           </button>
         </div>
       </header>
-      <div className="flex flex-col gap-3 mt-2">
+      <div className="flex flex-col gap-5 mt-4">
         {trips === null && [1, 2].map((i) => <Skeleton key={i} className="h-[120px]" />)}
         {trips?.map((t) => <TripCard key={t.id} trip={t} />)}
         {trips?.length === 0 && (

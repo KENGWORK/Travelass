@@ -38,6 +38,7 @@ export function TripFormSheet({
       home_currency: "THB",
       trip_currency: form.trip_currency,
       status: "planning",
+      cover_photo_id: "",
     };
     const me: Member = { id: crypto.randomUUID(), trip_id: trip.id, name: "ฉัน", color: MEMBER_COLORS[0] };
 

@@ -4,7 +4,7 @@ export type PayTiming = "prepaid" | "pay_before" | "pay_after";
 export type BookingType = "flight" | "hotel" | "car" | "activity";
 export type Category = "อาหาร" | "เดินทาง" | "ที่พัก" | "ช้อป" | "ตั๋ว" | "อื่นๆ";
 
-export interface Trip { id: string; name: string; destination: string; start_date: string; end_date: string; home_currency: string; trip_currency: string; status: TripStatus; }
+export interface Trip { id: string; name: string; destination: string; start_date: string; end_date: string; home_currency: string; trip_currency: string; status: TripStatus; cover_photo_id: string; }
 export interface ItineraryItem { id: string; trip_id: string; day_date: string; time: string; end_time: string; title: string; place: string; maps_link: string; notes: string; status: ItineraryStatus; moved_to_date: string; linked_transport_id: string; linked_booking_id: string; sort_order: number; photo_ids: string[]; }
 export interface Transport { id: string; trip_id: string; day_date: string; from: string; to: string; mode: string; pickup_point: string; pickup_photo_ids: string[]; departure_times: string[]; depart_time: string; arrive_time: string; duration_min: number; alt_option: string; price_amount: number; price_currency: string; fx_rate: number; price_thb: number; payer: string; pay_timing: PayTiming; paid: boolean; slip_photo_ids: string[]; notes: string; }
 export interface Booking { id: string; trip_id: string; type: BookingType; vendor: string; ref_no: string; date_from: string; date_to: string; detail: string; amount: number; currency: string; fx_rate: number; amount_thb: number; payer: string; pay_timing: PayTiming; paid: boolean; slip_photo_ids: string[]; notes: string; }

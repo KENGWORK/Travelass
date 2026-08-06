@@ -6,6 +6,7 @@ import { optimisticUpdate } from "@/lib/optimistic";
 import { BottomSheet } from "@/components/ui/BottomSheet";
 import { Button } from "@/components/ui/Button";
 import { FormField } from "@/components/ui/FormField";
+import { PhotoPicker } from "@/components/PhotoPicker";
 import { toast } from "@/components/ui/Toast";
 import type { Booking, ItineraryItem, Transport, Trip } from "@/lib/models/types";
 import type { Dispatch, SetStateAction } from "react";
@@ -33,11 +34,11 @@ export function EditTripSheet({
   open: boolean;
   onClose: () => void;
 }) {
-  const [form, setForm] = useState({ name: trip.name, destination: trip.destination, start_date: trip.start_date, end_date: trip.end_date });
+  const [form, setForm] = useState({ name: trip.name, destination: trip.destination, start_date: trip.start_date, end_date: trip.end_date, cover_photo_id: trip.cover_photo_id });
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (open) setForm({ name: trip.name, destination: trip.destination, start_date: trip.start_date, end_date: trip.end_date });
+    if (open) setForm({ name: trip.name, destination: trip.destination, start_date: trip.start_date, end_date: trip.end_date, cover_photo_id: trip.cover_photo_id });
   }, [open, trip]);
 
   const set = (patch: Partial<typeof form>) => setForm((f) => ({ ...f, ...patch }));
@@ -56,6 +57,7 @@ export function EditTripSheet({
       destination: form.destination.trim(),
       start_date: form.start_date,
       end_date: form.end_date,
+      cover_photo_id: form.cover_photo_id,
     };
     // Trip is a single object, not a list -- optimisticUpdate's list-setter
     // shape doesn't apply here, so update it directly (same pattern as the
@@ -94,6 +96,14 @@ export function EditTripSheet({
   return (
     <BottomSheet open={open} onClose={onClose} title="แก้ไขทริป">
       <div className="flex flex-col gap-3">
+        <FormField label="รูปปกทริป">
+          <PhotoPicker
+            tripName={trip.name}
+            kind="photos"
+            fileIds={form.cover_photo_id ? [form.cover_photo_id] : []}
+            onChange={(ids) => set({ cover_photo_id: ids[ids.length - 1] ?? "" })}
+          />
+        </FormField>
         <FormField label="ชื่อทริป">
           <input autoFocus className="field" value={form.name} onChange={(e) => set({ name: e.target.value })} />
         </FormField>
