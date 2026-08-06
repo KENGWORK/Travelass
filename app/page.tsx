@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Plus, Plane } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
+import { Plus, Plane, ChevronDown } from "lucide-react";
 import { apiList } from "@/lib/api";
 import { dbList } from "@/lib/local-db";
 import { isSynced } from "@/lib/sync-status";
@@ -37,6 +38,7 @@ const sortTrips = (t: Trip[]) =>
 export default function TripListPage() {
   const [trips, setTrips] = useState<Trip[] | null>(null);
   const [open, setOpen] = useState(false);
+  const [doneOpen, setDoneOpen] = useState(false);
 
   const load = () =>
     apiList<Trip>("trips").then((t) => {
@@ -67,13 +69,59 @@ export default function TripListPage() {
           </button>
         </div>
       </header>
-      <div className="flex flex-col gap-6">
-        {trips === null && [1, 2].map((i) => <Skeleton key={i} className="h-[120px]" />)}
-        {trips?.map((t, i) => <TripCard key={t.id} trip={t} index={i} />)}
-        {trips?.length === 0 && (
-          <EmptyState icon={Plane} title="ยังไม่มีทริป" subtitle="กด + มุมขวาบนเพื่อเริ่มวางแผนทริปแรกของคุณ" />
-        )}
-      </div>
+      {trips === null && (
+        <div className="grid grid-cols-2 gap-3">
+          {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="aspect-[4/5] rounded-2xl" />)}
+        </div>
+      )}
+
+      {trips && (() => {
+        const activeTrips = trips.filter((t) => t.status !== "done");
+        const doneTrips = trips.filter((t) => t.status === "done");
+        return (
+          <>
+            {activeTrips.length === 0 && doneTrips.length === 0 && (
+              <EmptyState icon={Plane} title="ยังไม่มีทริป" subtitle="กด + มุมขวาบนเพื่อเริ่มวางแผนทริปแรกของคุณ" />
+            )}
+
+            {activeTrips.length > 0 && (
+              <div className="grid grid-cols-2 gap-3">
+                {activeTrips.map((t, i) => <TripCard key={t.id} trip={t} index={i} />)}
+              </div>
+            )}
+
+            {/* Done trips stay collapsed by default — a list that's meant to
+                grow past 40+ entries shouldn't force scrolling past every
+                past trip just to reach the "create" affordance up top. */}
+            {doneTrips.length > 0 && (
+              <div className="mt-6">
+                <button
+                  type="button"
+                  onClick={() => setDoneOpen((v) => !v)}
+                  className="press w-full flex items-center gap-2 h-11 px-1 text-sm font-medium text-muted cursor-pointer"
+                >
+                  <span className="flex-1 text-left">ทริปที่จบแล้ว ({doneTrips.length})</span>
+                  <motion.span animate={{ rotate: doneOpen ? 180 : 0 }} transition={{ duration: 0.2 }}>
+                    <ChevronDown size={18} />
+                  </motion.span>
+                </button>
+                <AnimatePresence initial={false}>
+                  {doneOpen && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }} className="overflow-hidden"
+                    >
+                      <div className="grid grid-cols-2 gap-3 pt-3">
+                        {doneTrips.map((t, i) => <TripCard key={t.id} trip={t} index={i} />)}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            )}
+          </>
+        );
+      })()}
       <TripFormSheet
         open={open}
         onClose={() => setOpen(false)}
