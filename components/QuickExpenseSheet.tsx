@@ -30,7 +30,7 @@ interface ItemRow { id: string; label: string; amount: string; name: string; }
 
 const MODE_TABS = [
   { key: "expense" as const, label: "บันทึกรายจ่าย", Icon: Wallet, color: "var(--color-primary)" },
-  { key: "calc" as const, label: "คิดเลขอย่างเดียว", Icon: Calculator, color: "var(--color-accent)" },
+  { key: "calc" as const, label: "แปลงค่าเงิน", Icon: Calculator, color: "var(--color-accent)" },
 ];
 
 const SPLIT_MODE_TABS = [
