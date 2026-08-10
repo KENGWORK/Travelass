@@ -352,6 +352,7 @@ export default function ItineraryPage() {
         open={planSheetOpen}
         onClose={() => setPlanSheetOpen(false)}
         dayLabel={days[selectedDayIndex]?.label ?? ""}
+        accent={accent}
         plans={dayPlansForDay(selectedDate)}
         currentItemCount={itinerary.filter((it) => it.day_date === selectedDate && it.plan_id === "").length}
         itemCounts={Object.fromEntries(
