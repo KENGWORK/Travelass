@@ -2,7 +2,7 @@
 import { Fragment, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Reorder } from "framer-motion";
-import { Plus, Download, CalendarDays } from "lucide-react";
+import { Plus, Download, CalendarDays, Layers } from "lucide-react";
 import { useTrip } from "@/lib/trip-context";
 import { useTripData } from "@/lib/use-trip-data";
 import { apiCreate, apiUpdate, apiDelete } from "@/lib/api";
@@ -15,6 +15,7 @@ import { ItineraryActivityCard } from "@/components/ItineraryActivityCard";
 import { ItineraryDetailPopup } from "@/components/ItineraryDetailPopup";
 import { ItineraryFormSheet, type ItineraryFormValues } from "@/components/ItineraryFormSheet";
 import { PullIntoPlanSheet } from "@/components/PullIntoPlanSheet";
+import { DayPlanSheet, CURRENT_PLAN_SENTINEL, MAX_DAY_PLANS } from "@/components/DayPlanSheet";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { toast } from "@/components/ui/Toast";
@@ -23,7 +24,8 @@ import { SearchButton } from "@/components/ui/SearchButton";
 import { UploadButton } from "@/components/ui/UploadButton";
 import { optimisticCreate, optimisticUpdate, optimisticDelete } from "@/lib/optimistic";
 import { transportIcon } from "@/lib/transport-icon";
-import type { ItineraryItem } from "@/lib/models/types";
+import { itineraryCopyToPlan } from "@/lib/plan-from";
+import type { ItineraryItem, DayPlan } from "@/lib/models/types";
 
 function todayISO(): string {
   const d = new Date();
@@ -38,7 +40,7 @@ function initialSelectedDate(startDate: string, endDate: string): string {
 
 export default function ItineraryPage() {
   const { trip } = useTrip();
-  const { itinerary, transports, loading, setItinerary } = useTripData(trip.id);
+  const { itinerary, transports, dayPlans, loading, setItinerary, setDayPlans } = useTripData(trip.id);
   const searchParams = useSearchParams();
   const dayParam = searchParams.get("day");
 
@@ -54,16 +56,23 @@ export default function ItineraryPage() {
   const [items, setItems] = useState<ItineraryItem[]>([]);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [pullOpen, setPullOpen] = useState(false);
+  const [planSheetOpen, setPlanSheetOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<ItineraryItem | null>(null);
   const [viewerItem, setViewerItem] = useState<ItineraryItem | null>(null);
   const [detailItem, setDetailItem] = useState<ItineraryItem | null>(null);
 
+  const dayPlansForDay = (date: string) =>
+    dayPlans.filter((p) => p.day_date === date).sort((a, b) => a.sort_order - b.sort_order);
+  const activePlanFor = (date: string) => dayPlansForDay(date).find((p) => p.is_active) ?? null;
+
   useEffect(() => {
+    const activePlan = activePlanFor(selectedDate);
     const dayItems = itinerary
-      .filter((it) => it.day_date === selectedDate && it.status !== "moved")
+      .filter((it) => it.day_date === selectedDate && it.status !== "moved" && (activePlan ? it.plan_id === activePlan.id : true))
       .sort((a, b) => a.sort_order - b.sort_order);
     setItems(dayItems);
-  }, [itinerary, selectedDate]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [itinerary, selectedDate, dayPlans]);
 
   // Drag reorder: apply the new sort_order values to the shared itinerary
   // state immediately (so it survives day-tab switches, which re-derive
@@ -97,6 +106,7 @@ export default function ItineraryPage() {
       const patch = { ...editingItem, ...values };
       optimisticUpdate(setItinerary, editingItem.id, patch, () => apiUpdate<ItineraryItem>("itinerary", editingItem.id, patch));
     } else {
+      const activePlan = activePlanFor(selectedDate);
       const newItem: ItineraryItem = {
         id: crypto.randomUUID(),
         trip_id: trip.id,
@@ -106,6 +116,7 @@ export default function ItineraryPage() {
         linked_transport_id: "",
         linked_booking_id: "",
         sort_order: items.length,
+        plan_id: activePlan ? activePlan.id : "",
         ...values,
       };
       optimisticCreate(setItinerary, newItem, () => apiCreate<ItineraryItem>("itinerary", newItem));
@@ -121,9 +132,81 @@ export default function ItineraryPage() {
   };
 
   const handlePull = (item: ItineraryItem) => {
-    const newItem: ItineraryItem = { ...item, day_date: selectedDate, sort_order: items.length };
+    const activePlan = activePlanFor(selectedDate);
+    const newItem: ItineraryItem = { ...item, day_date: selectedDate, plan_id: activePlan ? activePlan.id : "", sort_order: items.length };
     optimisticCreate(setItinerary, newItem, () => apiCreate<ItineraryItem>("itinerary", newItem));
     toast("เพิ่มเข้าแผนแล้ว");
+  };
+
+  const handleDaySelect = (date: string) => {
+    if (date === selectedDate) {
+      setPlanSheetOpen(true);
+      return;
+    }
+    setSelectedDate(date);
+  };
+
+  const switchPlan = (planId: string) => {
+    const forDay = dayPlansForDay(selectedDate);
+    const updated = forDay.map((p) => ({ ...p, is_active: p.id === planId }));
+    setDayPlans((prev) => prev.map((p) => updated.find((u) => u.id === p.id) ?? p));
+    updated.forEach((p) => apiUpdate<DayPlan>("day_plans", p.id, p));
+    setPlanSheetOpen(false);
+  };
+
+  // First alternate plan on a day materializes the day's existing (unplanned)
+  // items into a real "แผนหลัก" row, since up to that point they only ever
+  // existed as plan_id: "" -- nothing to switch away from.
+  const createPlan = (name: string, copyFromId: string | null) => {
+    const forDay = dayPlansForDay(selectedDate);
+    const newPlans: DayPlan[] = [];
+    const plan1Updates: ItineraryItem[] = [];
+    let effectiveCopyFromId = copyFromId;
+    let baseCount = forDay.length;
+
+    if (forDay.length === 0) {
+      const plan1Id = crypto.randomUUID();
+      newPlans.push({ id: plan1Id, trip_id: trip.id, day_date: selectedDate, name: "แผนหลัก", sort_order: 0, is_active: false });
+      itinerary
+        .filter((it) => it.day_date === selectedDate && it.plan_id === "")
+        .forEach((it) => plan1Updates.push({ ...it, plan_id: plan1Id }));
+      if (copyFromId === CURRENT_PLAN_SENTINEL) effectiveCopyFromId = plan1Id;
+      baseCount = 1;
+    }
+
+    if (baseCount >= MAX_DAY_PLANS) {
+      toast(`สร้างแผนได้สูงสุด ${MAX_DAY_PLANS} แผนต่อวัน`, "error");
+      return;
+    }
+
+    const newId = crypto.randomUUID();
+    const newPlan: DayPlan = {
+      id: newId,
+      trip_id: trip.id,
+      day_date: selectedDate,
+      name: name || `แผน ${baseCount + 1}`,
+      sort_order: baseCount,
+      is_active: true,
+    };
+    newPlans.push(newPlan);
+    const deactivate = forDay.filter((p) => p.is_active).map((p) => ({ ...p, is_active: false }));
+
+    const patchedItinerary = itinerary.map((it) => plan1Updates.find((u) => u.id === it.id) ?? it);
+    const source = effectiveCopyFromId
+      ? patchedItinerary.filter((it) => it.day_date === selectedDate && it.plan_id === effectiveCopyFromId)
+      : [];
+    const copied = source.map((it) => itineraryCopyToPlan(it, newId, crypto.randomUUID()));
+
+    setDayPlans((prev) => [...prev.map((p) => deactivate.find((d) => d.id === p.id) ?? p), ...newPlans]);
+    setItinerary((prev) => [...prev.map((it) => plan1Updates.find((u) => u.id === it.id) ?? it), ...copied]);
+
+    newPlans.forEach((p) => apiCreate<DayPlan>("day_plans", p));
+    deactivate.forEach((p) => apiUpdate<DayPlan>("day_plans", p.id, p));
+    plan1Updates.forEach((it) => apiUpdate<ItineraryItem>("itinerary", it.id, it));
+    copied.forEach((it) => apiCreate<ItineraryItem>("itinerary", it));
+
+    toast(`สร้าง "${newPlan.name}" แล้ว`);
+    setPlanSheetOpen(false);
   };
 
   const days = tripDays(trip.start_date, trip.end_date);
@@ -137,16 +220,29 @@ export default function ItineraryPage() {
         <div>
           <h1 className="font-heading text-xl font-semibold">แผนการเดินทาง</h1>
           {days.length > 0 && (
-            <p className="text-xs text-muted mt-0.5">
-              วันที่ {selectedDayIndex + 1} จาก {days.length}
-              {items.length > 0 && ` · ${items.length} กิจกรรม`}
+            <p className="text-xs text-muted mt-0.5 flex items-center flex-wrap gap-1">
+              <span>
+                วันที่ {selectedDayIndex + 1} จาก {days.length}
+                {items.length > 0 && ` · ${items.length} กิจกรรม`}
+              </span>
               {isToday && (
                 <span
-                  className="ml-1.5 inline-flex items-center rounded-full px-1.5 py-px text-[10px] font-semibold"
+                  className="inline-flex items-center rounded-full px-1.5 py-px text-[10px] font-semibold"
                   style={{ backgroundColor: accent, color: "#fff" }}
                 >
                   วันนี้
                 </span>
+              )}
+              {dayPlansForDay(selectedDate).length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setPlanSheetOpen(true)}
+                  className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold cursor-pointer"
+                  style={{ backgroundColor: `color-mix(in srgb, ${accent} 16%, transparent)`, color: accent }}
+                >
+                  <Layers size={11} />
+                  {activePlanFor(selectedDate)?.name ?? "แผน"}
+                </button>
               )}
             </p>
           )}
@@ -163,7 +259,7 @@ export default function ItineraryPage() {
           startDate={trip.start_date}
           endDate={trip.end_date}
           selected={selectedDate}
-          onSelect={setSelectedDate}
+          onSelect={handleDaySelect}
         />
       </div>
 
@@ -250,6 +346,19 @@ export default function ItineraryPage() {
         tripId={trip.id}
         day={selectedDate}
         onPick={handlePull}
+      />
+
+      <DayPlanSheet
+        open={planSheetOpen}
+        onClose={() => setPlanSheetOpen(false)}
+        dayLabel={days[selectedDayIndex]?.label ?? ""}
+        plans={dayPlansForDay(selectedDate)}
+        currentItemCount={itinerary.filter((it) => it.day_date === selectedDate && it.plan_id === "").length}
+        itemCounts={Object.fromEntries(
+          dayPlansForDay(selectedDate).map((p) => [p.id, itinerary.filter((it) => it.day_date === selectedDate && it.plan_id === p.id).length]),
+        )}
+        onSwitch={switchPlan}
+        onCreate={createPlan}
       />
 
       <ItineraryFormSheet

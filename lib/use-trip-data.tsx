@@ -5,7 +5,7 @@ import { dbList } from "@/lib/local-db";
 import { isSynced } from "@/lib/sync-status";
 import { isGoogleConfigured } from "@/lib/backend";
 import { subscribe } from "@/lib/notify";
-import type { Expense, Booking, Transport, ItineraryItem } from "@/lib/models/types";
+import type { Expense, Booking, Transport, ItineraryItem, DayPlan } from "@/lib/models/types";
 import { summarize } from "@/lib/summary";
 
 interface TripDataValue {
@@ -13,6 +13,7 @@ interface TripDataValue {
   bookings: Booking[];
   transports: Transport[];
   itinerary: ItineraryItem[];
+  dayPlans: DayPlan[];
   summary: ReturnType<typeof summarize>;
   loading: boolean;
   reload: () => Promise<void>;
@@ -20,11 +21,12 @@ interface TripDataValue {
   setBookings: Dispatch<SetStateAction<Booking[]>>;
   setTransports: Dispatch<SetStateAction<Transport[]>>;
   setItinerary: Dispatch<SetStateAction<ItineraryItem[]>>;
+  setDayPlans: Dispatch<SetStateAction<DayPlan[]>>;
 }
 
 const TripDataContext = createContext<TripDataValue | null>(null);
 
-const ENTITIES = ["expenses", "bookings", "transports", "itinerary"] as const;
+const ENTITIES = ["expenses", "bookings", "transports", "itinerary", "day_plans"] as const;
 
 function allSynced(tripId: string): boolean {
   return ENTITIES.every((e) => isSynced(e, tripId));
@@ -47,19 +49,22 @@ export function TripDataProvider({ tripId, children }: { tripId: string; childre
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [transports, setTransports] = useState<Transport[]>([]);
   const [itinerary, setItinerary] = useState<ItineraryItem[]>([]);
+  const [dayPlans, setDayPlans] = useState<DayPlan[]>([]);
   const [loading, setLoading] = useState(true);
 
   const reload = useCallback(async () => {
-    const [e, b, t, i] = await Promise.all([
+    const [e, b, t, i, p] = await Promise.all([
       apiList<Expense>("expenses", tripId),
       apiList<Booking>("bookings", tripId),
       apiList<Transport>("transports", tripId),
       apiList<ItineraryItem>("itinerary", tripId),
+      apiList<DayPlan>("day_plans", tripId),
     ]);
     setExpenses(e);
     setBookings(b);
     setTransports(t);
     setItinerary(i);
+    setDayPlans(p);
     setLoading(isGoogleConfigured() && !allSynced(tripId));
   }, [tripId]);
 
@@ -73,6 +78,7 @@ export function TripDataProvider({ tripId, children }: { tripId: string; childre
       setBookings(dbList("bookings", tripId) as unknown as Booking[]);
       setTransports(dbList("transports", tripId) as unknown as Transport[]);
       setItinerary(dbList("itinerary", tripId) as unknown as ItineraryItem[]);
+      setDayPlans(dbList("day_plans", tripId) as unknown as DayPlan[]);
       setLoading((prev) => (prev ? isGoogleConfigured() && !allSynced(tripId) : false));
     };
     const unsubs = ENTITIES.map((entity) => subscribe(entity, refresh));
@@ -83,7 +89,7 @@ export function TripDataProvider({ tripId, children }: { tripId: string; childre
 
   return (
     <TripDataContext.Provider
-      value={{ expenses, bookings, transports, itinerary, summary, loading, reload, setExpenses, setBookings, setTransports, setItinerary }}
+      value={{ expenses, bookings, transports, itinerary, dayPlans, summary, loading, reload, setExpenses, setBookings, setTransports, setItinerary, setDayPlans }}
     >
       {children}
     </TripDataContext.Provider>
