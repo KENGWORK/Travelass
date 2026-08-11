@@ -555,8 +555,16 @@ export function QuickExpenseSheet({ trip, open, onClose }: { trip: Trip; open: b
                       </div>
                       <button
                         type="button"
-                        aria-label="ปิดการหารเงิน"
-                        onClick={() => { setSplitOpen(false); setSplitMode("none"); setEqualParticipants(new Set()); setItemRows([]); }}
+                        aria-label="ซ่อนตัวเลือกหารเงิน"
+                        // Non-destructive on purpose: an earlier version wiped
+                        // splitMode/equalParticipants/itemRows here, so a
+                        // stray tap on this small X (right next to the mode
+                        // tabs) silently discarded an already-configured
+                        // split before save. Just collapse the panel; the
+                        // outer "หารเงิน" toggle re-expands to the same
+                        // state, and computedSplits (unaffected by
+                        // splitOpen) still makes it into save().
+                        onClick={() => setSplitOpen(false)}
                         className="press h-12 w-9 rounded-xl flex items-center justify-center text-muted cursor-pointer shrink-0"
                       >
                         <X size={16} />
