@@ -4,11 +4,12 @@ import { apiCreate } from "@/lib/api";
 import type { Trip, Member } from "@/lib/models/types";
 import { MEMBER_COLORS } from "@/lib/members";
 import { SUPPORTED_CURRENCIES } from "@/lib/fx";
+import { TZ_OPTIONS, browserTimezone } from "@/lib/timezones";
 import { BottomSheet } from "@/components/ui/BottomSheet";
 import { Button } from "@/components/ui/Button";
 import { FormField } from "@/components/ui/FormField";
 
-const EMPTY = { name: "", destination: "", start_date: "", end_date: "", trip_currency: "THB" };
+const EMPTY = { name: "", destination: "", start_date: "", end_date: "", trip_currency: "THB", trip_timezone: "Asia/Bangkok" };
 
 export function TripFormSheet({
   open,
@@ -39,6 +40,8 @@ export function TripFormSheet({
       trip_currency: form.trip_currency,
       status: "planning",
       cover_photo_id: "",
+      home_timezone: browserTimezone(),
+      trip_timezone: form.trip_timezone,
     };
     const me: Member = { id: crypto.randomUUID(), trip_id: trip.id, name: "ฉัน", color: MEMBER_COLORS[0] };
 
@@ -99,6 +102,19 @@ export function TripFormSheet({
             onChange={(e) => set({ trip_currency: e.target.value })}
           >
             {SUPPORTED_CURRENCIES.map((c) => <option key={c}>{c}</option>)}
+          </select>
+        </FormField>
+        <FormField label="โซนเวลาปลายทาง">
+          <select
+            className="field cursor-pointer"
+            value={form.trip_timezone}
+            onChange={(e) => set({ trip_timezone: e.target.value })}
+          >
+            {TZ_OPTIONS.map((o) => (
+              <option key={o.tz} value={o.tz}>
+                {o.label}
+              </option>
+            ))}
           </select>
         </FormField>
         <Button variant="primary" full disabled={!valid} onClick={submit}>

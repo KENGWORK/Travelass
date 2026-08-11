@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { apiUpdate } from "@/lib/api";
 import { daysBetween, shiftDate } from "@/lib/date-shift";
 import { optimisticUpdate } from "@/lib/optimistic";
+import { TZ_OPTIONS } from "@/lib/timezones";
 import { BottomSheet } from "@/components/ui/BottomSheet";
 import { Button } from "@/components/ui/Button";
 import { FormField } from "@/components/ui/FormField";
@@ -34,11 +35,11 @@ export function EditTripSheet({
   open: boolean;
   onClose: () => void;
 }) {
-  const [form, setForm] = useState({ name: trip.name, destination: trip.destination, start_date: trip.start_date, end_date: trip.end_date, cover_photo_id: trip.cover_photo_id });
+  const [form, setForm] = useState({ name: trip.name, destination: trip.destination, start_date: trip.start_date, end_date: trip.end_date, cover_photo_id: trip.cover_photo_id, trip_timezone: trip.trip_timezone });
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (open) setForm({ name: trip.name, destination: trip.destination, start_date: trip.start_date, end_date: trip.end_date, cover_photo_id: trip.cover_photo_id });
+    if (open) setForm({ name: trip.name, destination: trip.destination, start_date: trip.start_date, end_date: trip.end_date, cover_photo_id: trip.cover_photo_id, trip_timezone: trip.trip_timezone });
   }, [open, trip]);
 
   const set = (patch: Partial<typeof form>) => setForm((f) => ({ ...f, ...patch }));
@@ -58,6 +59,7 @@ export function EditTripSheet({
       start_date: form.start_date,
       end_date: form.end_date,
       cover_photo_id: form.cover_photo_id,
+      trip_timezone: form.trip_timezone,
     };
     // Trip is a single object, not a list -- optimisticUpdate's list-setter
     // shape doesn't apply here, so update it directly (same pattern as the
@@ -118,6 +120,19 @@ export function EditTripSheet({
             <input type="date" className="field" value={form.end_date} onChange={(e) => set({ end_date: e.target.value })} />
           </FormField>
         </div>
+        <FormField label="โซนเวลาปลายทาง">
+          <select
+            className="field cursor-pointer"
+            value={form.trip_timezone}
+            onChange={(e) => set({ trip_timezone: e.target.value })}
+          >
+            {TZ_OPTIONS.map((o) => (
+              <option key={o.tz} value={o.tz}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        </FormField>
         {dateShifted && (
           <p className="text-xs text-muted">
             วันที่เริ่มเปลี่ยน — แผนการเดินทาง, การเดินทาง, และการจองทั้งหมดที่ผูกกับวันที่ จะเลื่อนตามไปด้วยอัตโนมัติ

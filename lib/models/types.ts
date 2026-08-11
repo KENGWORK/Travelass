@@ -4,7 +4,7 @@ export type PayTiming = "prepaid" | "pay_before" | "pay_after";
 export type BookingType = "flight" | "hotel" | "car" | "activity";
 export type Category = "อาหาร" | "เดินทาง" | "ที่พัก" | "ช้อป" | "ตั๋ว" | "อื่นๆ";
 
-export interface Trip { id: string; name: string; destination: string; start_date: string; end_date: string; home_currency: string; trip_currency: string; status: TripStatus; cover_photo_id: string; }
+export interface Trip { id: string; name: string; destination: string; start_date: string; end_date: string; home_currency: string; trip_currency: string; status: TripStatus; cover_photo_id: string; home_timezone: string; trip_timezone: string; }
 export interface ItineraryItem { id: string; trip_id: string; day_date: string; time: string; end_time: string; title: string; place: string; maps_link: string; notes: string; status: ItineraryStatus; moved_to_date: string; linked_transport_id: string; linked_booking_id: string; sort_order: number; photo_ids: string[]; plan_id: string; }
 // A day with a single itinerary needs no DayPlan rows at all -- items just
 // carry plan_id: "". Rows here only exist for days the user has split into
