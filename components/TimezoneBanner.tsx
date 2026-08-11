@@ -4,10 +4,10 @@ import { Clock3 } from "lucide-react";
 import { tzOffsetMinutes, tzClock } from "@/lib/timezones";
 
 // Only earns its place on screen when the trip actually crosses a timezone --
-// a trip within Thailand has nothing to say here. The live dot borrows the
-// same animate-pulse language as the "กำลังเที่ยว" active-trip status
-// elsewhere in the app, so it reads as "this number is ticking" rather than
-// decoration.
+// a trip within Thailand has nothing to say here. Destination time is the
+// thing worth a glance (what time is it *there*, right now); home time and
+// the offset are context, not the headline, so they sit small underneath
+// instead of competing at equal weight on one cramped line.
 export function TimezoneBanner({ homeTimezone, tripTimezone }: { homeTimezone: string; tripTimezone: string }) {
   const [now, setNow] = useState<Date | null>(null);
 
@@ -24,16 +24,21 @@ export function TimezoneBanner({ homeTimezone, tripTimezone }: { homeTimezone: s
   const diffLabel = `${diffHours >= 0 ? "+" : "-"}${Number.isInteger(diffHours) ? Math.abs(diffHours) : Math.abs(diffHours).toFixed(1)} ชม.`;
 
   return (
-    <div className="inline-flex items-center gap-1.5 h-8 pl-2.5 pr-3 rounded-full bg-muted/10 text-xs w-fit">
-      <span className="relative flex h-1.5 w-1.5 shrink-0">
-        <span className="absolute inline-flex h-full w-full rounded-full bg-primary opacity-60 animate-ping" />
-        <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-primary" />
+    <div
+      className="inline-flex items-center gap-2 h-10 pl-1 pr-3 rounded-full w-fit"
+      style={{ backgroundColor: "color-mix(in srgb, var(--color-primary) 14%, transparent)" }}
+    >
+      <span className="h-8 w-8 rounded-full grid place-items-center shrink-0 bg-primary text-white">
+        <Clock3 size={15} />
       </span>
-      <Clock3 size={12} className="text-muted shrink-0" />
-      <span className="tabular-nums font-semibold">ที่นี่ {tzClock(tripTimezone, now)}</span>
-      <span className="text-muted/50">·</span>
-      <span className="tabular-nums text-muted">บ้าน {tzClock(homeTimezone, now)}</span>
-      <span className="text-muted">({diffLabel})</span>
+      <div className="flex flex-col leading-none">
+        <span className="tabular-nums font-bold text-primary text-base leading-none">
+          {tzClock(tripTimezone, now)}
+        </span>
+        <span className="tabular-nums text-[10px] text-muted leading-none mt-1">
+          บ้าน {tzClock(homeTimezone, now)} · {diffLabel}
+        </span>
+      </div>
     </div>
   );
 }
