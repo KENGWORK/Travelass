@@ -10,7 +10,7 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Delete, Plus, Minus, ArrowLeftRight, Pencil, Wallet, Calculator, Users, X, Equal, ListTree } from "lucide-react";
+import { Delete, Plus, Minus, ArrowLeftRight, Pencil, Wallet, Calculator, Users, X, Equal, ListTree, Check } from "lucide-react";
 import { BottomSheet } from "@/components/ui/BottomSheet";
 import { Button } from "@/components/ui/Button";
 import { PhotoPicker } from "@/components/PhotoPicker";
@@ -530,7 +530,20 @@ export function QuickExpenseSheet({ trip, open, onClose }: { trip: Trip; open: b
                             <button
                               key={tab.key}
                               type="button"
-                              onClick={() => setSplitMode(tab.key)}
+                              onClick={() => {
+                                setSplitMode(tab.key);
+                                // On a 2-person trip there's only ever one
+                                // possible "other" -- defaulting them
+                                // selected turns "หารเท่า" into a single tap
+                                // instead of a tap-then-remember-to-also-tap-
+                                // the-chip, which is exactly the extra step
+                                // that got missed and silently saved an
+                                // unsplit expense. Trips with more members
+                                // still start from an explicit empty choice.
+                                if (tab.key === "equal" && otherMembers.length === 1) {
+                                  setEqualParticipants(new Set([otherMembers[0].name]));
+                                }
+                              }}
                               aria-pressed={active}
                               className="press relative flex-1 rounded-lg cursor-pointer overflow-hidden"
                             >
@@ -586,6 +599,7 @@ export function QuickExpenseSheet({ trip, open, onClose }: { trip: Trip; open: b
 
                     {splitMode === "equal" && (
                       <div className="flex flex-col gap-2">
+                        <p className="text-xs text-muted -mt-1">หารด้วยใครบ้าง (แตะเพื่อเลือก/เอาออก)</p>
                         <div className="flex gap-2 flex-wrap">
                           {otherMembers.map((p) => {
                             const selected = equalParticipants.has(p.name);
@@ -601,12 +615,22 @@ export function QuickExpenseSheet({ trip, open, onClose }: { trip: Trip; open: b
                                     return next;
                                   })
                                 }
-                                className="press h-9 px-3 rounded-full text-sm font-medium cursor-pointer"
-                                style={{
-                                  backgroundColor: selected ? p.color : `color-mix(in srgb, ${p.color} 16%, transparent)`,
-                                  color: selected ? "white" : p.color,
-                                }}
+                                // Unselected used to be a 16%-tint of the same
+                                // member color as selected -- close enough in
+                                // a glance on a small screen that a tap which
+                                // didn't land read as "already chosen" and
+                                // the split silently saved empty. Unselected
+                                // is now a plain outline with no fill at all,
+                                // and selected adds an explicit checkmark, so
+                                // the two states can't be confused.
+                                className="press h-9 pl-2.5 pr-3 rounded-full text-sm font-medium cursor-pointer inline-flex items-center gap-1.5 border-2"
+                                style={
+                                  selected
+                                    ? { backgroundColor: p.color, borderColor: p.color, color: "white" }
+                                    : { backgroundColor: "transparent", borderColor: `color-mix(in srgb, ${p.color} 40%, transparent)`, color: p.color }
+                                }
                               >
+                                {selected && <Check size={14} />}
                                 {p.name}
                               </button>
                             );
