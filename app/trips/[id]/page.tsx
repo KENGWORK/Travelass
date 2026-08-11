@@ -15,7 +15,6 @@ import { SearchButton } from "@/components/ui/SearchButton";
 import { UploadButton } from "@/components/ui/UploadButton";
 import { toast } from "@/components/ui/Toast";
 import { TodayView } from "@/components/TodayView";
-import { TimezoneBanner } from "@/components/TimezoneBanner";
 import { MembersCard } from "@/components/MembersCard";
 import { DeleteTripSheet } from "@/components/DeleteTripSheet";
 import { EditTripSheet } from "@/components/EditTripSheet";
@@ -192,7 +191,6 @@ export default function TripDashboardPage() {
               {fmtDate(trip.start_date)} - {fmtDate(trip.end_date)}
             </p>
           </div>
-          <TimezoneBanner homeTimezone={trip.home_timezone} tripTimezone={trip.trip_timezone} />
           <ModeToggle trip={trip} onChange={setStatus} />
         </div>
         <div className="flex items-center gap-1 shrink-0">

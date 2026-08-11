@@ -7,6 +7,7 @@ import { TripDataProvider } from "@/lib/use-trip-data";
 import { SearchProvider, useSearch } from "@/lib/search-context";
 import { UploadProvider, useUpload } from "@/lib/upload-context";
 import { TabBar } from "@/components/TabBar";
+import { TimezoneBanner } from "@/components/TimezoneBanner";
 import { QuickExpenseSheet } from "@/components/QuickExpenseSheet";
 import { SearchSheet } from "@/components/SearchSheet";
 import { UploadOverlay } from "@/components/ui/UploadOverlay";
@@ -25,7 +26,7 @@ function TripLayoutInner({ tripId, children }: { tripId: string; children: React
   // router isn't blocked on an exit-wait — see the note there.
   return (
     <TripDataProvider tripId={tripId}>
-      <div className="sticky top-0 z-20 flex items-center h-12 px-2 bg-bg/80 backdrop-blur">
+      <div className="sticky top-0 z-20 flex items-center justify-between h-12 px-2 bg-bg/80 backdrop-blur">
         <Link
           href="/"
           aria-label="กลับหน้าทริปทั้งหมด"
@@ -33,6 +34,7 @@ function TripLayoutInner({ tripId, children }: { tripId: string; children: React
         >
           <ArrowLeft size={24} />
         </Link>
+        <TimezoneBanner homeTimezone={trip.home_timezone} tripTimezone={trip.trip_timezone} />
       </div>
       {children}
       <TabBar tripId={tripId} onFab={() => setFabOpen(true)} />
