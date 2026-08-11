@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { apiUpdate } from "@/lib/api";
 import { daysBetween, shiftDate } from "@/lib/date-shift";
 import { optimisticUpdate } from "@/lib/optimistic";
-import { TZ_OPTIONS } from "@/lib/timezones";
+import { TZ_OPTIONS, browserTimezone } from "@/lib/timezones";
 import { BottomSheet } from "@/components/ui/BottomSheet";
 import { Button } from "@/components/ui/Button";
 import { FormField } from "@/components/ui/FormField";
@@ -60,6 +60,10 @@ export function EditTripSheet({
       end_date: form.end_date,
       cover_photo_id: form.cover_photo_id,
       trip_timezone: form.trip_timezone,
+      // Trips created before the timezone feature shipped have "" here --
+      // backfill it silently on the next save instead of requiring a
+      // separate migration or a UI field nobody asked to see.
+      home_timezone: trip.home_timezone || browserTimezone(),
     };
     // Trip is a single object, not a list -- optimisticUpdate's list-setter
     // shape doesn't apply here, so update it directly (same pattern as the
