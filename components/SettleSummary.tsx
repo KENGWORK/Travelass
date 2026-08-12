@@ -75,6 +75,26 @@ export function SettleSummary({
     setPayOpen(false);
   };
 
+  // A slip that paid several lines together in one PromptPay transfer is
+  // one real-world event -- group already-paid lines by shared
+  // paid_slip_photo_ids into one card per event, instead of one flat list
+  // that mixes old settled history with whatever's newly outstanding.
+  // Every future payment naturally lands in its own new batch this way ("สร้างช่องใหม่ไปเรื่อยๆ").
+  const paidBatches = (lines: SettlementLine[]) => {
+    const paid = lines.filter((l) => l.paid);
+    const seen = new Set<string>();
+    const batches: { key: string; lines: SettlementLine[]; total: number }[] = [];
+    for (const l of paid) {
+      if (seen.has(l.key)) continue;
+      const group = l.paid_slip_photo_ids.length > 0
+        ? paid.filter((o) => o.paid_slip_photo_ids.some((id) => l.paid_slip_photo_ids.includes(id)))
+        : [l];
+      group.forEach((g) => seen.add(g.key));
+      batches.push({ key: group.map((g) => g.key).join(","), lines: group, total: r2(group.reduce((s, g) => s + g.amount_thb, 0)) });
+    }
+    return batches;
+  };
+
   if (settlements.length === 0) {
     return <p className="text-muted text-sm py-6 text-center">ไม่มีรายจ่ายที่ต้องหารกัน</p>;
   }
@@ -157,65 +177,101 @@ export function SettleSummary({
                         </div>
                       </div>
                     )}
-                    {lines.length === 0 ? (
+                    {lines.length === 0 && (
                       <p className="text-xs text-muted">ยอดนี้มาจากการหักลบหลายรายการ (ดูรายละเอียดที่แท็บ ทั้งทริป)</p>
-                    ) : (
-                      lines.map((l) => {
-                        if (l.paid) {
-                          return (
-                            <button
-                              key={l.key}
-                              type="button"
-                              onClick={() => setViewLine(l)}
-                              className="press flex items-center gap-2 rounded-xl bg-muted/5 p-2 text-xs cursor-pointer"
-                            >
-                              <span className="h-5 w-5 rounded-full bg-success text-white flex items-center justify-center shrink-0">
-                                <Check size={12} />
-                              </span>
-                              <span className="text-muted shrink-0 w-12">{fmtDate(l.datetime)}</span>
-                              <span className="flex-1 min-w-0 truncate font-medium text-muted line-through">{l.description}</span>
-                              <span className="text-muted shrink-0 line-through">{l.from} → {l.to}</span>
-                              <span className="money font-semibold shrink-0 text-muted line-through">฿{l.amount_thb.toLocaleString()}</span>
-                            </button>
-                          );
-                        }
-                        const checked = selectedKeys.has(l.key);
-                        const disabled = selectedLines.length > 0 && payToName !== l.to && !checked;
-                        return (
-                          <button
-                            key={l.key}
-                            type="button"
-                            disabled={disabled}
-                            onClick={() => toggleLine(l, lines)}
-                            className="press flex items-center gap-2 rounded-xl bg-muted/5 p-2 text-xs cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-                          >
-                            <span
-                              className="h-5 w-5 rounded-full flex items-center justify-center shrink-0 border-2"
-                              style={
-                                checked
-                                  ? { backgroundColor: "var(--color-primary)", borderColor: "var(--color-primary)" }
-                                  : { borderColor: "color-mix(in srgb, var(--color-muted) 40%, transparent)" }
-                              }
-                            >
-                              {checked && <Check size={12} className="text-white" />}
-                            </span>
+                    )}
+
+                    {showNetting ? (
+                      // Netted both ways -- only one real transfer ever
+                      // happens (the net amount), so individual raw lines
+                      // aren't independently payable; a checkbox on the
+                      // opposite-direction line would imply a transfer that
+                      // never occurs. List them read-only under the
+                      // breakdown above, pay the net in one action.
+                      <>
+                        {unpaidLines.map((l) => (
+                          <div key={l.key} className="flex items-center gap-2 rounded-xl bg-muted/5 p-2 text-xs">
                             <span className="text-muted shrink-0 w-12">{fmtDate(l.datetime)}</span>
                             <span className="flex-1 min-w-0 truncate font-medium">{l.description}</span>
                             <span className="text-muted shrink-0">{l.from} → {l.to}</span>
                             <span className="money font-semibold shrink-0">฿{l.amount_thb.toLocaleString()}</span>
+                          </div>
+                        ))}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedKeys(new Set(unpaidLines.map((l) => l.key)));
+                            setPayOpen(true);
+                          }}
+                          className="press mt-1 h-11 rounded-xl bg-primary text-white text-sm font-semibold cursor-pointer"
+                        >
+                          จ่ายยอดสุทธิ ฿{r2(sumToB - sumToA).toLocaleString()}
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        {unpaidLines.map((l) => {
+                          const checked = selectedKeys.has(l.key);
+                          const disabled = selectedLines.length > 0 && payToName !== l.to && !checked;
+                          return (
+                            <button
+                              key={l.key}
+                              type="button"
+                              disabled={disabled}
+                              onClick={() => toggleLine(l, lines)}
+                              className="press flex items-center gap-2 rounded-xl bg-muted/5 p-2 text-xs cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                            >
+                              <span
+                                className="h-5 w-5 rounded-full flex items-center justify-center shrink-0 border-2"
+                                style={
+                                  checked
+                                    ? { backgroundColor: "var(--color-primary)", borderColor: "var(--color-primary)" }
+                                    : { borderColor: "color-mix(in srgb, var(--color-muted) 40%, transparent)" }
+                                }
+                              >
+                                {checked && <Check size={12} className="text-white" />}
+                              </span>
+                              <span className="text-muted shrink-0 w-12">{fmtDate(l.datetime)}</span>
+                              <span className="flex-1 min-w-0 truncate font-medium">{l.description}</span>
+                              <span className="text-muted shrink-0">{l.from} → {l.to}</span>
+                              <span className="money font-semibold shrink-0">฿{l.amount_thb.toLocaleString()}</span>
+                            </button>
+                          );
+                        })}
+                        {selectedLines.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => setPayOpen(true)}
+                            className="press mt-1 h-11 rounded-xl bg-primary text-white text-sm font-semibold cursor-pointer"
+                          >
+                            จ่ายแล้ว {selectedLines.length} รายการ (฿{selectedTotal.toLocaleString()})
                           </button>
-                        );
-                      })
+                        )}
+                      </>
                     )}
 
-                    {selectedLines.length > 0 && (
-                      <button
-                        type="button"
-                        onClick={() => setPayOpen(true)}
-                        className="press mt-1 h-11 rounded-xl bg-primary text-white text-sm font-semibold cursor-pointer"
-                      >
-                        จ่ายแล้ว {selectedLines.length} รายการ (฿{selectedTotal.toLocaleString()})
-                      </button>
+                    {paidBatches(lines).length > 0 && (
+                      <div className="flex flex-col gap-1.5 mt-2 pt-2 border-t border-muted/10">
+                        <p className="text-xs font-medium text-muted">ประวัติที่จ่ายแล้ว</p>
+                        {paidBatches(lines).map((batch) => (
+                          <button
+                            key={batch.key}
+                            type="button"
+                            onClick={() => setViewLine(batch.lines[0])}
+                            className="press flex items-center gap-2 rounded-xl bg-muted/5 p-2 text-xs cursor-pointer"
+                          >
+                            <span className="h-5 w-5 rounded-full bg-success text-white flex items-center justify-center shrink-0">
+                              <Check size={12} />
+                            </span>
+                            <span className="text-muted shrink-0 w-12">{fmtDate(batch.lines[0].datetime)}</span>
+                            <span className="flex-1 min-w-0 truncate font-medium text-muted">
+                              {batch.lines.length > 1 ? `${batch.lines.length} รายการ` : batch.lines[0].description}
+                            </span>
+                            <span className="text-muted shrink-0">{batch.lines[0].from} → {batch.lines[0].to}</span>
+                            <span className="money font-semibold shrink-0 text-muted">฿{batch.total.toLocaleString()}</span>
+                          </button>
+                        ))}
+                      </div>
                     )}
                   </div>
                 </motion.div>
