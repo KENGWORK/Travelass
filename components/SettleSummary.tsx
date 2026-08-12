@@ -282,8 +282,13 @@ export function SettleSummary({
               <PayLineSheet
                 open={payOpen}
                 onClose={() => setPayOpen(false)}
-                toMember={memberFor(payToName ?? "")}
-                amount={selectedTotal}
+                // Netted case: the QR/amount must be the net transfer (what
+                // actually moves), to the actual net creditor (s.to) --
+                // not the gross sum of both directions' raw lines, and not
+                // selectedLines[0]'s direction (arbitrary, whichever line
+                // happens to sort first).
+                toMember={memberFor(showNetting ? s.to : payToName ?? "")}
+                amount={showNetting ? r2(sumToB - sumToA) : selectedTotal}
                 lineCount={selectedLines.length}
                 tripName={tripName}
                 onConfirm={confirmPayment}
