@@ -7,7 +7,7 @@ import { toast } from "@/components/ui/Toast";
 import { BottomSheet } from "@/components/ui/BottomSheet";
 import { PayLineSheet } from "@/components/PayLineSheet";
 import { dayColor } from "@/lib/day-color";
-import { netBalances, simplifyDebts, expensesBetween, applyPayment, splitsSharingSlip, type SettlementLine } from "@/lib/settle";
+import { pairSettlements, expensesBetween, applyPayment, splitsSharingSlip, type SettlementLine } from "@/lib/settle";
 import { photoUrl } from "@/lib/photo-url";
 import type { Expense, Member } from "@/lib/models/types";
 
@@ -36,9 +36,11 @@ export function SettleSummary({
   const [payOpen, setPayOpen] = useState(false);
   const [viewLine, setViewLine] = useState<SettlementLine | null>(null);
 
-  const balances = netBalances(expenses);
-  const settlements = simplifyDebts(balances);
-  const names = [...new Set(Object.keys(balances))];
+  // pairSettlements, not the whole-group minimum-transaction netter -- every
+  // row here is guaranteed to match its own drill-down's raw lines exactly,
+  // even with 3+ people in the trip. See lib/settle.ts for why.
+  const settlements = pairSettlements(expenses);
+  const names = [...new Set(settlements.flatMap((s) => [s.from, s.to]))];
   const colorFor = (name: string) => members.find((m) => m.name === name)?.color ?? dayColor(names.indexOf(name));
   const memberFor = (name: string) => members.find((m) => m.name === name);
 
@@ -173,7 +175,7 @@ export function SettleSummary({
                         <div className="h-px bg-muted/15 my-0.5" />
                         <div className="flex items-center justify-between font-semibold">
                           <span>{s.from} ต้องโอนให้ {s.to}</span>
-                          <span className="money">฿{r2(sumToB - sumToA).toLocaleString()}</span>
+                          <span className="money">฿{s.amount.toLocaleString()}</span>
                         </div>
                       </div>
                     )}
@@ -205,7 +207,7 @@ export function SettleSummary({
                           }}
                           className="press mt-1 h-11 rounded-xl bg-primary text-white text-sm font-semibold cursor-pointer"
                         >
-                          จ่ายยอดสุทธิ ฿{r2(sumToB - sumToA).toLocaleString()}
+                          จ่ายยอดสุทธิ ฿{s.amount.toLocaleString()}
                         </button>
                       </>
                     ) : (
@@ -288,7 +290,7 @@ export function SettleSummary({
                 // selectedLines[0]'s direction (arbitrary, whichever line
                 // happens to sort first).
                 toMember={memberFor(showNetting ? s.to : payToName ?? "")}
-                amount={showNetting ? r2(sumToB - sumToA) : selectedTotal}
+                amount={showNetting ? s.amount : selectedTotal}
                 lineCount={selectedLines.length}
                 tripName={tripName}
                 onConfirm={confirmPayment}

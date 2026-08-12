@@ -11,6 +11,7 @@ import { apiUpdate, apiDelete } from "@/lib/api";
 import { useTripData } from "@/lib/use-trip-data";
 import { optimisticUpdate, optimisticDelete } from "@/lib/optimistic";
 import { CATS } from "@/lib/categories";
+import { reconcileSplitsOnEdit } from "@/lib/settle";
 import type { Trip, Expense, Category } from "@/lib/models/types";
 
 export function ExpenseEditSheet({
@@ -44,6 +45,13 @@ export function ExpenseEditSheet({
   const save = () => {
     if (!expense) return;
     const isTHB = money.currency === "THB";
+    const newAmountThb = isTHB ? money.amount : money.amount_thb;
+    const payerChanged = payer !== expense.payer;
+    const { splits, blocked } = reconcileSplitsOnEdit(expense.splits, expense.amount_thb, newAmountThb, payerChanged);
+    if (blocked) {
+      toast("แก้ไขไม่ได้ เพราะมีการหารเงินที่จ่ายแล้วบางส่วน — ไปดูที่หน้าสรุปหนี้ก่อน", "error");
+      return;
+    }
     const patch: Expense = {
       ...expense,
       category,
@@ -51,17 +59,26 @@ export function ExpenseEditSheet({
       amount: money.amount,
       currency: money.currency,
       fx_rate: isTHB ? 1 : money.fx_rate,
-      amount_thb: isTHB ? money.amount : money.amount_thb,
+      amount_thb: newAmountThb,
       payer,
       slip_photo_ids: slips,
+      splits,
     };
     optimisticUpdate(setExpenses, expense.id, patch, () => apiUpdate<Expense>("expenses", expense.id, patch));
-    toast(`บันทึกแล้ว ฿${patch.amount_thb.toLocaleString()}`);
+    toast(
+      payerChanged && expense.splits.length > 0
+        ? "บันทึกแล้ว — ล้างการหารเงินเดิมเพราะเปลี่ยนคนจ่าย ตั้งหารใหม่ได้ที่ปุ่มจดค่าใช้จ่าย"
+        : `บันทึกแล้ว ฿${patch.amount_thb.toLocaleString()}`,
+    );
     onClose();
   };
 
   const del = () => {
     if (!expense) return;
+    if (expense.splits.some((s) => s.paid)) {
+      toast("ลบไม่ได้ เพราะมีการหารเงินที่จ่ายแล้วบางส่วน", "error");
+      return;
+    }
     optimisticDelete(setExpenses, expense.id, () => apiDelete("expenses", expense.id));
     toast("ลบแล้ว");
     onClose();
@@ -70,6 +87,11 @@ export function ExpenseEditSheet({
   return (
     <BottomSheet open={open} onClose={onClose} title="แก้ไขค่าใช้จ่าย">
       <div className="flex flex-col gap-4">
+        {expense?.splits.some((s) => s.paid) && (
+          <p className="text-xs text-warning bg-warning/10 rounded-xl px-3 py-2">
+            มีการหารเงินที่จ่ายแล้วบางส่วน — แก้ไขยอดหรือคนจ่ายไม่ได้ (ลบก็ไม่ได้เช่นกัน)
+          </p>
+        )}
         <MoneyInput value={money} onChange={setMoney} tripCurrency={trip.trip_currency} />
         <div className="flex gap-2 overflow-x-auto pb-1">
           {CATS.map((c) => (

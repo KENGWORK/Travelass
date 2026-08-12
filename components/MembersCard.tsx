@@ -8,6 +8,7 @@ import { BottomSheet } from "@/components/ui/BottomSheet";
 import { FormField } from "@/components/ui/FormField";
 import { Button } from "@/components/ui/Button";
 import { toast } from "@/components/ui/Toast";
+import { isValidPromptPayId } from "@/lib/promptpay";
 import type { Member, Expense, Booking, Transport } from "@/lib/models/types";
 
 function EditMemberSheet({
@@ -51,6 +52,11 @@ function EditMemberSheet({
             onChange={(e) => setPromptpayId(e.target.value)}
           />
         </FormField>
+        {promptpayId.trim() !== "" && !isValidPromptPayId(promptpayId) && (
+          <p className="text-xs text-warning -mt-2">
+            เลขนี้ไม่ครบตามรูปแบบ PromptPay ทั่วไป (เบอร์โทร 10 หลัก / เลขบัตร ปชช. 13 หลัก) เช็คอีกทีก่อนสแกนโอนจริง
+          </p>
+        )}
         <Button variant="primary" full disabled={!valid} onClick={() => onSave(trimmed, promptpayId.trim())}>
           บันทึก
         </Button>
