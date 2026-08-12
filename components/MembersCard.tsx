@@ -7,26 +7,41 @@ import { nextMemberColor } from "@/lib/members";
 import { BottomSheet } from "@/components/ui/BottomSheet";
 import { FormField } from "@/components/ui/FormField";
 import { Button } from "@/components/ui/Button";
-import type { Member } from "@/lib/models/types";
+import { toast } from "@/components/ui/Toast";
+import type { Member, Expense, Booking, Transport } from "@/lib/models/types";
 
 function EditMemberSheet({
   member,
+  otherNames,
   onClose,
   onSave,
 }: {
   member: Member | null;
+  otherNames: string[];
   onClose: () => void;
-  onSave: (promptpayId: string) => void;
+  onSave: (name: string, promptpayId: string) => void;
 }) {
+  const [name, setName] = useState("");
   const [promptpayId, setPromptpayId] = useState("");
 
   useEffect(() => {
-    if (member) setPromptpayId(member.promptpay_id);
+    if (member) {
+      setName(member.name);
+      setPromptpayId(member.promptpay_id);
+    }
   }, [member]);
+
+  const trimmed = name.trim();
+  const duplicate = otherNames.includes(trimmed);
+  const valid = trimmed !== "" && !duplicate;
 
   return (
     <BottomSheet open={!!member} onClose={onClose} title={member ? `แก้ไข ${member.name}` : ""}>
       <div className="flex flex-col gap-3">
+        <FormField label="ชื่อ">
+          <input className="field" value={name} onChange={(e) => setName(e.target.value)} />
+        </FormField>
+        {duplicate && <p className="text-xs text-danger -mt-2">มีสมาชิกชื่อนี้อยู่แล้ว</p>}
         <FormField label="เลข PromptPay (เบอร์โทร/เลขบัตร ปชช.)">
           <input
             className="field"
@@ -36,7 +51,7 @@ function EditMemberSheet({
             onChange={(e) => setPromptpayId(e.target.value)}
           />
         </FormField>
-        <Button variant="primary" full onClick={() => onSave(promptpayId.trim())}>
+        <Button variant="primary" full disabled={!valid} onClick={() => onSave(trimmed, promptpayId.trim())}>
           บันทึก
         </Button>
       </div>
@@ -74,11 +89,50 @@ export function MembersCard({ tripId }: { tripId: string }) {
     window.dispatchEvent(new Event("members-changed"));
   };
 
-  const savePromptPay = (promptpayId: string) => {
+  // Members are matched everywhere else by free-text name (payer, split
+  // owner), not an id -- see docs/superpowers/specs/2026-08-05-expense-
+  // splitting-design.md. Renaming has to walk every place that name is
+  // stored and rewrite it, or the person's expense/split history silently
+  // detaches from them (their old debt stops counting toward anyone).
+  const renameEverywhere = async (oldName: string, newName: string) => {
+    const [expenses, bookings, transports] = await Promise.all([
+      apiList<Expense>("expenses", tripId),
+      apiList<Booking>("bookings", tripId),
+      apiList<Transport>("transports", tripId),
+    ]);
+    expenses.forEach((e) => {
+      const payerMatch = e.payer === oldName;
+      const splitMatch = e.splits.some((s) => s.name === oldName);
+      if (!payerMatch && !splitMatch) return;
+      const updated: Expense = {
+        ...e,
+        payer: payerMatch ? newName : e.payer,
+        splits: e.splits.map((s) => (s.name === oldName ? { ...s, name: newName } : s)),
+      };
+      void apiUpdate<Expense>("expenses", e.id, updated);
+    });
+    bookings.forEach((b) => {
+      if (b.payer !== oldName) return;
+      void apiUpdate<Booking>("bookings", b.id, { ...b, payer: newName });
+    });
+    transports.forEach((t) => {
+      if (t.payer !== oldName) return;
+      void apiUpdate<Transport>("transports", t.id, { ...t, payer: newName });
+    });
+  };
+
+  const saveMember = (name: string, promptpayId: string) => {
     if (!editing) return;
-    const patch = { promptpay_id: promptpayId };
+    const oldName = editing.name;
+    const patch = { name, promptpay_id: promptpayId };
     optimisticUpdate(setMembers, editing.id, patch, () => apiUpdate<Member>("members", editing.id, { ...editing, ...patch }));
     setEditing(null);
+    window.dispatchEvent(new Event("members-changed"));
+    if (name !== oldName) {
+      void renameEverywhere(oldName, name).then(() => {
+        toast(`เปลี่ยนชื่อ "${oldName}" เป็น "${name}" ทุกรายการแล้ว`);
+      });
+    }
   };
 
   return (
@@ -135,7 +189,12 @@ export function MembersCard({ tripId }: { tripId: string }) {
         </button>
       </div>
 
-      <EditMemberSheet member={editing} onClose={() => setEditing(null)} onSave={savePromptPay} />
+      <EditMemberSheet
+        member={editing}
+        otherNames={members.filter((m) => m.id !== editing?.id).map((m) => m.name)}
+        onClose={() => setEditing(null)}
+        onSave={saveMember}
+      />
     </div>
   );
 }
