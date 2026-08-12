@@ -15,6 +15,8 @@ function fmtDate(datetime: string): string {
   return new Date(datetime).toLocaleDateString("th-TH", { day: "numeric", month: "short" });
 }
 
+const r2 = (n: number) => Math.round(n * 100) / 100;
+
 // Whole-trip, never date-scoped — debt isn't a per-day concept. Only expenses
 // with splits touch this at all (see lib/settle.ts); an empty result means
 // no expense has been marked split yet, not that everyone's settled up.
@@ -87,6 +89,19 @@ export function SettleSummary({
         const selectedTotal = selectedLines.reduce((sum, l) => sum + l.amount_thb, 0);
         const payToName = selectedLines[0]?.to;
 
+        // A pair can owe each other in both directions at once (both people
+        // alternately fronted money) -- the header already shows the netted
+        // amount, but that hides *how* it got there. When both directions
+        // have outstanding lines, spell out the subtraction explicitly
+        // instead of leaving the user to do it themselves against a flat
+        // list of raw transactions.
+        const unpaidLines = lines.filter((l) => !l.paid);
+        const owedToB = unpaidLines.filter((l) => l.to === s.to);
+        const owedToA = unpaidLines.filter((l) => l.to === s.from);
+        const sumToB = owedToB.reduce((sum, l) => sum + l.amount_thb, 0);
+        const sumToA = owedToA.reduce((sum, l) => sum + l.amount_thb, 0);
+        const showNetting = owedToB.length > 0 && owedToA.length > 0;
+
         return (
           <div key={key} className="rounded-2xl bg-surface shadow-card overflow-hidden">
             <button
@@ -124,6 +139,24 @@ export function SettleSummary({
                   transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }} className="overflow-hidden"
                 >
                   <div className="flex flex-col gap-1.5 px-3 pb-3">
+                    {showNetting && (
+                      <div className="rounded-xl bg-muted/5 p-2.5 flex flex-col gap-1 text-xs">
+                        <p className="font-medium text-muted mb-0.5">การหักลบยอด</p>
+                        <div className="flex items-center justify-between">
+                          <span>{s.to} จ่ายแทน {s.from}</span>
+                          <span className="money font-medium">฿{sumToB.toLocaleString()} ({owedToB.length} รายการ)</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span>{s.from} จ่ายแทน {s.to}</span>
+                          <span className="money font-medium">−฿{sumToA.toLocaleString()} ({owedToA.length} รายการ)</span>
+                        </div>
+                        <div className="h-px bg-muted/15 my-0.5" />
+                        <div className="flex items-center justify-between font-semibold">
+                          <span>{s.from} ต้องโอนให้ {s.to}</span>
+                          <span className="money">฿{r2(sumToB - sumToA).toLocaleString()}</span>
+                        </div>
+                      </div>
+                    )}
                     {lines.length === 0 ? (
                       <p className="text-xs text-muted">ยอดนี้มาจากการหักลบหลายรายการ (ดูรายละเอียดที่แท็บ ทั้งทริป)</p>
                     ) : (
