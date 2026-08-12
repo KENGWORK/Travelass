@@ -6,7 +6,7 @@ const expense: Expense = {
   id: "e1", trip_id: "t1", datetime: "2026-07-12T09:30:00.000Z",
   category: "อาหาร", description: "ราเมง", amount: 3200, currency: "JPY",
   fx_rate: 0.23, amount_thb: 736, payer: "เรา", slip_photo_ids: ["f1", "f2"],
-  splits: [{ name: "แฟน", amount_thb: 368 }],
+  splits: [{ name: "แฟน", amount_thb: 368, paid: false, paid_slip_photo_ids: [] }],
 };
 
 const transport: Transport = {

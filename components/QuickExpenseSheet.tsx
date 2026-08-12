@@ -103,14 +103,14 @@ export function QuickExpenseSheet({ trip, open, onClose }: { trip: Trip; open: b
           const others = [...equalParticipants].filter((n) => n !== payer);
           if (others.length === 0) return [];
           const share = ceil2(amountTHB / (others.length + 1));
-          return others.map((name) => ({ name, amount_thb: share }));
+          return others.map((name) => ({ name, amount_thb: share, paid: false, paid_slip_photo_ids: [] }));
         })()
       : splitMode === "itemized"
         ? itemRows
             .filter((r) => r.name && parseFloat(r.amount) > 0)
             .map((r) => {
               const rowAmount = parseFloat(r.amount);
-              return { name: r.name, amount_thb: isTHB ? r2(rowAmount) : convertToTHB(rowAmount, fxRate) };
+              return { name: r.name, amount_thb: isTHB ? r2(rowAmount) : convertToTHB(rowAmount, fxRate), paid: false, paid_slip_photo_ids: [] };
             })
         : [];
   const payerOwnShare = computedSplits.length > 0 ? r2(amountTHB - computedSplits.reduce((s, sp) => s + sp.amount_thb, 0)) : amountTHB;

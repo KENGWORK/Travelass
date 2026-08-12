@@ -1,13 +1,19 @@
 import type { Expense } from "./models/types";
 
 export interface Settlement { from: string; to: string; amount: number; }
-export interface SettlementLine { id: string; description: string; category: string; datetime: string; amount_thb: number; from: string; to: string; }
+export interface SettlementLine {
+  id: string; description: string; category: string; datetime: string; amount_thb: number;
+  from: string; to: string; key: string; paid: boolean; paid_slip_photo_ids: string[];
+}
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
 // Positive balance = owed money (net creditor), negative = owes money (net debtor).
 // Only expenses with splits touch balances at all — everything else nets to 0 and
 // stays out of settlement entirely, matching "no split unless explicitly tagged."
+// A split marked paid is done -- it no longer counts toward what's outstanding, so a
+// pair with every split paid drops out of the settlement list on its own, no separate
+// "fully settled" flag to track.
 export function netBalances(expenses: Expense[]): Record<string, number> {
   const balances: Record<string, number> = {};
   const add = (name: string, delta: number) => { balances[name] = r2((balances[name] ?? 0) + delta); };
@@ -15,7 +21,7 @@ export function netBalances(expenses: Expense[]): Record<string, number> {
   for (const e of expenses) {
     if (!e.splits || e.splits.length === 0) continue;
     for (const split of e.splits) {
-      if (split.name === e.payer) continue;
+      if (split.name === e.payer || split.paid) continue;
       add(e.payer, split.amount_thb);
       add(split.name, -split.amount_thb);
     }
@@ -60,21 +66,70 @@ export function simplifyDebts(balances: Record<string, number>): Settlement[] {
 // expense that actually moved money between this specific pair, which is
 // still meaningful even though the settlement total above is netted through
 // simplifyDebts.
+//
+// Includes paid lines too (unlike netBalances, which skips them) -- the
+// drill-down needs to render already-settled lines struck through, not just
+// what's still outstanding. `key` is stable across re-renders (split order
+// within an expense never changes) so the UI can address one specific split
+// for selection and for marking paid.
 export function expensesBetween(expenses: Expense[], a: string, b: string): SettlementLine[] {
   const lines: SettlementLine[] = [];
   for (const e of expenses) {
     if (!e.splits || e.splits.length === 0) continue;
-    for (const split of e.splits) {
-      if (split.name === e.payer) continue;
+    e.splits.forEach((split, i) => {
+      if (split.name === e.payer) return;
       const isAB = e.payer === a && split.name === b;
       const isBA = e.payer === b && split.name === a;
-      if (!isAB && !isBA) continue;
+      if (!isAB && !isBA) return;
       lines.push({
         id: e.id, description: e.description || e.category, category: e.category,
         datetime: e.datetime, amount_thb: split.amount_thb,
         from: isAB ? b : a, to: isAB ? a : b,
+        key: `${e.id}:${i}`, paid: split.paid, paid_slip_photo_ids: split.paid_slip_photo_ids,
       });
-    }
+    });
   }
   return lines.sort((x, y) => x.datetime.localeCompare(y.datetime));
+}
+
+// Marks the splits addressed by `keys` (the `expenseId:splitIndex` form from
+// expensesBetween) as paid, all sharing the same `photoIds` array -- that
+// shared-by-value array is the only thing tying multiple splits to "one
+// slip covered these," no separate payment/settlement record. Returns only
+// the Expense objects that actually changed, ready for the caller to
+// apiUpdate one by one.
+export function applyPayment(expenses: Expense[], keys: string[], photoIds: string[]): Expense[] {
+  const keySet = new Set(keys);
+  const changed: Expense[] = [];
+  for (const e of expenses) {
+    if (!e.splits || e.splits.length === 0) continue;
+    let touched = false;
+    const splits = e.splits.map((s, i) => {
+      if (!keySet.has(`${e.id}:${i}`)) return s;
+      touched = true;
+      return { ...s, paid: true, paid_slip_photo_ids: photoIds };
+    });
+    if (touched) changed.push({ ...e, splits });
+  }
+  return changed;
+}
+
+// Every paid split (trip-wide) whose paid_slip_photo_ids overlaps the given
+// photo ids -- "what else did this slip cover." Includes the line the
+// caller is already looking at; callers filter that one out by key.
+export function splitsSharingSlip(
+  expenses: Expense[],
+  photoIds: string[],
+): { key: string; description: string; amount_thb: number }[] {
+  if (photoIds.length === 0) return [];
+  const idSet = new Set(photoIds);
+  const out: { key: string; description: string; amount_thb: number }[] = [];
+  for (const e of expenses) {
+    if (!e.splits) continue;
+    e.splits.forEach((s, i) => {
+      if (!s.paid || !s.paid_slip_photo_ids.some((id) => idSet.has(id))) return;
+      out.push({ key: `${e.id}:${i}`, description: e.description || e.category, amount_thb: s.amount_thb });
+    });
+  }
+  return out;
 }

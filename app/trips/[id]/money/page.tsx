@@ -44,7 +44,7 @@ const MODES: { key: FilterMode; label: string }[] = [
 export default function MoneyPage() {
   const { trip } = useTrip();
   const router = useRouter();
-  const { expenses, bookings, transports, summary, loading } = useTripData(trip.id);
+  const { expenses, bookings, transports, summary, loading, setExpenses } = useTripData(trip.id);
 
   const days = tripDays(trip.start_date, trip.end_date);
   const [mode, setMode] = useState<FilterMode>("person");
@@ -147,7 +147,7 @@ export default function MoneyPage() {
       )}
 
       {mode === "settle" ? (
-        <SettleSummary expenses={expenses} members={members} />
+        <SettleSummary expenses={expenses} members={members} setExpenses={setExpenses} tripName={trip.name} />
       ) : (
         <>
           <div className="flex flex-col items-center gap-1 py-2">

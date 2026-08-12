@@ -43,7 +43,7 @@ export function TripFormSheet({
       home_timezone: browserTimezone(),
       trip_timezone: form.trip_timezone,
     };
-    const me: Member = { id: crypto.randomUUID(), trip_id: trip.id, name: "ฉัน", color: MEMBER_COLORS[0] };
+    const me: Member = { id: crypto.randomUUID(), trip_id: trip.id, name: "ฉัน", color: MEMBER_COLORS[0], promptpay_id: "" };
 
     // Instant: drop into the list and close immediately. apiCreate writes to
     // local storage synchronously (and, if Google is configured, queues the

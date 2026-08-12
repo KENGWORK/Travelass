@@ -1,14 +1,53 @@
 "use client";
 import { useEffect, useState } from "react";
 import { UserPlus, X } from "lucide-react";
-import { apiList, apiCreate, apiDelete } from "@/lib/api";
-import { optimisticCreate, optimisticDelete } from "@/lib/optimistic";
+import { apiList, apiCreate, apiDelete, apiUpdate } from "@/lib/api";
+import { optimisticCreate, optimisticDelete, optimisticUpdate } from "@/lib/optimistic";
 import { nextMemberColor } from "@/lib/members";
+import { BottomSheet } from "@/components/ui/BottomSheet";
+import { FormField } from "@/components/ui/FormField";
+import { Button } from "@/components/ui/Button";
 import type { Member } from "@/lib/models/types";
+
+function EditMemberSheet({
+  member,
+  onClose,
+  onSave,
+}: {
+  member: Member | null;
+  onClose: () => void;
+  onSave: (promptpayId: string) => void;
+}) {
+  const [promptpayId, setPromptpayId] = useState("");
+
+  useEffect(() => {
+    if (member) setPromptpayId(member.promptpay_id);
+  }, [member]);
+
+  return (
+    <BottomSheet open={!!member} onClose={onClose} title={member ? `แก้ไข ${member.name}` : ""}>
+      <div className="flex flex-col gap-3">
+        <FormField label="เลข PromptPay (เบอร์โทร/เลขบัตร ปชช.)">
+          <input
+            className="field"
+            inputMode="numeric"
+            placeholder="เช่น 0812345678"
+            value={promptpayId}
+            onChange={(e) => setPromptpayId(e.target.value)}
+          />
+        </FormField>
+        <Button variant="primary" full onClick={() => onSave(promptpayId.trim())}>
+          บันทึก
+        </Button>
+      </div>
+    </BottomSheet>
+  );
+}
 
 export function MembersCard({ tripId }: { tripId: string }) {
   const [members, setMembers] = useState<Member[]>([]);
   const [adding, setAdding] = useState("");
+  const [editing, setEditing] = useState<Member | null>(null);
 
   const load = () => apiList<Member>("members", tripId).then(setMembers);
   useEffect(() => {
@@ -23,6 +62,7 @@ export function MembersCard({ tripId }: { tripId: string }) {
       trip_id: tripId,
       name,
       color: nextMemberColor(members.map((m) => m.color)),
+      promptpay_id: "",
     };
     setAdding("");
     optimisticCreate(setMembers, newMember, () => apiCreate<Member>("members", newMember));
@@ -32,6 +72,13 @@ export function MembersCard({ tripId }: { tripId: string }) {
   const remove = (id: string) => {
     optimisticDelete(setMembers, id, () => apiDelete("members", id));
     window.dispatchEvent(new Event("members-changed"));
+  };
+
+  const savePromptPay = (promptpayId: string) => {
+    if (!editing) return;
+    const patch = { promptpay_id: promptpayId };
+    optimisticUpdate(setMembers, editing.id, patch, () => apiUpdate<Member>("members", editing.id, { ...editing, ...patch }));
+    setEditing(null);
   };
 
   return (
@@ -44,13 +91,19 @@ export function MembersCard({ tripId }: { tripId: string }) {
             key={m.id}
             className="inline-flex items-center gap-1.5 h-9 pl-1 pr-1.5 rounded-full bg-bg border border-muted/20"
           >
-            <span
-              className="w-6 h-6 rounded-full text-white text-xs font-semibold flex items-center justify-center"
-              style={{ background: m.color }}
+            <button
+              type="button"
+              onClick={() => setEditing(m)}
+              className="press flex items-center gap-1.5 cursor-pointer"
             >
-              {m.name.charAt(0)}
-            </span>
-            <span className="text-sm">{m.name}</span>
+              <span
+                className="w-6 h-6 rounded-full text-white text-xs font-semibold flex items-center justify-center shrink-0"
+                style={{ background: m.color }}
+              >
+                {m.name.charAt(0)}
+              </span>
+              <span className="text-sm">{m.name}</span>
+            </button>
             <button
               type="button"
               aria-label={`ลบ ${m.name}`}
@@ -81,6 +134,8 @@ export function MembersCard({ tripId }: { tripId: string }) {
           เพิ่ม
         </button>
       </div>
+
+      <EditMemberSheet member={editing} onClose={() => setEditing(null)} onSave={savePromptPay} />
     </div>
   );
 }

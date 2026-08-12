@@ -1,9 +1,14 @@
 "use client";
-import { useState } from "react";
+import { useState, type Dispatch, type SetStateAction } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowRight, ChevronDown } from "lucide-react";
+import { ArrowRight, Check, ChevronDown } from "lucide-react";
+import { apiUpdate } from "@/lib/api";
+import { toast } from "@/components/ui/Toast";
+import { BottomSheet } from "@/components/ui/BottomSheet";
+import { PayLineSheet } from "@/components/PayLineSheet";
 import { dayColor } from "@/lib/day-color";
-import { netBalances, simplifyDebts, expensesBetween } from "@/lib/settle";
+import { netBalances, simplifyDebts, expensesBetween, applyPayment, splitsSharingSlip, type SettlementLine } from "@/lib/settle";
+import { photoUrl } from "@/lib/photo-url";
 import type { Expense, Member } from "@/lib/models/types";
 
 function fmtDate(datetime: string): string {
@@ -13,12 +18,60 @@ function fmtDate(datetime: string): string {
 // Whole-trip, never date-scoped — debt isn't a per-day concept. Only expenses
 // with splits touch this at all (see lib/settle.ts); an empty result means
 // no expense has been marked split yet, not that everyone's settled up.
-export function SettleSummary({ expenses, members }: { expenses: Expense[]; members: Member[] }) {
+export function SettleSummary({
+  expenses,
+  members,
+  setExpenses,
+  tripName,
+}: {
+  expenses: Expense[];
+  members: Member[];
+  setExpenses: Dispatch<SetStateAction<Expense[]>>;
+  tripName: string;
+}) {
   const [openKey, setOpenKey] = useState<string | null>(null);
+  const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
+  const [payOpen, setPayOpen] = useState(false);
+  const [viewLine, setViewLine] = useState<SettlementLine | null>(null);
+
   const balances = netBalances(expenses);
   const settlements = simplifyDebts(balances);
   const names = [...new Set(Object.keys(balances))];
   const colorFor = (name: string) => members.find((m) => m.name === name)?.color ?? dayColor(names.indexOf(name));
+  const memberFor = (name: string) => members.find((m) => m.name === name);
+
+  const toggleRow = (key: string) => {
+    setOpenKey((prev) => (prev === key ? null : key));
+    setSelectedKeys(new Set());
+  };
+
+  // Only one direction (one creditor) can be paid in a single PromptPay
+  // transfer -- a settlement pair's drill-down can contain raw lines in
+  // both directions (both people alternately fronted money), so selecting
+  // a line locks the checkable set to whichever direction was picked first.
+  const toggleLine = (line: SettlementLine, lines: SettlementLine[]) => {
+    setSelectedKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(line.key)) {
+        next.delete(line.key);
+        return next;
+      }
+      const selectedDirection = lines.find((l) => next.has(l.key))?.to;
+      if (selectedDirection && selectedDirection !== line.to) return prev;
+      next.add(line.key);
+      return next;
+    });
+  };
+
+  const confirmPayment = (slipPhotoIds: string[]) => {
+    const changed = applyPayment(expenses, [...selectedKeys], slipPhotoIds);
+    if (changed.length === 0) return;
+    setExpenses((prev) => prev.map((e) => changed.find((c) => c.id === e.id) ?? e));
+    changed.forEach((e) => apiUpdate<Expense>("expenses", e.id, e));
+    toast(`บันทึกแล้ว ${selectedKeys.size} รายการ`);
+    setSelectedKeys(new Set());
+    setPayOpen(false);
+  };
 
   if (settlements.length === 0) {
     return <p className="text-muted text-sm py-6 text-center">ไม่มีรายจ่ายที่ต้องหารกัน</p>;
@@ -30,11 +83,15 @@ export function SettleSummary({ expenses, members }: { expenses: Expense[]; memb
         const key = `${s.from}-${s.to}-${i}`;
         const open = openKey === key;
         const lines = expensesBetween(expenses, s.from, s.to);
+        const selectedLines = lines.filter((l) => selectedKeys.has(l.key));
+        const selectedTotal = selectedLines.reduce((sum, l) => sum + l.amount_thb, 0);
+        const payToName = selectedLines[0]?.to;
+
         return (
           <div key={key} className="rounded-2xl bg-surface shadow-card overflow-hidden">
             <button
               type="button"
-              onClick={() => setOpenKey(open ? null : key)}
+              onClick={() => toggleRow(key)}
               className="press w-full flex items-center gap-3 p-3 cursor-pointer"
             >
               <span
@@ -70,22 +127,115 @@ export function SettleSummary({ expenses, members }: { expenses: Expense[]; memb
                     {lines.length === 0 ? (
                       <p className="text-xs text-muted">ยอดนี้มาจากการหักลบหลายรายการ (ดูรายละเอียดที่แท็บ ทั้งทริป)</p>
                     ) : (
-                      lines.map((l) => (
-                        <div key={l.id} className="flex items-center gap-2 rounded-xl bg-muted/5 p-2 text-xs">
-                          <span className="text-muted shrink-0 w-12">{fmtDate(l.datetime)}</span>
-                          <span className="flex-1 min-w-0 truncate font-medium">{l.description}</span>
-                          <span className="text-muted shrink-0">{l.from} → {l.to}</span>
-                          <span className="money font-semibold shrink-0">฿{l.amount_thb.toLocaleString()}</span>
-                        </div>
-                      ))
+                      lines.map((l) => {
+                        if (l.paid) {
+                          return (
+                            <button
+                              key={l.key}
+                              type="button"
+                              onClick={() => setViewLine(l)}
+                              className="press flex items-center gap-2 rounded-xl bg-muted/5 p-2 text-xs cursor-pointer"
+                            >
+                              <span className="h-5 w-5 rounded-full bg-success text-white flex items-center justify-center shrink-0">
+                                <Check size={12} />
+                              </span>
+                              <span className="text-muted shrink-0 w-12">{fmtDate(l.datetime)}</span>
+                              <span className="flex-1 min-w-0 truncate font-medium text-muted line-through">{l.description}</span>
+                              <span className="text-muted shrink-0 line-through">{l.from} → {l.to}</span>
+                              <span className="money font-semibold shrink-0 text-muted line-through">฿{l.amount_thb.toLocaleString()}</span>
+                            </button>
+                          );
+                        }
+                        const checked = selectedKeys.has(l.key);
+                        const disabled = selectedLines.length > 0 && payToName !== l.to && !checked;
+                        return (
+                          <button
+                            key={l.key}
+                            type="button"
+                            disabled={disabled}
+                            onClick={() => toggleLine(l, lines)}
+                            className="press flex items-center gap-2 rounded-xl bg-muted/5 p-2 text-xs cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                          >
+                            <span
+                              className="h-5 w-5 rounded-full flex items-center justify-center shrink-0 border-2"
+                              style={
+                                checked
+                                  ? { backgroundColor: "var(--color-primary)", borderColor: "var(--color-primary)" }
+                                  : { borderColor: "color-mix(in srgb, var(--color-muted) 40%, transparent)" }
+                              }
+                            >
+                              {checked && <Check size={12} className="text-white" />}
+                            </span>
+                            <span className="text-muted shrink-0 w-12">{fmtDate(l.datetime)}</span>
+                            <span className="flex-1 min-w-0 truncate font-medium">{l.description}</span>
+                            <span className="text-muted shrink-0">{l.from} → {l.to}</span>
+                            <span className="money font-semibold shrink-0">฿{l.amount_thb.toLocaleString()}</span>
+                          </button>
+                        );
+                      })
+                    )}
+
+                    {selectedLines.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setPayOpen(true)}
+                        className="press mt-1 h-11 rounded-xl bg-primary text-white text-sm font-semibold cursor-pointer"
+                      >
+                        จ่ายแล้ว {selectedLines.length} รายการ (฿{selectedTotal.toLocaleString()})
+                      </button>
                     )}
                   </div>
                 </motion.div>
               )}
             </AnimatePresence>
+
+            {open && selectedLines.length > 0 && (
+              <PayLineSheet
+                open={payOpen}
+                onClose={() => setPayOpen(false)}
+                toMember={memberFor(payToName ?? "")}
+                amount={selectedTotal}
+                lineCount={selectedLines.length}
+                tripName={tripName}
+                onConfirm={confirmPayment}
+              />
+            )}
           </div>
         );
       })}
+
+      {viewLine && (
+        <BottomSheet open={!!viewLine} onClose={() => setViewLine(null)} title="รายละเอียดที่จ่ายแล้ว">
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center justify-between text-sm">
+              <span className="font-medium">{viewLine.description}</span>
+              <span className="money font-semibold">฿{viewLine.amount_thb.toLocaleString()}</span>
+            </div>
+            {viewLine.paid_slip_photo_ids.length > 0 && (
+              <div className="flex gap-2 flex-wrap">
+                {viewLine.paid_slip_photo_ids.map((id) => (
+                  <img key={id} src={photoUrl(id)} alt="สลิป" className="h-24 w-24 rounded-xl object-cover" />
+                ))}
+              </div>
+            )}
+            {(() => {
+              const shared = splitsSharingSlip(expenses, viewLine.paid_slip_photo_ids).filter((s) => s.key !== viewLine.key);
+              if (shared.length === 0) return null;
+              return (
+                <div className="flex flex-col gap-1">
+                  <p className="text-xs text-muted font-medium">จ่ายรวมกับอีก {shared.length} รายการ</p>
+                  {shared.map((s) => (
+                    <div key={s.key} className="flex items-center justify-between text-sm rounded-xl bg-muted/5 p-2">
+                      <span className="truncate">{s.description}</span>
+                      <span className="money font-semibold shrink-0">฿{s.amount_thb.toLocaleString()}</span>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+          </div>
+        </BottomSheet>
+      )}
     </div>
   );
 }
