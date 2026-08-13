@@ -104,7 +104,10 @@ export function SettleSummary({
   return (
     <div className="flex flex-col gap-2">
       {settlements.map((s, i) => {
-        const key = `${s.from}-${s.to}-${i}`;
+        // Index alone, not `${s.from}-${s.to}-${i}` -- names are free text
+        // and can contain hyphens, so the joined form could collide between
+        // two different pairs. i is already unique per render.
+        const key = String(i);
         const open = openKey === key;
         const lines = expensesBetween(expenses, s.from, s.to);
         const selectedLines = lines.filter((l) => selectedKeys.has(l.key));

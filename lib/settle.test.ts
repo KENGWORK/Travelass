@@ -157,6 +157,24 @@ describe("pairSettlements", () => {
       expect(s.amount).toBe(rawTotal);
     }
   });
+
+  it("doesn't merge two different pairs whose names happen to share a space", () => {
+    // ("John Smith", "Bob") and ("John", "Smith Bob") both join to the same
+    // "Bob John Smith" string on a plain space-separated key -- these must
+    // stay two separate settlements, not get merged into one.
+    const expenses = [
+      e({ id: "e1", payer: "John Smith", splits: [split({ name: "Bob", amount_thb: 100 })] }),
+      e({ id: "e2", payer: "Smith Bob", splits: [split({ name: "John", amount_thb: 40 })] }),
+    ];
+    const settlements = pairSettlements(expenses);
+    expect(settlements).toEqual(
+      expect.arrayContaining([
+        { from: "Bob", to: "John Smith", amount: 100 },
+        { from: "John", to: "Smith Bob", amount: 40 },
+      ]),
+    );
+    expect(settlements).toHaveLength(2);
+  });
 });
 
 describe("expensesBetween", () => {
