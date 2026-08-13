@@ -138,11 +138,14 @@ export function SettleSummary({
 
   return (
     <div className="flex flex-col gap-2">
-      {settlements.map((s, i) => {
-        // Index alone, not `${s.from}-${s.to}-${i}` -- names are free text
-        // and can contain hyphens, so the joined form could collide between
-        // two different pairs. i is already unique per render.
-        const key = String(i);
+      {settlements.map((s) => {
+        // Keyed by the pair's identity (sorted, JSON-escaped so free-text
+        // names with spaces/hyphens can't collide), not array index -- when
+        // paying a row nets it to 0, it drops out of `settlements` and every
+        // row after it shifts up one index. An index-based key would then
+        // silently reassign the "open" row to whatever pair happened to
+        // land on that same index next render, rather than closing cleanly.
+        const key = JSON.stringify([s.from, s.to].sort());
         const open = openKey === key;
         const lines = expensesBetween(expenses, s.from, s.to);
         const selectedLines = lines.filter((l) => selectedKeys.has(l.key));
