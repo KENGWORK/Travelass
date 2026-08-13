@@ -26,6 +26,16 @@ const KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", ".", "0", "⌫"];
 const ceil2 = (n: number) => Math.ceil(n * 100) / 100;
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
+// Default currency follows whatever was actually used last, not a fixed
+// trip setting -- a trip that starts in HKD and later moves on to CNY (or
+// USD) should default new entries to whichever one was typed most recently,
+// not keep resetting back to trip_currency. Falls back to trip_currency
+// only when the trip has no expenses yet to learn from.
+function lastUsedCurrency(expenses: Expense[], tripCurrency: string): string {
+  if (expenses.length === 0) return tripCurrency;
+  return expenses.reduce((latest, e) => (e.datetime > latest.datetime ? e : latest)).currency;
+}
+
 interface ItemRow { id: string; label: string; amount: string; name: string; }
 
 const MODE_TABS = [
@@ -56,7 +66,7 @@ export function QuickExpenseSheet({ trip, open, onClose }: { trip: Trip; open: b
   const { expenses, setExpenses } = useTripData();
   const [mode, setMode] = useState<"expense" | "calc">("expense");
   const [digits, setDigits] = useState("");
-  const [currency, setCurrency] = useState(trip.trip_currency);
+  const [currency, setCurrency] = useState(lastUsedCurrency(expenses, trip.trip_currency));
   const [currencyPicking, setCurrencyPicking] = useState(false);
   const [fxRate, setFxRate] = useState(0);
   const [toCurrency, setToCurrency] = useState("THB");
@@ -176,8 +186,14 @@ export function QuickExpenseSheet({ trip, open, onClose }: { trip: Trip; open: b
     setDigits((d) => (d === "0" ? k : d + k));
   };
 
-  const reset = () => {
-    setDigits(""); setCurrency(trip.trip_currency); setFxRate(0); setCategory("อาหาร");
+  // After a successful save, `currency` already holds the one just used --
+  // that itself IS the new "last used," so keep it instead of recomputing
+  // from `expenses`, whose closure here still reflects the list from before
+  // this save landed (optimisticCreate updates state asynchronously).
+  const reset = (keepCurrency = false) => {
+    setDigits("");
+    if (!keepCurrency) setCurrency(lastUsedCurrency(expenses, trip.trip_currency));
+    setFxRate(0); setCategory("อาหาร");
     setPayer(""); setPayerCustom(false); setDescription(""); setSlips([]); setDetailsOpen(false); setCurrencyPicking(false);
     setMode("expense"); setToCurrency("THB"); setToRate(1); setManualRate(null); setEditingRate(false); setToCurrencyPicking(false);
     setSplitOpen(false); setSplitMode("none"); setEqualParticipants(new Set()); setItemRows([]);
@@ -214,11 +230,11 @@ export function QuickExpenseSheet({ trip, open, onClose }: { trip: Trip; open: b
     };
     optimisticCreate(setExpenses, exp, () => apiCreate("expenses", exp));
     toast(`บันทึกแล้ว ฿${exp.amount_thb.toLocaleString()}`);
-    reset();
+    reset(true);
   };
 
   return (
-    <BottomSheet open={open} onClose={reset} title="จดค่าใช้จ่าย">
+    <BottomSheet open={open} onClose={() => reset()} title="จดค่าใช้จ่าย">
       <div className="flex flex-col gap-4">
         {/* Mode toggle — same sheet, same FAB, two purposes: log a real
             expense (writes to Sheets) or just convert a number (never
