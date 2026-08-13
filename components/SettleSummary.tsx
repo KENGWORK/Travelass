@@ -40,7 +40,29 @@ export function SettleSummary({
   // row here is guaranteed to match its own drill-down's raw lines exactly,
   // even with 3+ people in the trip. See lib/settle.ts for why.
   const settlements = pairSettlements(expenses);
-  const names = [...new Set(settlements.flatMap((s) => [s.from, s.to]))];
+
+  // pairSettlements only returns pairs with a nonzero outstanding net -- a
+  // pair whose every split is paid nets to 0 and drops out entirely, which
+  // silently deletes the paid history from view (no way to see the QR/slip
+  // was ever there). Walk every split (paid included) to find every pair
+  // that ever owed each other, then attach that pair's current settlement
+  // (if any) or mark it settled with 0 outstanding so its row -- and paid
+  // history -- stays visible forever.
+  const pairKeys = new Map<string, { a: string; b: string }>();
+  for (const e of expenses) {
+    if (!e.splits) continue;
+    for (const split of e.splits) {
+      if (split.name === e.payer) continue;
+      const [a, b] = [split.name, e.payer].sort();
+      pairKeys.set(JSON.stringify([a, b]), { a, b });
+    }
+  }
+  const rows = [...pairKeys.values()].map(({ a, b }) => {
+    const s = settlements.find((x) => (x.from === a && x.to === b) || (x.from === b && x.to === a));
+    return s ? { from: s.from, to: s.to, amount: s.amount, settled: false } : { from: a, to: b, amount: 0, settled: true };
+  });
+
+  const names = [...new Set(rows.flatMap((s) => [s.from, s.to]))];
   const colorFor = (name: string) => members.find((m) => m.name === name)?.color ?? dayColor(names.indexOf(name));
   const memberFor = (name: string) => members.find((m) => m.name === name);
 
@@ -97,13 +119,13 @@ export function SettleSummary({
     return batches;
   };
 
-  if (settlements.length === 0) {
+  if (rows.length === 0) {
     return <p className="text-muted text-sm py-6 text-center">ไม่มีรายจ่ายที่ต้องหารกัน</p>;
   }
 
   return (
     <div className="flex flex-col gap-2">
-      {settlements.map((s, i) => {
+      {rows.map((s, i) => {
         // Index alone, not `${s.from}-${s.to}-${i}` -- names are free text
         // and can contain hyphens, so the joined form could collide between
         // two different pairs. i is already unique per render.
@@ -151,7 +173,13 @@ export function SettleSummary({
               >
                 {s.to.slice(0, 1)}
               </span>
-              <p className="money text-sm font-semibold shrink-0">฿{s.amount.toLocaleString()}</p>
+              {s.settled ? (
+                <span className="text-xs font-semibold shrink-0 text-success flex items-center gap-1">
+                  <Check size={14} /> จ่ายครบแล้ว
+                </span>
+              ) : (
+                <p className="money text-sm font-semibold shrink-0">฿{s.amount.toLocaleString()}</p>
+              )}
               <motion.span animate={{ rotate: open ? 180 : 0 }} transition={{ duration: 0.2 }} className="text-muted shrink-0">
                 <ChevronDown size={16} />
               </motion.span>

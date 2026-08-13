@@ -75,10 +75,6 @@ export function ExpenseEditSheet({
 
   const del = () => {
     if (!expense) return;
-    if (expense.splits.some((s) => s.paid)) {
-      toast("ลบไม่ได้ เพราะมีการหารเงินที่จ่ายแล้วบางส่วน", "error");
-      return;
-    }
     optimisticDelete(setExpenses, expense.id, () => apiDelete("expenses", expense.id));
     toast("ลบแล้ว");
     onClose();
@@ -89,7 +85,7 @@ export function ExpenseEditSheet({
       <div className="flex flex-col gap-4">
         {expense?.splits.some((s) => s.paid) && (
           <p className="text-xs text-warning bg-warning/10 rounded-xl px-3 py-2">
-            มีการหารเงินที่จ่ายแล้วบางส่วน — แก้ไขยอดหรือคนจ่ายไม่ได้ (ลบก็ไม่ได้เช่นกัน)
+            มีการหารเงินที่จ่ายแล้วบางส่วน — แก้ไขยอดหรือคนจ่ายไม่ได้ (ลบได้ แต่ประวัติสลิปที่จ่ายไปจะหายไปด้วย)
           </p>
         )}
         <MoneyInput value={money} onChange={setMoney} tripCurrency={trip.trip_currency} />
