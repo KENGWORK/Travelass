@@ -81,6 +81,29 @@ describe("planDedupe", () => {
     expect(plan.unique).toEqual([["a", "1"]]);
     expect(plan.duplicateCount).toBe(2);
   });
+
+  // duplicateIndices lets the caller delete exactly these rows in place
+  // instead of clearing the whole range and rewriting `unique` -- a
+  // clear+rewrite is one bad read away from wiping rows it never saw.
+  it("duplicateIndices points at the later occurrence's position in the input", () => {
+    const rows = [
+      ["a", "x"],
+      ["b", "y"],
+      ["a", "z"],
+    ];
+    const plan = planDedupe(rows);
+    expect(plan.duplicateIndices).toEqual([2]);
+  });
+
+  it("duplicateIndices covers every later occurrence in a triplicate", () => {
+    const plan = planDedupe([["a", "1"], ["a", "2"], ["a", "3"]]);
+    expect(plan.duplicateIndices).toEqual([1, 2]);
+  });
+
+  it("a blank-id row contributes no duplicateIndex", () => {
+    const plan = planDedupe([["", "x"], ["a", "y"]]);
+    expect(plan.duplicateIndices).toEqual([]);
+  });
 });
 
 describe("planChecklistDedupe", () => {

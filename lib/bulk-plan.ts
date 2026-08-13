@@ -13,6 +13,15 @@ export interface BulkUpsertPlan<T> {
 export interface DedupePlan {
   unique: string[][];
   duplicateCount: number;
+  // 0-based indices into the input `rows` array that are later duplicates
+  // (safe to delete individually). Lets the caller remove exactly these
+  // rows in place instead of clearing the whole range and rewriting
+  // `unique` -- a clear+rewrite is one bad `values.get` read away from
+  // wiping every row the read happened to miss (rate limit, pagination,
+  // transient API hiccup), since nothing it didn't just read survives the
+  // clear. Deleting only rows this function positively identified never
+  // touches anything it didn't examine.
+  duplicateIndices: number[];
 }
 
 // Given a sheet tab's raw A2:Z rows, drop every row after the first one
@@ -22,18 +31,18 @@ export interface DedupePlan {
 export function planDedupe(rows: string[][]): DedupePlan {
   const seen = new Set<string>();
   const unique: string[][] = [];
-  let duplicateCount = 0;
-  for (const row of rows) {
+  const duplicateIndices: number[] = [];
+  rows.forEach((row, i) => {
     const id = row[0];
-    if (!id) continue;
+    if (!id) return;
     if (seen.has(id)) {
-      duplicateCount++;
-      continue;
+      duplicateIndices.push(i);
+      return;
     }
     seen.add(id);
     unique.push(row);
-  }
-  return { unique, duplicateCount };
+  });
+  return { unique, duplicateCount: duplicateIndices.length, duplicateIndices };
 }
 
 // One-time cleanup for checklist rows duplicated by applying the standard

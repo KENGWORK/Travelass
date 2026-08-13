@@ -93,18 +93,31 @@ export async function bulkUpsertRows<T extends { id: string }>(entity: EntityNam
 // pre-quota-fix force-upload (a retry re-appending a row that had actually
 // already landed on a prior attempt). Keeps the first occurrence of each
 // id. Returns how many duplicate rows were removed.
+//
+// Deletes each duplicate row individually (deleteDimension, one per row,
+// highest index first so earlier deletes in the same batch don't shift
+// the row numbers later ones target) instead of the previous clear-then-
+// rewrite-unique approach. That approach cleared the ENTIRE range first
+// and rewrote only what the one `values.get` read back -- any row that
+// read missed (stale response, pagination edge, transient API hiccup)
+// was gone with nothing to restore it. This version never touches a row
+// it didn't positively identify as a duplicate.
 export async function dedupeRows(entity: EntityName): Promise<number> {
   const res = await getSheets().spreadsheets.values.get({ spreadsheetId: SSID(), range: `${entity}!A2:Z` });
   const rows = (res.data.values ?? []) as string[][];
   const plan = planDedupe(rows);
   if (plan.duplicateCount === 0) return 0;
-  await getSheets().spreadsheets.values.clear({ spreadsheetId: SSID(), range: `${entity}!A2:Z` });
-  if (plan.unique.length > 0) {
-    await getSheets().spreadsheets.values.update({
-      spreadsheetId: SSID(), range: `${entity}!A2`, valueInputOption: "RAW",
-      requestBody: { values: plan.unique },
-    });
-  }
+  const meta = await getSheets().spreadsheets.get({ spreadsheetId: SSID() });
+  const sheetId = meta.data.sheets?.find((s) => s.properties?.title === entity)?.properties?.sheetId;
+  const sheetRowsDesc = plan.duplicateIndices.map((i) => i + 2).sort((a, b) => b - a);
+  await getSheets().spreadsheets.batchUpdate({
+    spreadsheetId: SSID(),
+    requestBody: {
+      requests: sheetRowsDesc.map((row) => ({
+        deleteDimension: { range: { sheetId, dimension: "ROWS", startIndex: row - 1, endIndex: row } },
+      })),
+    },
+  });
   return plan.duplicateCount;
 }
 
