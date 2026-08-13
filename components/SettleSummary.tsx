@@ -49,12 +49,12 @@ export function SettleSummary({
   const settlements = pairSettlements(expenses);
 
   // pairSettlements only returns pairs with a nonzero outstanding net -- a
-  // pair whose every split is paid nets to 0 and drops out entirely, which
-  // silently deletes the paid history from view (no way to see the QR/slip
-  // was ever there). Walk every split (paid included) to find every pair
-  // that ever owed each other, then attach that pair's current settlement
-  // (if any) or mark it settled with 0 outstanding so its row -- and paid
-  // history -- stays visible forever.
+  // pair whose every split is paid nets to 0 drops out of this list, which
+  // is correct (nothing owed), but its paid history still needs to live
+  // somewhere. Walk every split (paid included) to find every pair that
+  // ever owed each other, so their raw lines -- paid or not -- feed the
+  // standalone history cards below regardless of whether the pair still
+  // has an outstanding row.
   const pairKeys = new Map<string, { a: string; b: string }>();
   for (const e of expenses) {
     if (!e.splits) continue;
@@ -64,12 +64,9 @@ export function SettleSummary({
       pairKeys.set(JSON.stringify([a, b]), { a, b });
     }
   }
-  const rows = [...pairKeys.values()].map(({ a, b }) => {
-    const s = settlements.find((x) => (x.from === a && x.to === b) || (x.from === b && x.to === a));
-    return s ? { from: s.from, to: s.to, amount: s.amount, settled: false } : { from: a, to: b, amount: 0, settled: true };
-  });
+  const allLines = [...pairKeys.values()].flatMap(({ a, b }) => expensesBetween(expenses, a, b));
 
-  const names = [...new Set(rows.flatMap((s) => [s.from, s.to]))];
+  const names = [...new Set(settlements.flatMap((s) => [s.from, s.to]))];
   const colorFor = (name: string) => members.find((m) => m.name === name)?.color ?? dayColor(names.indexOf(name));
   const memberFor = (name: string) => members.find((m) => m.name === name);
 
@@ -126,13 +123,22 @@ export function SettleSummary({
     return batches;
   };
 
-  if (rows.length === 0) {
+  // Every already-paid batch renders as its own standalone card in a
+  // running history list below the outstanding rows, sorted newest first --
+  // this is what "สร้างช่องใหม่ไปเรื่อยๆ" actually asked for: each payment
+  // round is its own separate box, not folded into the same card as
+  // whatever's newly outstanding for that pair.
+  const historyBatches = paidBatches(allLines).sort(
+    (a, b) => b.lines[0].datetime.localeCompare(a.lines[0].datetime),
+  );
+
+  if (settlements.length === 0 && historyBatches.length === 0) {
     return <p className="text-muted text-sm py-6 text-center">ไม่มีรายจ่ายที่ต้องหารกัน</p>;
   }
 
   return (
     <div className="flex flex-col gap-2">
-      {rows.map((s, i) => {
+      {settlements.map((s, i) => {
         // Index alone, not `${s.from}-${s.to}-${i}` -- names are free text
         // and can contain hyphens, so the joined form could collide between
         // two different pairs. i is already unique per render.
@@ -180,13 +186,7 @@ export function SettleSummary({
               >
                 {s.to.slice(0, 1)}
               </span>
-              {s.settled ? (
-                <span className="text-xs font-semibold shrink-0 text-success flex items-center gap-1">
-                  <Check size={14} /> จ่ายครบแล้ว
-                </span>
-              ) : (
-                <p className="money text-sm font-semibold shrink-0">฿{s.amount.toLocaleString()}</p>
-              )}
+              <p className="money text-sm font-semibold shrink-0">฿{s.amount.toLocaleString()}</p>
               <motion.span animate={{ rotate: open ? 180 : 0 }} transition={{ duration: 0.2 }} className="text-muted shrink-0">
                 <ChevronDown size={16} />
               </motion.span>
@@ -289,30 +289,6 @@ export function SettleSummary({
                         )}
                       </>
                     )}
-
-                    {paidBatches(lines).length > 0 && (
-                      <div className="flex flex-col gap-1.5 mt-2 pt-2 border-t border-muted/10">
-                        <p className="text-xs font-medium text-muted">ประวัติที่จ่ายแล้ว</p>
-                        {paidBatches(lines).map((batch) => (
-                          <button
-                            key={batch.key}
-                            type="button"
-                            onClick={() => setViewLine(batch.lines[0])}
-                            className="press flex items-center gap-2 rounded-xl bg-muted/5 p-2 text-xs cursor-pointer"
-                          >
-                            <span className="h-5 w-5 rounded-full bg-success text-white flex items-center justify-center shrink-0">
-                              <Check size={12} />
-                            </span>
-                            <span className="text-muted shrink-0 w-12">{fmtDate(batch.lines[0].datetime)}</span>
-                            <span className="flex-1 min-w-0 truncate font-medium text-muted">
-                              {batch.lines.length > 1 ? `${batch.lines.length} รายการ` : lineLabel(batch.lines[0])}
-                            </span>
-                            <span className="text-muted shrink-0">{batch.lines[0].from} → {batch.lines[0].to}</span>
-                            <span className="money font-semibold shrink-0 text-muted">฿{batch.total.toLocaleString()}</span>
-                          </button>
-                        ))}
-                      </div>
-                    )}
                   </div>
                 </motion.div>
               )}
@@ -337,6 +313,33 @@ export function SettleSummary({
           </div>
         );
       })}
+
+      {historyBatches.length > 0 && (
+        <>
+          <p className="text-xs font-medium text-muted px-1 mt-2">ประวัติที่จ่ายแล้ว</p>
+          {historyBatches.map((batch) => (
+            <button
+              key={batch.key}
+              type="button"
+              onClick={() => setViewLine(batch.lines[0])}
+              className="press w-full flex items-center gap-3 rounded-2xl bg-surface shadow-card p-3 cursor-pointer"
+            >
+              <span className="h-9 w-9 rounded-full bg-success/15 text-success flex items-center justify-center shrink-0">
+                <Check size={16} />
+              </span>
+              <div className="min-w-0 flex-1 flex flex-col items-start text-left">
+                <span className="text-sm font-medium truncate text-muted">
+                  {batch.lines.length > 1 ? `${batch.lines.length} รายการ` : lineLabel(batch.lines[0])}
+                </span>
+                <span className="text-xs text-muted">
+                  {fmtDate(batch.lines[0].datetime)} · {batch.lines[0].from} → {batch.lines[0].to}
+                </span>
+              </div>
+              <p className="money text-sm font-semibold shrink-0 text-muted">฿{batch.total.toLocaleString()}</p>
+            </button>
+          ))}
+        </>
+      )}
 
       {viewLine && (
         <BottomSheet open={!!viewLine} onClose={() => setViewLine(null)} title="รายละเอียดที่จ่ายแล้ว">
