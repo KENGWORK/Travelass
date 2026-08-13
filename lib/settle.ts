@@ -128,7 +128,7 @@ export function expensesBetween(expenses: Expense[], a: string, b: string): Sett
       const isBA = e.payer === b && split.name === a;
       if (!isAB && !isBA) return;
       lines.push({
-        id: e.id, description: e.description || e.category, category: e.category,
+        id: e.id, description: e.description, category: e.category,
         datetime: e.datetime, amount_thb: split.amount_thb,
         from: isAB ? b : a, to: isAB ? a : b,
         key: `${e.id}:${i}`, paid: split.paid, paid_slip_photo_ids: split.paid_slip_photo_ids,

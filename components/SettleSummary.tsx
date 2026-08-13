@@ -15,6 +15,13 @@ function fmtDate(datetime: string): string {
   return new Date(datetime).toLocaleDateString("th-TH", { day: "numeric", month: "short" });
 }
 
+// Category always shows; the note typed when the expense was added (if any)
+// rides alongside it -- previously the note silently replaced the category
+// instead of adding to it, so a line with a note lost its category label.
+function lineLabel(l: SettlementLine): string {
+  return l.description ? `${l.category} · ${l.description}` : l.category;
+}
+
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
 // Whole-trip, never date-scoped — debt isn't a per-day concept. Only expenses
@@ -225,7 +232,7 @@ export function SettleSummary({
                         {unpaidLines.map((l) => (
                           <div key={l.key} className="flex items-center gap-2 rounded-xl bg-muted/5 p-2 text-xs">
                             <span className="text-muted shrink-0 w-12">{fmtDate(l.datetime)}</span>
-                            <span className="flex-1 min-w-0 truncate font-medium">{l.description}</span>
+                            <span className="flex-1 min-w-0 truncate font-medium">{lineLabel(l)}</span>
                             <span className="text-muted shrink-0">{l.from} → {l.to}</span>
                             <span className="money font-semibold shrink-0">฿{l.amount_thb.toLocaleString()}</span>
                           </div>
@@ -265,7 +272,7 @@ export function SettleSummary({
                                 {checked && <Check size={12} className="text-white" />}
                               </span>
                               <span className="text-muted shrink-0 w-12">{fmtDate(l.datetime)}</span>
-                              <span className="flex-1 min-w-0 truncate font-medium">{l.description}</span>
+                              <span className="flex-1 min-w-0 truncate font-medium">{lineLabel(l)}</span>
                               <span className="text-muted shrink-0">{l.from} → {l.to}</span>
                               <span className="money font-semibold shrink-0">฿{l.amount_thb.toLocaleString()}</span>
                             </button>
@@ -298,7 +305,7 @@ export function SettleSummary({
                             </span>
                             <span className="text-muted shrink-0 w-12">{fmtDate(batch.lines[0].datetime)}</span>
                             <span className="flex-1 min-w-0 truncate font-medium text-muted">
-                              {batch.lines.length > 1 ? `${batch.lines.length} รายการ` : batch.lines[0].description}
+                              {batch.lines.length > 1 ? `${batch.lines.length} รายการ` : lineLabel(batch.lines[0])}
                             </span>
                             <span className="text-muted shrink-0">{batch.lines[0].from} → {batch.lines[0].to}</span>
                             <span className="money font-semibold shrink-0 text-muted">฿{batch.total.toLocaleString()}</span>
@@ -335,7 +342,7 @@ export function SettleSummary({
         <BottomSheet open={!!viewLine} onClose={() => setViewLine(null)} title="รายละเอียดที่จ่ายแล้ว">
           <div className="flex flex-col gap-3">
             <div className="flex items-center justify-between text-sm">
-              <span className="font-medium">{viewLine.description}</span>
+              <span className="font-medium">{lineLabel(viewLine)}</span>
               <span className="money font-semibold">฿{viewLine.amount_thb.toLocaleString()}</span>
             </div>
             {viewLine.paid_slip_photo_ids.length > 0 && (
