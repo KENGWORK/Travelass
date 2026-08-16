@@ -17,6 +17,7 @@ import {
   Link2,
   ShoppingBag,
   Languages,
+  StickyNote,
   type LucideIcon,
 } from "lucide-react";
 import { apiList } from "@/lib/api";
@@ -34,6 +35,7 @@ import type {
   LinkItem,
   ShopItem,
   Phrase,
+  QuickNote,
 } from "@/lib/models/types";
 
 interface Result {
@@ -53,6 +55,7 @@ const TYPE_ORDER = [
   "เช็คลิสต์",
   "ข้อมูลด่วน",
   "ไดอารี่",
+  "โน้ต",
   "ร้านอาหาร",
   "ที่อยากไป",
   "แอพ",
@@ -89,6 +92,7 @@ export function SearchSheet({ open, onClose, tripId }: { open: boolean; onClose:
     links: LinkItem[];
     shopping: ShopItem[];
     phrases: Phrase[];
+    quicknotes: QuickNote[];
   } | null>(null);
 
   useEffect(() => {
@@ -109,8 +113,9 @@ export function SearchSheet({ open, onClose, tripId }: { open: boolean; onClose:
       apiList<LinkItem>("links", tripId),
       apiList<ShopItem>("shopping", tripId),
       apiList<Phrase>("phrases", tripId),
-    ]).then(([itinerary, transports, bookings, expenses, checklist, notes, quickinfo, restaurants, wishlist, apps, links, shopping, phrases]) => {
-      setData({ itinerary, transports, bookings, expenses, checklist, notes, quickinfo, restaurants, wishlist, apps, links, shopping, phrases });
+      apiList<QuickNote>("quicknotes", tripId),
+    ]).then(([itinerary, transports, bookings, expenses, checklist, notes, quickinfo, restaurants, wishlist, apps, links, shopping, phrases, quicknotes]) => {
+      setData({ itinerary, transports, bookings, expenses, checklist, notes, quickinfo, restaurants, wishlist, apps, links, shopping, phrases, quicknotes });
       setLoaded(true);
     });
     const t = setTimeout(() => inputRef.current?.focus(), 50);
@@ -202,6 +207,18 @@ export function SearchSheet({ open, onClose, tripId }: { open: boolean; onClose:
           title: n.text.slice(0, 40),
           subtitle: n.date,
           path: `/trips/${tripId}/info?tab=diary`,
+        });
+      }
+    });
+    data.quicknotes.forEach((n) => {
+      if (matches(query, n.title, n.content)) {
+        results.push({
+          id: n.id,
+          typeLabel: "โน้ต",
+          icon: StickyNote,
+          title: n.title || n.content.slice(0, 40),
+          subtitle: n.title ? n.content.slice(0, 60) : "",
+          path: `/trips/${tripId}/info?tab=quicknotes`,
         });
       }
     });
