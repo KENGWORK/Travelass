@@ -31,6 +31,7 @@ export interface BookingFormValues {
   ref_no: string;
   date_from: string;
   date_to: string;
+  time_from: string;
   detail: string;
   money: MoneyValue;
   payer: string;
@@ -47,6 +48,7 @@ function emptyValues(tripCurrency: string, type: BookingType): BookingFormValues
     ref_no: "",
     date_from: "",
     date_to: "",
+    time_from: "",
     detail: "",
     money: { amount: 0, currency: tripCurrency, fx_rate: 0, amount_thb: 0 },
     payer: "ฉัน",
@@ -64,6 +66,7 @@ function fromBooking(b: Booking): BookingFormValues {
     ref_no: b.ref_no,
     date_from: b.date_from,
     date_to: b.date_to,
+    time_from: b.time_from,
     detail: b.detail,
     money: { amount: b.amount, currency: b.currency, fx_rate: b.fx_rate, amount_thb: b.amount_thb },
     payer: b.payer,
@@ -176,6 +179,18 @@ export function BookingFormSheet({
             />
           </FormField>
         </div>
+
+        {/* Optional -- only bookings with a real start time (flights, timed
+            activity tickets) get the time-aware reminder window; date-only
+            bookings like a hotel stay just leave this blank. */}
+        <FormField label="เวลาเริ่ม (ถ้ามี)">
+          <input
+            type="time"
+            value={values.time_from}
+            onChange={(e) => set({ time_from: e.target.value })}
+            className="field"
+          />
+        </FormField>
 
         <FormField label="ราคา">
           <MoneyInput value={values.money} onChange={(money) => set({ money })} tripCurrency={tripCurrency} />

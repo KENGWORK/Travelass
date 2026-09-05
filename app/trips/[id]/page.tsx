@@ -15,6 +15,7 @@ import { SearchButton } from "@/components/ui/SearchButton";
 import { UploadButton } from "@/components/ui/UploadButton";
 import { toast } from "@/components/ui/Toast";
 import { TodayView } from "@/components/TodayView";
+import { BookingReminderBanner } from "@/components/BookingReminderBanner";
 import { MembersCard } from "@/components/MembersCard";
 import { DeleteTripSheet } from "@/components/DeleteTripSheet";
 import { EditTripSheet } from "@/components/EditTripSheet";
@@ -200,6 +201,8 @@ export default function TripDashboardPage() {
           <Mascot size={56} className="-mt-1" />
         </div>
       </header>
+
+      {!loading && <BookingReminderBanner tripId={trip.id} bookings={bookings} />}
 
       {loading ? (
         <div className="grid grid-cols-3 grid-rows-2 gap-4 h-[144px]">
