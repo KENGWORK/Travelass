@@ -226,7 +226,7 @@ export function QuickExpenseSheet({ trip, open, onClose }: { trip: Trip; open: b
       id: crypto.randomUUID(), trip_id: trip.id, datetime: new Date().toISOString(),
       category, description, amount, currency,
       fx_rate: isTHB ? 1 : fxRate, amount_thb: amountTHB,
-      payer, slip_photo_ids: slips, splits: computedSplits,
+      payer, slip_photo_ids: slips, splits: computedSplits, pending: false,
     };
     optimisticCreate(setExpenses, exp, () => apiCreate("expenses", exp));
     toast(`บันทึกแล้ว ฿${exp.amount_thb.toLocaleString()}`);

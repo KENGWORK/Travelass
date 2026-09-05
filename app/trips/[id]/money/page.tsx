@@ -20,6 +20,8 @@ import { DashboardButton } from "@/components/ui/DashboardButton";
 import { SearchButton } from "@/components/ui/SearchButton";
 import { UploadButton } from "@/components/ui/UploadButton";
 import { apiList } from "@/lib/api";
+import { selectPendingExpenses } from "@/lib/pending-expense";
+import { photoUrl } from "@/lib/photo-url";
 import type { Expense, Member } from "@/lib/models/types";
 
 type FilterMode = "person" | "day" | "all" | "settle";
@@ -47,6 +49,7 @@ export default function MoneyPage() {
   const { expenses, bookings, transports, summary, loading, setExpenses } = useTripData(trip.id);
 
   const days = tripDays(trip.start_date, trip.end_date);
+  const pending = selectPendingExpenses(expenses);
   const [mode, setMode] = useState<FilterMode>("person");
   const [selectedDate, setSelectedDate] = useState(() => days[0]?.date ?? trip.start_date);
   const [category, setCategory] = useState<string | null>(null);
@@ -112,6 +115,24 @@ export default function MoneyPage() {
           <DashboardButton tripId={trip.id} />
         </div>
       </div>
+
+      {pending.length > 0 && (
+        <div className="rounded-2xl bg-warning/10 p-3 flex flex-col gap-2">
+          <p className="text-sm font-semibold text-warning px-1">รายการรอกรอกข้อมูล ({pending.length})</p>
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {pending.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => setEditing(p)}
+                className="press shrink-0 h-20 w-20 rounded-xl overflow-hidden cursor-pointer shadow-card"
+              >
+                <img src={photoUrl(p.slip_photo_ids[0])} alt="" className="w-full h-full object-cover" />
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="relative h-11 grid grid-cols-4 rounded-full bg-muted/10 p-0.5">
         {MODES.map((m) => (

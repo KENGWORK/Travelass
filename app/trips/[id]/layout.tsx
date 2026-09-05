@@ -9,6 +9,7 @@ import { UploadProvider, useUpload } from "@/lib/upload-context";
 import { TabBar } from "@/components/TabBar";
 import { TimezoneBanner } from "@/components/TimezoneBanner";
 import { QuickExpenseSheet } from "@/components/QuickExpenseSheet";
+import { SlipCaptureMenu } from "@/components/SlipCaptureMenu";
 import { SearchSheet } from "@/components/SearchSheet";
 import { UploadOverlay } from "@/components/ui/UploadOverlay";
 import { Toaster } from "@/components/ui/Toast";
@@ -18,6 +19,7 @@ function TripLayoutInner({ tripId, children }: { tripId: string; children: React
   const { open: searchOpen, closeSearch } = useSearch();
   const { uploading } = useUpload();
   const [fabOpen, setFabOpen] = useState(false);
+  const [snapOpen, setSnapOpen] = useState(false);
 
   // TripDataProvider is mounted here (not per-page) so it survives tab
   // switches within a trip — switching itinerary/transport/money/info no
@@ -37,8 +39,9 @@ function TripLayoutInner({ tripId, children }: { tripId: string; children: React
         <TimezoneBanner homeTimezone={trip.home_timezone} tripTimezone={trip.trip_timezone} />
       </div>
       {children}
-      <TabBar tripId={tripId} onFab={() => setFabOpen(true)} />
+      <TabBar tripId={tripId} onQuickExpense={() => setFabOpen(true)} onSnapSlip={() => setSnapOpen(true)} />
       <QuickExpenseSheet trip={trip} open={fabOpen} onClose={() => setFabOpen(false)} />
+      <SlipCaptureMenu trip={trip} open={snapOpen} onClose={() => setSnapOpen(false)} />
       <SearchSheet open={searchOpen} onClose={closeSearch} tripId={tripId} />
       <UploadOverlay open={uploading} />
       <Toaster />

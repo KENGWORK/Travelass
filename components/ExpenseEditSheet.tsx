@@ -63,6 +63,7 @@ export function ExpenseEditSheet({
       payer,
       slip_photo_ids: slips,
       splits,
+      pending: false,
     };
     optimisticUpdate(setExpenses, expense.id, patch, () => apiUpdate<Expense>("expenses", expense.id, patch));
     toast(
@@ -81,8 +82,13 @@ export function ExpenseEditSheet({
   };
 
   return (
-    <BottomSheet open={open} onClose={onClose} title="แก้ไขค่าใช้จ่าย">
+    <BottomSheet open={open} onClose={onClose} title={expense?.pending ? "เพิ่มรายละเอียดค่าใช้จ่าย" : "แก้ไขค่าใช้จ่าย"}>
       <div className="flex flex-col gap-4">
+        {expense?.pending && (
+          <p className="text-xs text-warning bg-warning/10 rounded-xl px-3 py-2">
+            รายการนี้ยังไม่ได้กรอกรายละเอียด — ใส่ยอด หมวด และคนจ่ายให้ครบแล้วกดบันทึก
+          </p>
+        )}
         {expense?.splits.some((s) => s.paid) && (
           <p className="text-xs text-warning bg-warning/10 rounded-xl px-3 py-2">
             มีการหารเงินที่จ่ายแล้วบางส่วน — แก้ไขยอดหรือคนจ่ายไม่ได้ (ลบได้ แต่ประวัติสลิปที่จ่ายไปจะหายไปด้วย)
@@ -108,7 +114,7 @@ export function ExpenseEditSheet({
           <Button variant="secondary" className="text-danger" onClick={del}>
             ลบ
           </Button>
-          <Button variant="primary" full onClick={save} disabled={money.amount <= 0}>
+          <Button variant="primary" full onClick={save} disabled={money.amount <= 0 || payer.trim() === ""}>
             บันทึก
           </Button>
         </div>
