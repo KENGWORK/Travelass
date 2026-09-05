@@ -11,7 +11,7 @@ export interface LineEvent {
   type: string;
   replyToken?: string;
   source: LineSource;
-  message?: { id: string; type: string };
+  message?: { id: string; type: string; text?: string };
 }
 
 // LINE signs the raw request body with the channel secret (HMAC-SHA256,
@@ -69,10 +69,105 @@ export function matchMemberName(displayName: string | null, members: { name: str
   return members.find((m) => norm(m.name) === target)?.name ?? "";
 }
 
-export async function replyLineMessage(replyToken: string, text: string, accessToken: string): Promise<void> {
+// Sends one or more message objects (text, or a richer type like flex) as
+// the reply to a single incoming event. Best-effort: a failed reply
+// shouldn't fail the webhook.
+export async function replyLineMessages(replyToken: string, messages: unknown[], accessToken: string): Promise<void> {
   await fetch("https://api.line.me/v2/bot/message/reply", {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
-    body: JSON.stringify({ replyToken, messages: [{ type: "text", text }] }),
-  }).catch(() => {}); // best-effort -- a failed reply shouldn't fail the webhook
+    body: JSON.stringify({ replyToken, messages }),
+  }).catch(() => {});
+}
+
+export function replyLineMessage(replyToken: string, text: string, accessToken: string): Promise<void> {
+  return replyLineMessages(replyToken, [{ type: "text", text }], accessToken);
+}
+
+// A conversation (image -> "who's this?" -> "any note?") spans several
+// webhook events, each with its own replyToken -- this key is how the next
+// text message gets matched back to the pending expense it belongs to.
+// Scoped to the whole group/room (not the individual sender) so it works
+// the same whether it's a 1:1 chat or a shared family group.
+export function sourceKey(source: LineSource): string {
+  if (source.type === "group" && source.groupId) return `group:${source.groupId}`;
+  if (source.type === "room" && source.roomId) return `room:${source.roomId}`;
+  return `user:${source.userId}`;
+}
+
+interface QuickReplyItem {
+  type: "action";
+  action: { type: "message"; label: string; text: string };
+}
+
+// One tappable button per trip member, so picking who captured the slip is
+// usually a single tap instead of typing a name. LINE caps quick replies at
+// 13 items; a trip realistically never has that many members.
+export function buildNameQuickReply(members: { name: string }[]): { items: QuickReplyItem[] } | undefined {
+  if (members.length === 0) return undefined;
+  return {
+    items: members.slice(0, 13).map((m) => ({
+      type: "action",
+      action: { type: "message", label: m.name, text: m.name },
+    })),
+  };
+}
+
+export function buildSkipQuickReply(skipLabel: string): { items: QuickReplyItem[] } {
+  return { items: [{ type: "action", action: { type: "message", label: skipLabel, text: skipLabel } }] };
+}
+
+// Flex Messages have no real box-shadow, so the "clay" feel is approximated
+// with a soft cream background, a bright white inner card, and generous
+// corner radii instead -- as close to claymorphism as the format allows.
+export function buildConfirmationFlex(params: { photoUrl: string; payer: string; note: string; moneyUrl: string }) {
+  const infoLines: Record<string, unknown>[] = [
+    { type: "text", text: "✅ บันทึกสลิปแล้ว", weight: "bold", size: "lg", color: "#F97362", wrap: true },
+    { type: "text", text: `👤 ${params.payer}`, size: "md", color: "#5B4636", margin: "md", wrap: true },
+  ];
+  if (params.note) {
+    infoLines.push({ type: "text", text: `📝 ${params.note}`, size: "sm", color: "#8A7968", margin: "sm", wrap: true });
+  }
+
+  return {
+    type: "flex",
+    altText: `บันทึกสลิปแล้ว - ${params.payer}`,
+    contents: {
+      type: "bubble",
+      size: "kilo",
+      hero: { type: "image", url: params.photoUrl, size: "full", aspectRatio: "20:13", aspectMode: "cover" },
+      body: {
+        type: "box",
+        layout: "vertical",
+        backgroundColor: "#FFF3E8",
+        cornerRadius: "24px",
+        paddingAll: "16px",
+        contents: [
+          {
+            type: "box",
+            layout: "vertical",
+            backgroundColor: "#FFFFFF",
+            cornerRadius: "18px",
+            paddingAll: "16px",
+            spacing: "sm",
+            contents: infoLines,
+          },
+        ],
+      },
+      footer: {
+        type: "box",
+        layout: "vertical",
+        paddingAll: "12px",
+        contents: [
+          {
+            type: "button",
+            style: "primary",
+            color: "#F5B78F",
+            height: "sm",
+            action: { type: "uri", label: "กรอกยอด/หมวดต่อ", uri: params.moneyUrl },
+          },
+        ],
+      },
+    },
+  };
 }
