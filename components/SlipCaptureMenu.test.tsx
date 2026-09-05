@@ -20,6 +20,12 @@ const trip: Trip = {
   home_currency: "THB", trip_currency: "JPY", status: "active", cover_photo_id: "", home_timezone: "", trip_timezone: "",
 };
 
+const pickAFile = () => {
+  const albumInput = document.querySelector('input[type="file"]:not([capture])') as HTMLInputElement;
+  const file = new File(["x"], "slip.jpg", { type: "image/jpeg" });
+  fireEvent.change(albumInput, { target: { files: [file] } });
+};
+
 describe("SlipCaptureMenu", () => {
   it("renders a camera option and an album option as two distinct file inputs", () => {
     render(<SlipCaptureMenu trip={trip} open onClose={vi.fn()} />);
@@ -33,13 +39,24 @@ describe("SlipCaptureMenu", () => {
     expect(screen.getByText("เลือกจากอัลบั้ม")).toBeTruthy();
   });
 
-  it("creates a pending expense holding the uploaded photo after picking a file", async () => {
+  it("does not save anything right after picking a file -- shows a review step instead", async () => {
+    render(<SlipCaptureMenu trip={trip} open onClose={vi.fn()} />);
+
+    pickAFile();
+
+    await screen.findByPlaceholderText("โน้ตสั้นๆ (ไม่บังคับ)");
+    expect(apiCreate).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "บันทึก" })).toBeTruthy();
+  });
+
+  it("saves the pending expense with the typed note once confirmed", async () => {
     const onClose = vi.fn();
     render(<SlipCaptureMenu trip={trip} open onClose={onClose} />);
 
-    const albumInput = document.querySelector('input[type="file"]:not([capture])') as HTMLInputElement;
-    const file = new File(["x"], "slip.jpg", { type: "image/jpeg" });
-    fireEvent.change(albumInput, { target: { files: [file] } });
+    pickAFile();
+    const noteInput = await screen.findByPlaceholderText("โน้ตสั้นๆ (ไม่บังคับ)");
+    fireEvent.change(noteInput, { target: { value: "ค่าแท็กซี่สนามบิน" } });
+    fireEvent.click(screen.getByRole("button", { name: "บันทึก" }));
 
     await waitFor(() => expect(setExpenses).toHaveBeenCalled());
 
@@ -47,7 +64,18 @@ describe("SlipCaptureMenu", () => {
       pending: true,
       slip_photo_ids: ["photo-123"],
       trip_id: "t1",
+      description: "ค่าแท็กซี่สนามบิน",
     }));
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it("opens a full-screen preview when the review thumbnail is tapped", async () => {
+    render(<SlipCaptureMenu trip={trip} open onClose={vi.fn()} />);
+
+    pickAFile();
+    const thumb = await screen.findByLabelText("ดูรูป");
+    fireEvent.click(thumb);
+
+    expect(document.querySelector('img[src="/api/img/photo-123"]')).toBeTruthy();
   });
 });

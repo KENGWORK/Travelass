@@ -10,13 +10,14 @@ export function buildPendingExpense(params: {
   photoId: string;
   currency: string;
   now: string;
+  description?: string;
 }): Expense {
   return {
     id: params.id,
     trip_id: params.tripId,
     datetime: params.now,
     category: "อื่นๆ",
-    description: "",
+    description: params.description ?? "",
     amount: 0,
     currency: params.currency,
     fx_rate: 1,

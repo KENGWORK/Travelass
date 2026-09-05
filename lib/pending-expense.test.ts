@@ -11,6 +11,14 @@ describe("buildPendingExpense", () => {
       fx_rate: 1, amount_thb: 0, payer: "", slip_photo_ids: ["p1"], splits: [], pending: true,
     });
   });
+
+  it("carries an optional note through as the description", () => {
+    const exp = buildPendingExpense({
+      id: "e1", tripId: "t1", photoId: "p1", currency: "HKD",
+      now: "2026-09-05T10:00:00.000Z", description: "ค่ารถแท็กซี่",
+    });
+    expect(exp.description).toBe("ค่ารถแท็กซี่");
+  });
 });
 
 describe("selectPendingExpenses", () => {
