@@ -15,9 +15,9 @@ import { BottomSheet } from "@/components/ui/BottomSheet";
 import { Button } from "@/components/ui/Button";
 import { PhotoPicker } from "@/components/PhotoPicker";
 import { toast } from "@/components/ui/Toast";
-import { apiCreate, apiList, apiRate } from "@/lib/api";
+import { apiCreate, apiUpdate, apiDelete, apiList, apiRate } from "@/lib/api";
 import { useTripData } from "@/lib/use-trip-data";
-import { optimisticCreate } from "@/lib/optimistic";
+import { optimisticCreate, optimisticUpdate, optimisticDelete } from "@/lib/optimistic";
 import { convertToTHB, SUPPORTED_CURRENCIES } from "@/lib/fx";
 import { CATS } from "@/lib/categories";
 import type { Trip, Expense, Category, Member, ExpenseSplit } from "@/lib/models/types";
@@ -62,7 +62,21 @@ function Key({ label, onPress }: { label: string; onPress: () => void }) {
   );
 }
 
-export function QuickExpenseSheet({ trip, open, onClose }: { trip: Trip; open: boolean; onClose: () => void }) {
+export function QuickExpenseSheet({
+  trip,
+  open,
+  onClose,
+  editing,
+}: {
+  trip: Trip;
+  open: boolean;
+  onClose: () => void;
+  // When set, the sheet edits this existing expense (used to complete a
+  // pending slip-capture draft) instead of creating a new one -- same
+  // keypad/category/split UI, since a draft often still needs a split set
+  // up for the first time, which ExpenseEditSheet's plain form can't do.
+  editing?: Expense | null;
+}) {
   const { expenses, setExpenses } = useTripData();
   const [mode, setMode] = useState<"expense" | "calc">("expense");
   const [digits, setDigits] = useState("");
@@ -153,6 +167,28 @@ export function QuickExpenseSheet({ trip, open, onClose }: { trip: Trip; open: b
     return () => { alive = false; window.removeEventListener("members-changed", load); };
   }, [trip.id]);
 
+  // Prefills the whole form from the expense being completed/edited --
+  // pending drafts always start amount 0 / no payer / no splits, so this is
+  // mostly currency + category + the slip photo, but written generally so
+  // it'd also work editing a fully-filled-in expense.
+  useEffect(() => {
+    if (!open || !editing) return;
+    setMode("expense");
+    setDigits(editing.amount > 0 ? String(editing.amount) : "");
+    setCurrency(editing.currency);
+    setFxRate(editing.fx_rate);
+    setCategory(editing.category);
+    setPayer(editing.payer);
+    setPayerCustom(false);
+    setDescription(editing.description);
+    setSlips(editing.slip_photo_ids);
+    setDetailsOpen(Boolean(editing.description) || editing.slip_photo_ids.length > 0);
+    setSplitOpen(false);
+    setSplitMode("none");
+    setEqualParticipants(new Set());
+    setItemRows([]);
+  }, [open, editing]);
+
   // Same auto-fetch shape as MoneyInput's, kept local since this sheet no
   // longer renders MoneyInput at all.
   useEffect(() => {
@@ -223,26 +259,46 @@ export function QuickExpenseSheet({ trip, open, onClose }: { trip: Trip; open: b
   const save = () => {
     if (!canSave) return;
     const exp: Expense = {
-      id: crypto.randomUUID(), trip_id: trip.id, datetime: new Date().toISOString(),
+      id: editing?.id ?? crypto.randomUUID(),
+      trip_id: trip.id,
+      datetime: editing?.datetime ?? new Date().toISOString(),
       category, description, amount, currency,
       fx_rate: isTHB ? 1 : fxRate, amount_thb: amountTHB,
       payer, slip_photo_ids: slips, splits: computedSplits, pending: false,
     };
-    optimisticCreate(setExpenses, exp, () => apiCreate("expenses", exp));
+    if (editing) {
+      optimisticUpdate(setExpenses, exp.id, exp, () => apiUpdate("expenses", exp.id, exp));
+    } else {
+      optimisticCreate(setExpenses, exp, () => apiCreate("expenses", exp));
+    }
     toast(`บันทึกแล้ว ฿${exp.amount_thb.toLocaleString()}`);
     reset(true);
   };
 
+  const discardEditing = () => {
+    if (!editing) return;
+    optimisticDelete(setExpenses, editing.id, () => apiDelete("expenses", editing.id));
+    toast("ลบแล้ว");
+    reset(true);
+  };
+
   return (
-    <BottomSheet open={open} onClose={() => reset()} title="จดค่าใช้จ่าย">
+    <BottomSheet open={open} onClose={() => reset()} title={editing ? "เพิ่มรายละเอียดค่าใช้จ่าย" : "จดค่าใช้จ่าย"}>
       <div className="flex flex-col gap-4">
+        {editing?.pending && (
+          <p className="text-xs text-warning bg-warning/10 rounded-xl px-3 py-2 -mb-1">
+            รายการนี้ยังไม่ได้กรอกรายละเอียด — ใส่ยอด หมวด และคนจ่ายให้ครบแล้วกดบันทึก
+          </p>
+        )}
         {/* Mode toggle — same sheet, same FAB, two purposes: log a real
             expense (writes to Sheets) or just convert a number (never
             writes anything, resets on close). Each side keeps its own hue
             (teal wallet / coral converter) whether active or not, and the
             active pill is solid-filled with a sliding highlight — so which
             mode you're in reads from color + icon alone, not just label
-            text position. */}
+            text position. Hidden while editing an existing expense --
+            switching to the calculator mid-edit makes no sense there. */}
+        {!editing && (
         <div className="relative flex h-14 rounded-2xl bg-muted/10 p-1 gap-1">
           {MODE_TABS.map((tab) => {
             const active = mode === tab.key;
@@ -273,6 +329,7 @@ export function QuickExpenseSheet({ trip, open, onClose }: { trip: Trip; open: b
             );
           })}
         </div>
+        )}
 
         {/* Readout — the number is the whole reason this sheet exists.
             Tinted by category so the color decision reads as "painting"
@@ -777,9 +834,16 @@ export function QuickExpenseSheet({ trip, open, onClose }: { trip: Trip; open: b
               )}
             </AnimatePresence>
 
-            <Button variant="primary" full onClick={save} disabled={!canSave}>
-              {amount > 0 ? `บันทึก ฿${amountTHB.toLocaleString()}` : "บันทึก"}
-            </Button>
+            <div className="flex gap-2">
+              {editing && (
+                <Button variant="secondary" className="text-danger" onClick={discardEditing}>
+                  ลบ
+                </Button>
+              )}
+              <Button variant="primary" full onClick={save} disabled={!canSave}>
+                {amount > 0 ? `บันทึก ฿${amountTHB.toLocaleString()}` : "บันทึก"}
+              </Button>
+            </div>
           </>
         )}
       </div>

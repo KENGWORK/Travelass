@@ -13,6 +13,7 @@ import { SpendList } from "@/components/SpendList";
 import { PersonSpendList } from "@/components/PersonSpendList";
 import { SettleSummary } from "@/components/SettleSummary";
 import { ExpenseEditSheet } from "@/components/ExpenseEditSheet";
+import { QuickExpenseSheet } from "@/components/QuickExpenseSheet";
 import { Chip } from "@/components/ui/Chip";
 import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -55,6 +56,10 @@ export default function MoneyPage() {
   const [selectedDate, setSelectedDate] = useState(() => days[0]?.date ?? trip.start_date);
   const [category, setCategory] = useState<string | null>(null);
   const [editing, setEditing] = useState<Expense | null>(null);
+  // A pending (slip-captured-but-unfilled) expense is completed through the
+  // full keypad/split sheet, not the plain edit form -- it often needs a
+  // split set up for the first time, which ExpenseEditSheet can't do.
+  const [completingPending, setCompletingPending] = useState<Expense | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
 
   useEffect(() => {
@@ -88,7 +93,9 @@ export default function MoneyPage() {
   const pick = (item: SpendItem) => {
     if (item.source === "expense") {
       const exp = expenses.find((e) => e.id === item.id);
-      if (exp) setEditing(exp);
+      if (!exp) return;
+      if (exp.pending) setCompletingPending(exp);
+      else setEditing(exp);
     } else if (item.source === "booking") {
       router.push(`/trips/${trip.id}/bookings`);
     } else {
@@ -126,7 +133,7 @@ export default function MoneyPage() {
               <button
                 key={p.id}
                 type="button"
-                onClick={() => setEditing(p)}
+                onClick={() => setCompletingPending(p)}
                 className="press shrink-0 h-20 w-20 rounded-xl overflow-hidden cursor-pointer shadow-card"
               >
                 <img src={photoUrl(p.slip_photo_ids[0])} alt="" className="w-full h-full object-cover" />
@@ -233,6 +240,12 @@ export default function MoneyPage() {
       )}
 
       <ExpenseEditSheet trip={trip} expense={editing} open={!!editing} onClose={() => setEditing(null)} />
+      <QuickExpenseSheet
+        trip={trip}
+        editing={completingPending}
+        open={!!completingPending}
+        onClose={() => setCompletingPending(null)}
+      />
     </div>
   );
 }
