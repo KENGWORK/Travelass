@@ -9,7 +9,7 @@ const split = (over: Partial<ExpenseSplit>): ExpenseSplit => ({
 const e = (over: Partial<Expense>): Expense => ({
   id: "e", trip_id: "t", datetime: "2026-07-12T09:00:00.000Z", category: "อาหาร",
   description: "", amount: 0, currency: "THB", fx_rate: 1, amount_thb: 0,
-  payer: "เก่ง", slip_photo_ids: [], splits: [], ...over,
+  payer: "เก่ง", slip_photo_ids: [], splits: [], pending: false, ...over,
 });
 
 describe("netBalances", () => {

@@ -12,9 +12,16 @@ export interface ItineraryItem { id: string; trip_id: string; day_date: string; 
 // day_date has is_active true; that's the plan whose items render.
 export interface DayPlan { id: string; trip_id: string; day_date: string; name: string; sort_order: number; is_active: boolean; }
 export interface Transport { id: string; trip_id: string; day_date: string; from: string; to: string; mode: string; pickup_point: string; pickup_photo_ids: string[]; departure_times: string[]; depart_time: string; arrive_time: string; duration_min: number; alt_option: string; price_amount: number; price_currency: string; fx_rate: number; price_thb: number; payer: string; pay_timing: PayTiming; paid: boolean; slip_photo_ids: string[]; notes: string; }
-export interface Booking { id: string; trip_id: string; type: BookingType; vendor: string; ref_no: string; date_from: string; date_to: string; detail: string; amount: number; currency: string; fx_rate: number; amount_thb: number; payer: string; pay_timing: PayTiming; paid: boolean; slip_photo_ids: string[]; notes: string; }
+// time_from is optional (blank = date-only booking, e.g. a hotel stay) --
+// only bookings that carry it get an end-time-aware reminder window; see
+// lib/booking-reminder.ts.
+export interface Booking { id: string; trip_id: string; type: BookingType; vendor: string; ref_no: string; date_from: string; date_to: string; time_from: string; detail: string; amount: number; currency: string; fx_rate: number; amount_thb: number; payer: string; pay_timing: PayTiming; paid: boolean; slip_photo_ids: string[]; notes: string; }
 export interface ExpenseSplit { name: string; amount_thb: number; paid: boolean; paid_slip_photo_ids: string[]; }
-export interface Expense { id: string; trip_id: string; datetime: string; category: Category; description: string; amount: number; currency: string; fx_rate: number; amount_thb: number; payer: string; slip_photo_ids: string[]; splits: ExpenseSplit[]; }
+// pending: true means this is a slip photo captured on the go with no
+// details filled in yet (see lib/pending-expense.ts) -- it still counts as
+// a real row in Sheets, just incomplete until someone opens it and fills in
+// amount/category/payer.
+export interface Expense { id: string; trip_id: string; datetime: string; category: Category; description: string; amount: number; currency: string; fx_rate: number; amount_thb: number; payer: string; slip_photo_ids: string[]; splits: ExpenseSplit[]; pending: boolean; }
 export interface ChecklistItem { id: string; trip_id: string; group: string; item: string; done: boolean; from_template: boolean; }
 export interface Note { id: string; trip_id: string; date: string; text: string; photo_ids: string[]; }
 export interface QuickInfo { id: string; trip_id: string; label: string; value: string; photo_ids: string[]; pinned: boolean; sort_order: number; }
