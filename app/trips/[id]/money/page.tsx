@@ -129,16 +129,32 @@ export default function MoneyPage() {
         <div className="rounded-2xl bg-warning/10 p-3 flex flex-col gap-2">
           <p className="text-sm font-semibold text-warning px-1">รายการรอกรอกข้อมูล ({pending.length})</p>
           <div className="flex gap-2 overflow-x-auto pb-1">
-            {pending.map((p) => (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => setCompletingPending(p)}
-                className="press shrink-0 h-20 w-20 rounded-xl overflow-hidden cursor-pointer shadow-card"
-              >
-                <img src={photoUrl(p.slip_photo_ids[0])} alt="" className="w-full h-full object-cover" />
-              </button>
-            ))}
+            {pending.map((p) => {
+              const addedBy = members.find((m) => m.name === p.payer);
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => setCompletingPending(p)}
+                  className="press relative shrink-0 h-20 w-20 rounded-xl overflow-hidden cursor-pointer shadow-card"
+                  style={
+                    addedBy
+                      ? { boxShadow: `0 0 0 2px var(--color-surface), 0 0 0 4px ${addedBy.color}, 0 0 10px 2px color-mix(in srgb, ${addedBy.color} 60%, transparent)` }
+                      : undefined
+                  }
+                >
+                  <img src={photoUrl(p.slip_photo_ids[0])} alt="" className="w-full h-full object-cover" />
+                  {addedBy && (
+                    <span
+                      className="absolute bottom-1 right-1 h-5 w-5 rounded-full flex items-center justify-center text-[10px] font-semibold text-white shadow"
+                      style={{ backgroundColor: addedBy.color }}
+                    >
+                      {addedBy.name.slice(0, 1)}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
         </div>
       )}

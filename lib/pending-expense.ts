@@ -11,6 +11,11 @@ export function buildPendingExpense(params: {
   currency: string;
   now: string;
   description?: string;
+  // Who captured the slip -- shown as a colored highlight on the pending
+  // queue's thumbnail so a shared trip can tell whose draft is whose at a
+  // glance. Optional: capturing a slip shouldn't be blocked on picking a
+  // name, so this stays "" (uncolored) until set.
+  payer?: string;
 }): Expense {
   return {
     id: params.id,
@@ -22,7 +27,7 @@ export function buildPendingExpense(params: {
     currency: params.currency,
     fx_rate: 1,
     amount_thb: 0,
-    payer: "",
+    payer: params.payer ?? "",
     slip_photo_ids: [params.photoId],
     splits: [],
     pending: true,

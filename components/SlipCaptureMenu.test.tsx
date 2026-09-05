@@ -5,7 +5,14 @@ import type { Trip } from "@/lib/models/types";
 
 const apiCreate = vi.fn().mockResolvedValue(undefined);
 const setExpenses = vi.fn();
-vi.mock("@/lib/api", () => ({ apiCreate: (...args: unknown[]) => apiCreate(...args) }));
+const members = [
+  { id: "m1", trip_id: "t1", name: "เก่ง", color: "#ff0000", promptpay_id: "" },
+  { id: "m2", trip_id: "t1", name: "OMO", color: "#00ff00", promptpay_id: "" },
+];
+vi.mock("@/lib/api", () => ({
+  apiCreate: (...args: unknown[]) => apiCreate(...args),
+  apiList: () => Promise.resolve(members),
+}));
 vi.mock("@/lib/use-trip-data", () => ({ useTripData: () => ({ expenses: [], setExpenses }) }));
 vi.mock("@/lib/upload-photo", () => ({ uploadPhoto: vi.fn().mockResolvedValue("photo-123") }));
 
@@ -67,6 +74,29 @@ describe("SlipCaptureMenu", () => {
       description: "ค่าแท็กซี่สนามบิน",
     }));
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it("lets you pick who's adding the slip, and saves that as the payer", async () => {
+    render(<SlipCaptureMenu trip={trip} open onClose={vi.fn()} />);
+
+    pickAFile();
+    await screen.findByPlaceholderText("โน้ตสั้นๆ (ไม่บังคับ)");
+    fireEvent.click(await screen.findByText("เก่ง"));
+    fireEvent.click(screen.getByRole("button", { name: "บันทึก" }));
+
+    await waitFor(() => expect(setExpenses).toHaveBeenCalled());
+    expect(apiCreate).toHaveBeenCalledWith("expenses", expect.objectContaining({ payer: "เก่ง" }));
+  });
+
+  it("saving without picking anyone leaves payer unassigned", async () => {
+    render(<SlipCaptureMenu trip={trip} open onClose={vi.fn()} />);
+
+    pickAFile();
+    await screen.findByPlaceholderText("โน้ตสั้นๆ (ไม่บังคับ)");
+    fireEvent.click(screen.getByRole("button", { name: "บันทึก" }));
+
+    await waitFor(() => expect(setExpenses).toHaveBeenCalled());
+    expect(apiCreate).toHaveBeenCalledWith("expenses", expect.objectContaining({ payer: "" }));
   });
 
   it("opens a full-screen preview when the review thumbnail is tapped", async () => {

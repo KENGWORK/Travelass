@@ -12,6 +12,13 @@ describe("buildPendingExpense", () => {
     });
   });
 
+  it("carries an optional payer (who captured it) through, defaulting to unassigned", () => {
+    const withPayer = buildPendingExpense({ id: "e1", tripId: "t1", photoId: "p1", currency: "HKD", now: "2026-09-05T10:00:00.000Z", payer: "เก่ง" });
+    expect(withPayer.payer).toBe("เก่ง");
+    const withoutPayer = buildPendingExpense({ id: "e2", tripId: "t1", photoId: "p1", currency: "HKD", now: "2026-09-05T10:00:00.000Z" });
+    expect(withoutPayer.payer).toBe("");
+  });
+
   it("carries an optional note through as the description", () => {
     const exp = buildPendingExpense({
       id: "e1", tripId: "t1", photoId: "p1", currency: "HKD",

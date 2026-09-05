@@ -1,17 +1,17 @@
 "use client";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Camera, Image as ImageIcon } from "lucide-react";
 import { BottomSheet } from "@/components/ui/BottomSheet";
 import { PhotoViewer } from "@/components/PhotoViewer";
 import { Button } from "@/components/ui/Button";
 import { toast } from "@/components/ui/Toast";
-import { apiCreate } from "@/lib/api";
+import { apiCreate, apiList } from "@/lib/api";
 import { useTripData } from "@/lib/use-trip-data";
 import { optimisticCreate } from "@/lib/optimistic";
 import { uploadPhoto } from "@/lib/upload-photo";
 import { photoUrl } from "@/lib/photo-url";
 import { buildPendingExpense } from "@/lib/pending-expense";
-import type { Trip, Expense } from "@/lib/models/types";
+import type { Trip, Expense, Member } from "@/lib/models/types";
 
 // Same "follow whatever was used last" rule QuickExpenseSheet uses -- a
 // pending expense's currency shouldn't reset to the trip default either.
@@ -34,11 +34,22 @@ export function SlipCaptureMenu({ trip, open, onClose }: { trip: Trip; open: boo
   const [photoId, setPhotoId] = useState<string | null>(null);
   const [note, setNote] = useState("");
   const [viewerOpen, setViewerOpen] = useState(false);
+  const [members, setMembers] = useState<Member[]>([]);
+  const [addedBy, setAddedBy] = useState("");
+
+  useEffect(() => {
+    let alive = true;
+    const load = () => apiList<Member>("members", trip.id).then((m) => { if (alive) setMembers(m); });
+    load();
+    window.addEventListener("members-changed", load);
+    return () => { alive = false; window.removeEventListener("members-changed", load); };
+  }, [trip.id]);
 
   const reset = () => {
     setPhotoId(null);
     setNote("");
     setViewerOpen(false);
+    setAddedBy("");
   };
 
   const handleFile = async (file: File | undefined) => {
@@ -63,6 +74,7 @@ export function SlipCaptureMenu({ trip, open, onClose }: { trip: Trip; open: boo
       currency: lastUsedCurrency(expenses, trip.trip_currency),
       now: new Date().toISOString(),
       description: note.trim(),
+      payer: addedBy,
     });
     optimisticCreate(setExpenses, exp, () => apiCreate<Expense>("expenses", exp));
     toast("บันทึกสลิปแล้ว — กรอกรายละเอียดทีหลังได้ที่หน้าเงิน");
@@ -111,6 +123,36 @@ export function SlipCaptureMenu({ trip, open, onClose }: { trip: Trip; open: boo
             >
               <img src={photoUrl(photoId)} alt="" className="w-full h-full object-cover" />
             </button>
+            {members.length > 0 && (
+              <div className="flex flex-col gap-1.5">
+                <span className="text-xs font-semibold text-muted">ใครเป็นคนเพิ่ม (ไม่บังคับ)</span>
+                <div className="flex gap-3 overflow-x-auto pb-1">
+                  {members.map((m) => {
+                    const selected = addedBy === m.name;
+                    return (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => setAddedBy(selected ? "" : m.name)}
+                        className="press flex flex-col items-center gap-1 shrink-0 cursor-pointer"
+                      >
+                        <span
+                          className="h-10 w-10 rounded-full flex items-center justify-center text-sm font-semibold"
+                          style={{
+                            backgroundColor: selected ? m.color : `color-mix(in srgb, ${m.color} 18%, transparent)`,
+                            color: selected ? "white" : m.color,
+                            boxShadow: selected ? `0 0 0 3px color-mix(in srgb, ${m.color} 30%, transparent)` : undefined,
+                          }}
+                        >
+                          {m.name.slice(0, 1)}
+                        </span>
+                        <span className={`text-xs ${selected ? "font-semibold text-text" : "text-muted"}`}>{m.name}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
             <input
               autoFocus
               className="field"
