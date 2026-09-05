@@ -1,6 +1,7 @@
 "use client";
 import { useRef, useState } from "react";
-import { Camera, Image as ImageIcon, X } from "lucide-react";
+import { Camera, Image as ImageIcon } from "lucide-react";
+import { BottomSheet } from "@/components/ui/BottomSheet";
 import { toast } from "@/components/ui/Toast";
 import { apiCreate } from "@/lib/api";
 import { useTripData } from "@/lib/use-trip-data";
@@ -26,8 +27,6 @@ export function SlipCaptureMenu({ trip, open, onClose }: { trip: Trip; open: boo
   const albumInputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
 
-  if (!open) return null;
-
   const handleFile = async (file: File | undefined) => {
     if (!file) return;
     setBusy(true);
@@ -51,7 +50,7 @@ export function SlipCaptureMenu({ trip, open, onClose }: { trip: Trip; open: boo
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 flex items-end justify-center" onClick={onClose}>
+    <>
       <input
         ref={cameraInputRef}
         type="file"
@@ -73,39 +72,27 @@ export function SlipCaptureMenu({ trip, open, onClose }: { trip: Trip; open: boo
           e.target.value = "";
         }}
       />
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-md rounded-t-3xl bg-surface p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] flex flex-col gap-2"
-      >
-        <div className="flex items-center justify-between px-1">
-          <p className="font-heading text-base font-semibold">ถ่ายสลิปด่วน</p>
+      <BottomSheet open={open} onClose={onClose} title="ถ่ายสลิปด่วน">
+        <div className="flex flex-col gap-2">
+          <p className="text-xs text-muted px-1 -mt-2 mb-1">กรอกยอด/หมวด/คนจ่ายทีหลังได้ที่หน้าเงิน</p>
           <button
             type="button"
-            aria-label="ปิด"
-            onClick={onClose}
-            className="h-9 w-9 grid place-items-center rounded-full text-muted cursor-pointer"
+            disabled={busy}
+            onClick={() => cameraInputRef.current?.click()}
+            className="press h-16 rounded-2xl bg-primary-soft text-primary font-medium flex items-center gap-3 px-4 cursor-pointer disabled:opacity-50"
           >
-            <X size={18} />
+            <Camera size={20} /> ถ่ายรูป
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => albumInputRef.current?.click()}
+            className="press h-16 rounded-2xl bg-muted/10 text-text font-medium flex items-center gap-3 px-4 cursor-pointer disabled:opacity-50"
+          >
+            <ImageIcon size={20} /> เลือกจากอัลบั้ม
           </button>
         </div>
-        <p className="text-xs text-muted px-1 -mt-1">กรอกยอด/หมวด/คนจ่ายทีหลังได้ที่หน้าเงิน</p>
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => cameraInputRef.current?.click()}
-          className="press h-14 rounded-2xl bg-primary-soft text-primary font-medium flex items-center gap-3 px-4 cursor-pointer disabled:opacity-50"
-        >
-          <Camera size={20} /> ถ่ายรูป
-        </button>
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => albumInputRef.current?.click()}
-          className="press h-14 rounded-2xl bg-muted/10 text-text font-medium flex items-center gap-3 px-4 cursor-pointer disabled:opacity-50"
-        >
-          <ImageIcon size={20} /> เลือกจากอัลบั้ม
-        </button>
-      </div>
-    </div>
+      </BottomSheet>
+    </>
   );
 }

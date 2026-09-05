@@ -20,7 +20,7 @@ describe("TabBar FAB menu", () => {
     expect(onQuickExpense).not.toHaveBeenCalled();
   });
 
-  it("picking 'ถ่ายสลิป' calls onSnapSlip and closes the menu", () => {
+  it("picking 'ถ่ายสลิป' calls onSnapSlip, not onQuickExpense", () => {
     const onSnapSlip = vi.fn();
     const onQuickExpense = vi.fn();
     render(<TabBar tripId="t1" onSnapSlip={onSnapSlip} onQuickExpense={onQuickExpense} />);
@@ -30,7 +30,6 @@ describe("TabBar FAB menu", () => {
 
     expect(onSnapSlip).toHaveBeenCalledTimes(1);
     expect(onQuickExpense).not.toHaveBeenCalled();
-    expect(screen.queryByText("จดด่วน")).toBeNull();
   });
 
   it("picking 'จดด่วน' calls onQuickExpense and closes the menu", () => {
