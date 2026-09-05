@@ -1,10 +1,12 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import { Camera } from "lucide-react";
 import { apiCreate, apiUpdate } from "@/lib/api";
 import { PhotoPicker } from "@/components/PhotoPicker";
 import { toast } from "@/components/ui/Toast";
 import { tripDays } from "@/lib/days";
+import { defaultOpenDiaryDate, todayISO } from "@/lib/diary-days";
 import type { Note, Trip } from "@/lib/models/types";
 
 const SAVE_DEBOUNCE_MS = 800;
@@ -50,6 +52,23 @@ export function DiarySection({ trip, initialNotes }: { trip: Trip; initialNotes:
   // sheet. The prior promise's rejection is swallowed here so one date's earlier
   // failure doesn't propagate into (or block) the next save for that date.
   const saveChains = useRef<Record<string, Promise<void>>>({});
+
+  // Only one day defaults to expanded (today's, or day 1 if the trip hasn't
+  // started) -- everything else starts collapsed so the list a traveler
+  // actually needs to write in isn't buried under every other day's card.
+  // Tapping a collapsed row toggles it open/closed independently.
+  const [openDates, setOpenDates] = useState<Set<string>>(() => {
+    const d = defaultOpenDiaryDate(days.map((day) => day.date), todayISO());
+    return d ? new Set([d]) : new Set();
+  });
+  const toggleOpen = (date: string) => {
+    setOpenDates((prev) => {
+      const next = new Set(prev);
+      if (next.has(date)) next.delete(date);
+      else next.add(date);
+      return next;
+    });
+  };
 
   useEffect(() => {
     return () => {
@@ -115,43 +134,78 @@ export function DiarySection({ trip, initialNotes }: { trip: Trip; initialNotes:
 
   return (
     <div className="flex flex-col gap-4">
-      {days.map((d) => (
-        <div key={d.date} className="rounded-2xl bg-surface shadow-card p-4 flex flex-col gap-2">
-          <div className="flex items-center justify-between gap-2">
-            <h2 className="font-heading text-base font-semibold">{d.label}</h2>
-            <AnimatePresence>
-              {savedFlags[d.date] && (
-                <motion.span
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.3 }}
-                  className="text-xs text-success shrink-0"
-                >
-                  บันทึกแล้ว ✓
-                </motion.span>
+      {days.map((d) => {
+        const isOpen = openDates.has(d.date);
+        const text = texts[d.date] ?? "";
+        const photos = photoIds[d.date] ?? [];
+
+        if (!isOpen) {
+          return (
+            <button
+              key={d.date}
+              type="button"
+              onClick={() => toggleOpen(d.date)}
+              className="press w-full text-left rounded-2xl bg-surface shadow-card px-4 py-3 flex items-center gap-3 cursor-pointer"
+            >
+              <span className="font-heading text-sm font-semibold shrink-0">{d.label}</span>
+              <span className="min-w-0 flex-1 text-sm text-muted truncate">
+                {text.trim() ? text.trim() : <span className="italic">ยังไม่ได้บันทึก</span>}
+              </span>
+              {photos.length > 0 && (
+                <span className="shrink-0 inline-flex items-center gap-1 text-xs text-muted">
+                  <Camera size={12} />
+                  {photos.length}
+                </span>
               )}
-            </AnimatePresence>
-          </div>
+            </button>
+          );
+        }
 
-          <textarea
-            value={texts[d.date] ?? ""}
-            onChange={(e) => handleTextChange(d.date, e.target.value)}
-            placeholder="วันนี้เป็นยังไงบ้าง..."
-            rows={3}
-            className="w-full bg-transparent resize-none text-sm outline-none placeholder:text-muted"
-          />
+        return (
+          <div key={d.date} className="rounded-2xl bg-surface shadow-card p-4 flex flex-col gap-2">
+            <div className="flex items-center justify-between gap-2">
+              <button
+                type="button"
+                onClick={() => toggleOpen(d.date)}
+                className="press font-heading text-base font-semibold cursor-pointer"
+              >
+                {d.label}
+              </button>
+              <AnimatePresence>
+                {savedFlags[d.date] && (
+                  <motion.span
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.3 }}
+                    className="text-xs text-success shrink-0"
+                  >
+                    บันทึกแล้ว ✓
+                  </motion.span>
+                )}
+              </AnimatePresence>
+            </div>
 
-          <div className="grid grid-cols-3 gap-2 rounded-xl">
-            <PhotoPicker
-              tripName={trip.name}
-              kind="photos"
-              fileIds={photoIds[d.date] ?? []}
-              onChange={(ids) => handlePhotosChange(d.date, ids)}
+            <textarea
+              value={text}
+              onChange={(e) => handleTextChange(d.date, e.target.value)}
+              placeholder="วันนี้เป็นยังไงบ้าง..."
+              rows={3}
+              autoFocus={d.date === todayISO()}
+              className="w-full bg-transparent resize-none text-sm outline-none placeholder:text-muted"
             />
+
+            <div className="grid grid-cols-3 gap-2 rounded-xl">
+              <PhotoPicker
+                tripName={trip.name}
+                kind="photos"
+                fileIds={photos}
+                onChange={(ids) => handlePhotosChange(d.date, ids)}
+              />
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
