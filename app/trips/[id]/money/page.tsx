@@ -17,6 +17,7 @@ import { Chip } from "@/components/ui/Chip";
 import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { DashboardButton } from "@/components/ui/DashboardButton";
+import { PendingExpenseButton } from "@/components/ui/PendingExpenseButton";
 import { SearchButton } from "@/components/ui/SearchButton";
 import { UploadButton } from "@/components/ui/UploadButton";
 import { apiList } from "@/lib/api";
@@ -112,6 +113,7 @@ export default function MoneyPage() {
         <div className="flex items-center">
           <SearchButton />
           <UploadButton />
+          <PendingExpenseButton tripId={trip.id} />
           <DashboardButton tripId={trip.id} />
         </div>
       </div>

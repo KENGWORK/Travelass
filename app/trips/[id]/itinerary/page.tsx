@@ -20,6 +20,7 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { toast } from "@/components/ui/Toast";
 import { DashboardButton } from "@/components/ui/DashboardButton";
+import { PendingExpenseButton } from "@/components/ui/PendingExpenseButton";
 import { SearchButton } from "@/components/ui/SearchButton";
 import { UploadButton } from "@/components/ui/UploadButton";
 import { optimisticCreate, optimisticUpdate, optimisticDelete } from "@/lib/optimistic";
@@ -250,6 +251,7 @@ export default function ItineraryPage() {
         <div className="flex items-center">
           <SearchButton />
           <UploadButton />
+          <PendingExpenseButton tripId={trip.id} />
           <DashboardButton tripId={trip.id} />
         </div>
       </div>

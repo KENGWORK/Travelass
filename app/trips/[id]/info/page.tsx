@@ -11,6 +11,7 @@ import { InfoListSection, type InfoField } from "@/components/InfoListSection";
 import { PhraseSection } from "@/components/PhraseSection";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { DashboardButton } from "@/components/ui/DashboardButton";
+import { PendingExpenseButton } from "@/components/ui/PendingExpenseButton";
 import { SearchButton } from "@/components/ui/SearchButton";
 import { UploadButton } from "@/components/ui/UploadButton";
 import type { Note, QuickInfo } from "@/lib/models/types";
@@ -129,6 +130,7 @@ export default function InfoPage() {
         <div className="flex items-center">
           <SearchButton />
           <UploadButton />
+          <PendingExpenseButton tripId={trip.id} />
           <DashboardButton tripId={trip.id} />
         </div>
       </div>
