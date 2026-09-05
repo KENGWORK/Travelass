@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Camera } from "lucide-react";
+import { BookOpen, Camera } from "lucide-react";
 import { apiCreate, apiUpdate } from "@/lib/api";
 import { PhotoPicker } from "@/components/PhotoPicker";
 import { toast } from "@/components/ui/Toast";
@@ -167,9 +167,10 @@ export function DiarySection({ trip, initialNotes }: { trip: Trip; initialNotes:
               <button
                 type="button"
                 onClick={() => toggleOpen(d.date)}
-                className="press font-heading text-base font-semibold cursor-pointer"
+                className="press inline-flex items-center gap-1.5 text-xs text-muted cursor-pointer"
               >
-                {d.label}
+                <BookOpen size={14} />
+                <span>{d.label}</span>
               </button>
               <AnimatePresence>
                 {savedFlags[d.date] && (
@@ -192,17 +193,16 @@ export function DiarySection({ trip, initialNotes }: { trip: Trip; initialNotes:
               placeholder="วันนี้เป็นยังไงบ้าง..."
               rows={3}
               autoFocus={d.date === todayISO()}
-              className="w-full bg-transparent resize-none text-sm outline-none placeholder:text-muted"
+              className="w-full bg-transparent resize-none text-base outline-none placeholder:text-muted"
             />
 
-            <div className="grid grid-cols-3 gap-2 rounded-xl">
-              <PhotoPicker
-                tripName={trip.name}
-                kind="photos"
-                fileIds={photos}
-                onChange={(ids) => handlePhotosChange(d.date, ids)}
-              />
-            </div>
+            <PhotoPicker
+              tripName={trip.name}
+              kind="photos"
+              fileIds={photos}
+              onChange={(ids) => handlePhotosChange(d.date, ids)}
+              layout="scroll"
+            />
           </div>
         );
       })}

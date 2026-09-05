@@ -46,3 +46,25 @@ describe("PhotoPicker delete confirmation", () => {
     expect(screen.queryByText("ลบรูปนี้?")).toBeNull();
   });
 });
+
+describe("PhotoPicker layout", () => {
+  it("defaults to a wrapping grid", () => {
+    const { container } = render(<PhotoPicker tripName="Test Trip" kind="photos" fileIds={["photo-1"]} onChange={vi.fn()} />);
+    const root = container.firstElementChild as HTMLElement;
+    expect(root.className).toContain("flex-wrap");
+    expect(root.className).not.toContain("overflow-x-auto");
+  });
+
+  it("layout=\"scroll\" renders a single scrollable row with bigger thumbnails", () => {
+    const { container } = render(
+      <PhotoPicker tripName="Test Trip" kind="photos" fileIds={["photo-1"]} onChange={vi.fn()} layout="scroll" />,
+    );
+    const root = container.firstElementChild as HTMLElement;
+    expect(root.className).toContain("overflow-x-auto");
+    expect(root.className).not.toContain("flex-wrap");
+
+    const img = container.querySelector("img") as HTMLImageElement;
+    expect(img.className).toContain("h-24");
+    expect(img.className).toContain("w-24");
+  });
+});

@@ -13,9 +13,15 @@ export interface PhotoPickerProps {
   kind: "photos" | "slips";
   fileIds: string[];
   onChange: (fileIds: string[]) => void;
+  // "wrap" (default): thumbnails wrap onto multiple rows, sized for a form
+  // field. "scroll": a single horizontally-scrollable row with bigger
+  // thumbnails, matching the info-tab card style (QuickInfoSection's
+  // PhotoStrip) -- used where the picker sits inside a content card rather
+  // than a form.
+  layout?: "wrap" | "scroll";
 }
 
-export function PhotoPicker({ tripName, kind, fileIds, onChange }: PhotoPickerProps) {
+export function PhotoPicker({ tripName, kind, fileIds, onChange, layout = "wrap" }: PhotoPickerProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploadingCount, setUploadingCount] = useState(0);
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
@@ -48,8 +54,10 @@ export function PhotoPicker({ tripName, kind, fileIds, onChange }: PhotoPickerPr
     setConfirmId(null);
   };
 
+  const thumbSize = layout === "scroll" ? "h-24 w-24" : "h-20 w-20";
+
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className={layout === "scroll" ? "flex gap-2 overflow-x-auto" : "flex flex-wrap gap-2"}>
       <input
         ref={inputRef}
         type="file"
@@ -65,17 +73,17 @@ export function PhotoPicker({ tripName, kind, fileIds, onChange }: PhotoPickerPr
         type="button"
         aria-label="ถ่ายรูปหรือเลือกรูป"
         onClick={() => inputRef.current?.click()}
-        className="h-20 w-20 rounded-xl border-2 border-dashed border-muted/30 flex items-center justify-center cursor-pointer text-muted"
+        className={`${thumbSize} shrink-0 rounded-xl border-2 border-dashed border-muted/30 flex items-center justify-center cursor-pointer text-muted`}
       >
         <Camera size={24} />
       </button>
 
       {fileIds.map((id, i) => (
-        <div key={id} className="relative h-20 w-20">
+        <div key={id} className={`relative shrink-0 ${thumbSize}`}>
           <img
             src={photoUrl(id)}
             alt=""
-            className="w-20 h-20 rounded-xl object-cover cursor-pointer"
+            className={`${thumbSize} rounded-xl object-cover cursor-pointer`}
             onClick={() => setViewerIndex(i)}
           />
           <button
@@ -90,7 +98,7 @@ export function PhotoPicker({ tripName, kind, fileIds, onChange }: PhotoPickerPr
       ))}
 
       {Array.from({ length: uploadingCount }).map((_, i) => (
-        <Skeleton key={`uploading-${i}`} className="h-20 w-20" />
+        <Skeleton key={`uploading-${i}`} className={`shrink-0 ${thumbSize}`} />
       ))}
 
       {viewerIndex !== null && (
