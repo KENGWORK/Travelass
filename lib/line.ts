@@ -12,6 +12,7 @@ export interface LineEvent {
   replyToken?: string;
   source: LineSource;
   message?: { id: string; type: string; text?: string };
+  postback?: { data: string };
 }
 
 // LINE signs the raw request body with the channel secret (HMAC-SHA256,
@@ -93,6 +94,20 @@ export function sourceKey(source: LineSource): string {
   if (source.type === "group" && source.groupId) return `group:${source.groupId}`;
   if (source.type === "room" && source.roomId) return `room:${source.roomId}`;
   return `user:${source.userId}`;
+}
+
+// One key per *person* per chat -- two people in the same family group get
+// different keys, so each can be midway through their own expense (or have
+// their own "last viewed plan day") without stepping on the other.
+export function userKey(source: LineSource): string {
+  const uid = source.userId ?? "unknown";
+  if (source.type === "group" && source.groupId) return `group:${source.groupId}:user:${uid}`;
+  if (source.type === "room" && source.roomId) return `room:${source.roomId}:user:${uid}`;
+  return `user:${uid}`;
+}
+
+export function isGroupChat(source: LineSource): boolean {
+  return source.type === "group" || source.type === "room";
 }
 
 interface QuickReplyItem {

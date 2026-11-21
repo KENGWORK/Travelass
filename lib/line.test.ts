@@ -4,6 +4,8 @@ import {
   verifyLineSignature,
   matchMemberName,
   sourceKey,
+  userKey,
+  isGroupChat,
   buildNameQuickReply,
   buildSkipQuickReply,
   buildConfirmationFlex,
@@ -119,5 +121,38 @@ describe("buildConfirmationFlex", () => {
     const bodyContents = JSON.stringify(msg.contents);
     // No stray empty text node where the note would have gone.
     expect(bodyContents.match(/"text":""/)).toBeNull();
+  });
+});
+
+describe("userKey", () => {
+  it("gives two people in the same group different keys", () => {
+    const a = userKey({ type: "group", groupId: "g1", userId: "u1" });
+    const b = userKey({ type: "group", groupId: "g1", userId: "u2" });
+    expect(a).toBe("group:g1:user:u1");
+    expect(b).toBe("group:g1:user:u2");
+  });
+
+  it("scopes a room member by room and user", () => {
+    expect(userKey({ type: "room", roomId: "r1", userId: "u1" })).toBe("room:r1:user:u1");
+  });
+
+  it("uses just the userId for a 1:1 chat", () => {
+    expect(userKey({ type: "user", userId: "u1" })).toBe("user:u1");
+  });
+
+  it("falls back to a shared 'unknown' key when LINE omits the userId", () => {
+    expect(userKey({ type: "group", groupId: "g1" })).toBe("group:g1:user:unknown");
+    expect(userKey({ type: "room", roomId: "r1" })).toBe("room:r1:user:unknown");
+  });
+});
+
+describe("isGroupChat", () => {
+  it("is true for groups and rooms", () => {
+    expect(isGroupChat({ type: "group", groupId: "g1", userId: "u1" })).toBe(true);
+    expect(isGroupChat({ type: "room", roomId: "r1", userId: "u1" })).toBe(true);
+  });
+
+  it("is false for a 1:1 chat", () => {
+    expect(isGroupChat({ type: "user", userId: "u1" })).toBe(false);
   });
 });
