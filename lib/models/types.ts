@@ -33,9 +33,11 @@ export interface LinkItem { id: string; trip_id: string; title: string; url: str
 export interface ShopItem { id: string; trip_id: string; item: string; for_whom: string; price: string; bought: boolean; photo_ids: string[]; }
 export interface Phrase { id: string; trip_id: string; category: string; text: string; pronunciation: string; meaning: string; }
 export interface QuickNote { id: string; trip_id: string; title: string; content: string; photo_ids: string[]; sort_order: number; }
-// One row per LINE chat mid-conversation (id = the chat's sourceKey, see
-// lib/line.ts) -- an image starts a session pointed at the pending expense
-// it just created; the next couple of text replies from that same chat
-// walk it through "awaiting_name" then "awaiting_note" before the row is
-// deleted. There's at most one in-flight session per chat.
-export interface LineSession { id: string; trip_id: string; expense_id: string; step: string; updated_at: string; }
+// LINE bot per-person state (see lib/line-session.ts). Two kinds of row:
+// - id = userKey (lib/line.ts): an in-flight expense capture flow, pointed
+//   at the pending expense it created; expires after 30 minutes idle.
+// - id = `${userKey}#ctx`: viewing context (e.g. data.lastPlanDate); never
+//   expires.
+// `data` was appended last so older sheet rows (no column) keep every other
+// field aligned -- they read back as [] and get normalized to {}.
+export interface LineSession { id: string; trip_id: string; expense_id: string; step: string; updated_at: string; data: Record<string, unknown>; }

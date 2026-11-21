@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { ENTITIES } from "./mappers";
-import type { Expense, Transport } from "./types";
+import type { Expense, Transport, LineSession } from "./types";
 
 const expense: Expense = {
   id: "e1", trip_id: "t1", datetime: "2026-07-12T09:30:00.000Z",
@@ -39,5 +39,23 @@ describe("mappers", () => {
     for (const [name, def] of Object.entries(ENTITIES)) {
       expect(def.columns.length, name).toBeGreaterThan(0);
     }
+  });
+});
+
+describe("line_sessions mapper", () => {
+  it("roundtrips the data JSON column", () => {
+    const s: LineSession = {
+      id: "group:g1:user:u1#ctx", trip_id: "t1", expense_id: "", step: "ctx",
+      updated_at: "2026-11-20T03:00:00.000Z", data: { lastPlanDate: "2026-11-20" },
+    };
+    const { toRow, fromRow } = ENTITIES.line_sessions;
+    expect(toRow(s)[5]).toBe('{"lastPlanDate":"2026-11-20"}');
+    expect(fromRow(toRow(s))).toEqual(s);
+  });
+
+  it("an old row without the data column reads data as [] (normalized later by line-session)", () => {
+    const s = ENTITIES.line_sessions.fromRow(["user:u1", "t1", "e1", "awaiting_name", "2026-11-20T03:00:00.000Z"]);
+    expect(s.step).toBe("awaiting_name");
+    expect(s.data).toEqual([]);
   });
 });

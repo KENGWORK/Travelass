@@ -52,7 +52,8 @@ export const ENTITIES = {
   shopping: makeMapper<ShopItem>([["id","s"],["trip_id","s"],["item","s"],["for_whom","s"],["price","s"],["bought","b"],["photo_ids","a"]]),
   phrases: makeMapper<Phrase>([["id","s"],["trip_id","s"],["category","s"],["text","s"],["pronunciation","s"],["meaning","s"]]),
   quicknotes: makeMapper<QuickNote>([["id","s"],["trip_id","s"],["title","s"],["content","s"],["photo_ids","a"],["sort_order","n"]]),
-  line_sessions: makeMapper<LineSession>([["id","s"],["trip_id","s"],["expense_id","s"],["step","s"],["updated_at","s"]]),
+  // data appended at the end (JSON) so existing rows stay aligned.
+  line_sessions: makeMapper<LineSession>([["id","s"],["trip_id","s"],["expense_id","s"],["step","s"],["updated_at","s"],["data","j"]]),
 } as const;
 
 export type EntityName = keyof typeof ENTITIES;

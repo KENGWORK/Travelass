@@ -61,7 +61,7 @@ async function handleEvent(event: LineEvent, accessToken: string, origin: string
 }
 
 function writeSession(id: string, tripId: string, expenseId: string, step: string): Promise<void> {
-  const session: LineSession = { id, trip_id: tripId, expense_id: expenseId, step, updated_at: new Date().toISOString() };
+  const session: LineSession = { id, trip_id: tripId, expense_id: expenseId, step, updated_at: new Date().toISOString(), data: {} };
   return updateRow<LineSession>("line_sessions", id, session);
 }
 
