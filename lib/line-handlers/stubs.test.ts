@@ -1,5 +1,4 @@
 import { describe, it, expect, vi } from "vitest";
-import * as places from "./places";
 import * as info from "./info";
 import type { HandlerCtx } from "./types";
 import { textMessage } from "@/lib/line-flex";
@@ -20,7 +19,6 @@ function makeCtx(isGroup = false): HandlerCtx {
 }
 
 describe.each([
-  ["places", places],
   ["info", info],
 ])("%s stub", (_name, mod) => {
   it("handleRoute replies 'in development'", async () => {
