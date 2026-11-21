@@ -1,213 +1,327 @@
+// lib/line-handlers/expense.test.ts
 // @vitest-environment node
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import type { Expense, LineSession, Member, Trip } from "@/lib/models/types";
+import type { HandlerCtx } from "@/lib/line-handlers/types";
 
+const db = vi.hoisted(() => ({
+  rows: {} as Record<string, Record<string, unknown>[]>,
+  sessions: new Map<string, Record<string, unknown>>(),
+}));
+
+vi.mock("server-only", () => ({}));
 vi.mock("@/lib/store", () => ({
-  listRows: vi.fn(),
-  updateRow: vi.fn().mockResolvedValue(undefined),
-  saveImage: vi.fn().mockResolvedValue("photo-1"),
+  listRows: vi.fn(async (entity: string, tripId?: string) =>
+    (db.rows[entity] ?? []).filter((r) => !tripId || r.trip_id === tripId)),
+  updateRow: vi.fn(async (entity: string, id: string, obj: Record<string, unknown>) => {
+    const list = (db.rows[entity] ??= []);
+    const i = list.findIndex((r) => r.id === id);
+    if (i >= 0) list[i] = obj;
+    else list.push(obj);
+  }),
+  deleteRow: vi.fn(async (entity: string, id: string) => {
+    db.rows[entity] = (db.rows[entity] ?? []).filter((r) => r.id !== id);
+  }),
+  saveImage: vi.fn(async () => "photo-new"),
 }));
 vi.mock("@/lib/line-session", () => ({
-  readFlowSession: vi.fn(),
-  writeFlowSession: vi.fn().mockResolvedValue(undefined),
-  deleteFlowSession: vi.fn().mockResolvedValue(undefined),
+  readFlowSession: vi.fn(async (key: string) => db.sessions.get(key) ?? null),
+  writeFlowSession: vi.fn(async (s: Record<string, unknown>, now: Date) => {
+    db.sessions.set(s.id as string, { ...s, updated_at: now.toISOString() });
+  }),
+  deleteFlowSession: vi.fn(async (key: string) => {
+    db.sessions.delete(key);
+  }),
+}));
+vi.mock("@/lib/fx", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/fx")>()),
+  fetchRate: vi.fn(),
 }));
 vi.mock("@/lib/line", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/line")>()),
-  fetchLineImageContent: vi.fn().mockResolvedValue({ buf: Buffer.from("img"), mime: "image/jpeg" }),
+  fetchLineDisplayName: vi.fn(),
+  fetchLineImageContent: vi.fn(async () => ({ buf: Buffer.from("x"), mime: "image/jpeg" })),
 }));
 
-import { listRows, updateRow, saveImage } from "@/lib/store";
-import { readFlowSession, writeFlowSession, deleteFlowSession } from "@/lib/line-session";
-import { fetchLineImageContent } from "@/lib/line";
-import { handleImage, handleRoute, handlePostback, flowAnswerPredicate } from "./expense";
-import type { HandlerCtx } from "./types";
-import type { Trip, Member, Expense, LineSession } from "@/lib/models/types";
-import { textMessage, type FlexNode } from "@/lib/line-flex";
-import { WIP_TEXT, NO_TRIP_TEXT } from "@/lib/line-menu";
+import { flowAnswerPredicate, handleImage, handlePostback, handleRoute } from "./expense";
+import { EXPENSE_COMMAND_KEYWORDS } from "@/lib/line-router";
+import { expenseCommand } from "@/lib/line-expense-parse";
+import { fetchRate } from "@/lib/fx";
+import { fetchLineDisplayName } from "@/lib/line";
 
 const TRIP: Trip = {
-  id: "t1", name: "ฮ่องกง", destination: "Hong Kong", start_date: "2026-11-19", end_date: "2026-11-24",
+  id: "t1", name: "HK", destination: "Hong Kong", start_date: "2026-11-20", end_date: "2026-11-25",
   home_currency: "THB", trip_currency: "HKD", status: "active", cover_photo_id: "",
   home_timezone: "Asia/Bangkok", trip_timezone: "Asia/Hong_Kong",
 };
-const MEMBERS: Member[] = [
-  { id: "m1", trip_id: "t1", name: "เก่ง", color: "", promptpay_id: "" },
-  { id: "m2", trip_id: "t1", name: "โอ", color: "", promptpay_id: "" },
-];
-const NOW = new Date("2026-11-20T03:00:00.000Z");
 const KEY = "group:g1:user:u1";
+const NOW = new Date("2026-11-21T03:00:00.000Z");
+const member = (id: string, name: string): Member => ({ id, trip_id: "t1", name, color: "", promptpay_id: "" });
 
-function pendingExpense(over: Partial<Expense> = {}): Expense {
-  return {
-    id: "e1", trip_id: "t1", datetime: NOW.toISOString(), category: "อื่นๆ", description: "", amount: 0,
-    currency: "HKD", fx_rate: 1, amount_thb: 0, payer: "", slip_photo_ids: ["photo-1"], splits: [], pending: true, ...over,
+function makeCtx(event: Partial<HandlerCtx["event"]>) {
+  const reply = vi.fn(async (_messages: unknown[]) => {});
+  const ctx: HandlerCtx = {
+    event: { type: "message", replyToken: "rt", source: { type: "group", groupId: "g1", userId: "u1" }, ...event } as HandlerCtx["event"],
+    replyToken: "rt", accessToken: "tok", origin: "https://app.test", now: NOW,
+    userKey: KEY, isGroup: true, trip: TRIP, reply,
   };
+  return { ctx, reply };
 }
+const textCtx = (text: string) => makeCtx({ message: { id: "m1", type: "text", text } });
+const pbCtx = () => makeCtx({ type: "postback", postback: { data: "" } });
+const out = (reply: ReturnType<typeof makeCtx>["reply"]) => JSON.stringify(reply.mock.calls.at(-1)?.[0]);
+const expenses = () => (db.rows.expenses ?? []) as unknown as Expense[];
+const session = () => db.sessions.get(KEY) as unknown as LineSession | undefined;
 
-function session(step: string): LineSession {
-  return { id: KEY, trip_id: "t1", expense_id: "e1", step, updated_at: NOW.toISOString(), data: {} };
+async function say(text: string) {
+  const { ctx, reply } = textCtx(text);
+  await handleRoute(ctx, { kind: "expense_new", text });
+  return reply;
 }
-
-function makeCtx(over: Partial<HandlerCtx> = {}, text = "เก่ง"): HandlerCtx {
-  return {
-    event: { type: "message", replyToken: "rt", source: { type: "group", groupId: "g1", userId: "u1" }, message: { id: "m1", type: "text", text } },
-    replyToken: "rt",
-    accessToken: "tok",
-    origin: "https://app.test",
-    now: NOW,
-    userKey: KEY,
-    isGroup: true,
-    trip: TRIP,
-    reply: vi.fn(async () => {}),
-    ...over,
-  };
+async function answer(text: string) {
+  const { ctx, reply } = textCtx(text);
+  await handleRoute(ctx, { kind: "flow_answer" });
+  return reply;
 }
-
-const firstReply = (ctx: HandlerCtx) => vi.mocked(ctx.reply).mock.calls[0][0] as FlexNode[];
+async function tap(data: Record<string, string>) {
+  const { ctx, reply } = pbCtx();
+  await handlePostback(ctx, data);
+  return reply;
+}
 
 beforeEach(() => {
-  vi.clearAllMocks();
-  vi.mocked(listRows).mockImplementation(async (entity: string) => {
-    if (entity === "members") return MEMBERS as never;
-    if (entity === "expenses") return [pendingExpense()] as never;
-    return [] as never;
+  db.rows = { members: [member("m1", "เก่ง"), member("m2", "โอ")] as unknown as Record<string, unknown>[], expenses: [] };
+  db.sessions.clear();
+  vi.mocked(fetchRate).mockReset().mockImplementation(async (c: string) => (c === "THB" ? 1 : 4.5));
+  vi.mocked(fetchLineDisplayName).mockReset().mockResolvedValue("เก่ง");
+});
+
+describe("expense handler: text capture", () => {
+  it("saves a complete entry as a pending draft and shows the summary card", async () => {
+    const reply = await say("120 บาท ข้าวมันไก่ ไม่หาร");
+    expect(expenses()).toHaveLength(1);
+    expect(expenses()[0]).toMatchObject({
+      amount: 120, currency: "THB", fx_rate: 1, amount_thb: 120, payer: "เก่ง",
+      category: "อาหาร", description: "ข้าวมันไก่", splits: [], pending: true, slip_photo_ids: [],
+    });
+    expect(session()?.step).toBe("summary");
+    expect(out(reply)).toContain("สรุปรายการ");
+    expect(out(reply)).toContain("a=x_confirm");
+  });
+
+  it("✅ confirms: pending off, session gone, saved card", async () => {
+    await say("120 บาท ข้าวมันไก่ ไม่หาร");
+    const id = expenses()[0].id;
+    const reply = await tap({ a: "x_confirm", e: id, s: "summary" });
+    expect(expenses()[0].pending).toBe(false);
+    expect(session()).toBeUndefined();
+    expect(out(reply)).toContain("บันทึกแล้ว");
+    expect(out(reply)).toContain("https://app.test/trips/t1/money");
+  });
+
+  it("converts with the fetched rate and splits equally, rounding the other share up", async () => {
+    await say("120 HKD ข้าว หาร");
+    expect(fetchRate).toHaveBeenCalledWith("HKD");
+    expect(expenses()[0]).toMatchObject({
+      fx_rate: 4.5, amount_thb: 540,
+      splits: [{ name: "โอ", amount_thb: 270, paid: false, paid_slip_photo_ids: [] }],
+    });
+  });
+
+  it("falls back to rate 1 and warns when the FX fetch fails", async () => {
+    vi.mocked(fetchRate).mockRejectedValue(new Error("down"));
+    const reply = await say("120 HKD ข้าว หาร");
+    expect(expenses()[0]).toMatchObject({ fx_rate: 1, amount_thb: 120 });
+    expect((session()?.data as Record<string, unknown>).fxFailed).toBe(true);
+    expect(out(reply)).toContain("ดึงเรตไม่ได้");
+  });
+
+  it("asks who paid when the LINE name matches no member, then accepts a typed name", async () => {
+    vi.mocked(fetchLineDisplayName).mockResolvedValue("Kengz");
+    const first = await say("120 บาท ข้าว ไม่หาร");
+    expect(session()?.step).toBe("payer");
+    expect(out(first)).toContain("@Kengz ใครจ่าย?");
+    await answer("โอ");
+    expect(expenses()[0].payer).toBe("โอ");
+    expect(session()?.step).toBe("summary");
+  });
+
+  it("typed ยกเลิก asks first; ลบทิ้ง deletes the draft", async () => {
+    await say("120 ข้าว");
+    await answer("ยกเลิก");
+    expect(session()?.step).toBe("confirm_cancel");
+    const reply = await answer("ลบทิ้ง");
+    expect(expenses()).toHaveLength(0);
+    expect(session()).toBeUndefined();
+    expect(out(reply)).toContain("ลบรายการแล้ว");
+  });
+
+  it("a new number mid-flow prompts; park keeps the old draft pending and starts the new one", async () => {
+    await say("120 ข้าว");
+    const oldId = expenses()[0].id;
+    const { ctx, reply } = textCtx("50 กาแฟ");
+    await handleRoute(ctx, { kind: "flow_conflict", text: "50 กาแฟ" });
+    expect(session()?.step).toBe("conflict");
+    expect(out(reply)).toContain("มีรายการค้างอยู่");
+    await tap({ a: "x_conflict_park", e: oldId, s: "conflict" });
+    expect(expenses()).toHaveLength(2);
+    expect(expenses().find((e) => e.id === oldId)).toMatchObject({ pending: true, amount: 120 });
+    expect(session()?.expense_id).not.toBe(oldId);
+    expect(expenses().find((e) => e.id === session()?.expense_id)?.amount).toBe(50);
+  });
+
+  it("ทำต่อ with no session reopens my newest pending draft", async () => {
+    db.rows.expenses = [{
+      id: "old", trip_id: "t1", datetime: "2026-11-20T03:00:00.000Z", category: "อื่นๆ", description: "", amount: 0,
+      currency: "HKD", fx_rate: 1, amount_thb: 0, payer: "เก่ง", slip_photo_ids: ["p0"], splits: [], pending: true,
+    }];
+    const reply = await say("ทำต่อ");
+    expect(session()).toMatchObject({ expense_id: "old", step: "amount" });
+    expect(out(reply)).toContain("ยอดเท่าไหร่");
+  });
+
+  it("120 → HKD → ยกเลิก → เก็บไว้ → ทำต่อ resumes at the split question, not currency", async () => {
+    await say("120");
+    const id = expenses()[0].id;
+    await tap({ a: "x_currency", e: id, s: "currency", v: "HKD" });
+    expect(session()?.step).toBe("split");
+    await answer("ยกเลิก");
+    await answer("เก็บไว้");
+    expect(session()).toBeUndefined();
+    expect(expenses()[0]).toMatchObject({ pending: true, currency: "HKD", fx_rate: 4.5, amount_thb: 540 });
+    const reply = await say("ทำต่อ");
+    expect(session()).toMatchObject({ expense_id: id, step: "split" });
+    expect(out(reply)).toContain("หารไหม");
+  });
+
+  it("ทำต่อ falls back to an unclaimed draft (empty payer)", async () => {
+    vi.mocked(fetchLineDisplayName).mockResolvedValue("Kengz");
+    db.rows.expenses = [{
+      id: "anon", trip_id: "t1", datetime: "2026-11-20T03:00:00.000Z", category: "อื่นๆ", description: "", amount: 0,
+      currency: "HKD", fx_rate: 1, amount_thb: 0, payer: "", slip_photo_ids: ["p0"], splits: [], pending: true,
+    }];
+    await say("ทำต่อ");
+    expect(session()).toMatchObject({ expense_id: "anon", step: "payer" });
+  });
+
+  it("a number typed while the payer is being asked fills the missing amount and asks the payer again", async () => {
+    vi.mocked(fetchLineDisplayName).mockResolvedValue("Kengz");
+    const { ctx } = makeCtx({ message: { id: "img1", type: "image" } });
+    await handleImage(ctx);
+    expect(session()?.step).toBe("payer");
+    const pred = await flowAnswerPredicate(ctx, session() as LineSession);
+    expect(pred("120")).toBe(true);
+    const reply = await answer("120");
+    expect(expenses()[0].amount).toBe(120);
+    expect(session()?.step).toBe("payer");
+    expect(out(reply)).toContain("ใครจ่าย");
+  });
+
+  it("bare ยกเลิก / ทำต่อ with nothing pending just say so, without creating a draft", async () => {
+    expect(out(await say("ยกเลิก"))).toContain("ไม่มีรายการค้าง");
+    expect(out(await say("ทำต่อ"))).toContain("ไม่มีรายการค้าง");
+    expect(expenses()).toHaveLength(0);
+    expect(session()).toBeUndefined();
+  });
+
+  it("แก้ล่าสุด opens the summary of my newest confirmed expense", async () => {
+    db.rows.expenses = [{
+      id: "done1", trip_id: "t1", datetime: "2026-11-20T03:00:00.000Z", category: "อาหาร", description: "ข้าว", amount: 120,
+      currency: "HKD", fx_rate: 4.5, amount_thb: 540, payer: "เก่ง", slip_photo_ids: [],
+      splits: [{ name: "โอ", amount_thb: 270, paid: false, paid_slip_photo_ids: [] }], pending: false,
+    }];
+    const reply = await say("แก้ล่าสุด");
+    expect(session()).toMatchObject({ expense_id: "done1", step: "summary" });
+    expect(out(reply)).toContain("สรุปรายการ");
+    expect(fetchRate).not.toHaveBeenCalled();
+  });
+
+  it("🗑 on a confirmed expense asks first; ไม่ลบ leaves the row untouched", async () => {
+    const paidSplit = { name: "โอ", amount_thb: 270, paid: true, paid_slip_photo_ids: ["s1"] };
+    const row = {
+      id: "done1", trip_id: "t1", datetime: "2026-11-20T03:00:00.000Z", category: "อาหาร", description: "ข้าว", amount: 120,
+      currency: "HKD", fx_rate: 4.5, amount_thb: 540, payer: "เก่ง", slip_photo_ids: [], splits: [paidSplit], pending: false,
+    };
+    db.rows.expenses = [{ ...row }];
+    await say("แก้ล่าสุด");
+    const ask = await tap({ a: "x_cancel", e: "done1", s: "summary" });
+    expect(expenses()).toHaveLength(1);
+    expect(session()?.step).toBe("confirm_cancel");
+    expect(out(ask)).toContain("ไม่ลบ");
+    const kept = await tap({ a: "x_cancel_keep", e: "done1", s: "confirm_cancel" });
+    expect(session()).toBeUndefined();
+    expect(expenses()[0]).toEqual(row);
+    expect(out(kept)).toContain("รายการยังอยู่เหมือนเดิม");
+  });
+
+  it("🗑 then ลบรายการนี้ deletes a confirmed expense", async () => {
+    db.rows.expenses = [{
+      id: "done1", trip_id: "t1", datetime: "2026-11-20T03:00:00.000Z", category: "อาหาร", description: "ข้าว", amount: 120,
+      currency: "HKD", fx_rate: 4.5, amount_thb: 540, payer: "เก่ง", slip_photo_ids: [], splits: [], pending: false,
+    }];
+    await say("แก้ล่าสุด");
+    await tap({ a: "x_cancel", e: "done1", s: "summary" });
+    await tap({ a: "x_cancel_delete", e: "done1", s: "confirm_cancel" });
+    expect(expenses()).toHaveLength(0);
+    expect(session()).toBeUndefined();
+  });
+
+  it("recognises every bare command the router sends as expense_new", () => {
+    for (const kw of EXPENSE_COMMAND_KEYWORDS) expect(expenseCommand(kw)).not.toBeNull();
   });
 });
 
-describe("handleImage", () => {
-  it("saves the slip as a pending expense, starts a flow session, asks who", async () => {
-    const ctx = makeCtx({ event: { type: "message", replyToken: "rt", source: { type: "group", groupId: "g1", userId: "u1" }, message: { id: "img-9", type: "image" } } });
-    await handleImage(ctx);
-
-    expect(fetchLineImageContent).toHaveBeenCalledWith("img-9", "tok");
-    expect(saveImage).toHaveBeenCalledWith(expect.any(Buffer), "image/jpeg", "ฮ่องกง", "slips", `line-${NOW.getTime()}.jpg`);
-    expect(updateRow).toHaveBeenCalledWith(
-      "expenses",
-      expect.any(String),
-      expect.objectContaining({ trip_id: "t1", pending: true, slip_photo_ids: ["photo-1"], currency: "HKD", datetime: NOW.toISOString() }),
-    );
-    const expenseId = vi.mocked(updateRow).mock.calls[0][1];
-    expect(writeFlowSession).toHaveBeenCalledWith({ id: KEY, trip_id: "t1", expense_id: expenseId, step: "awaiting_name", data: {} }, NOW);
-
-    const [msg] = firstReply(ctx);
-    expect(msg).toMatchObject({ type: "text", text: "รับสลิปแล้ว 📸 ใครเป็นคนบันทึกรายการนี้?" });
-    expect(JSON.stringify(msg.quickReply)).toContain("เก่ง");
-    expect(JSON.stringify(msg.quickReply)).toContain("โอ");
+describe("expense handler: postbacks", () => {
+  it("re-asks the current step when a stale button is tapped", async () => {
+    await say("120 ข้าว");
+    const id = expenses()[0].id;
+    expect(session()?.step).toBe("currency");
+    const reply = await tap({ a: "x_split", e: id, s: "split", v: "none" });
+    expect(session()?.step).toBe("currency");
+    expect(out(reply)).toContain("สกุลเงินอะไร");
   });
 
-  it("replies the no-trip message when there is no active trip", async () => {
-    const ctx = makeCtx({ trip: null });
+  it("says the expense is gone for a button about a deleted expense", async () => {
+    const reply = await tap({ a: "x_confirm", e: "ghost", s: "summary" });
+    expect(out(reply)).toContain("รายการนี้ถูกลบไปแล้ว");
+  });
+
+  it("walks currency → split by buttons", async () => {
+    await say("120 ข้าว");
+    const id = expenses()[0].id;
+    await tap({ a: "x_currency", e: id, s: "currency", v: "HKD" });
+    expect(session()?.step).toBe("split");
+    await tap({ a: "x_split", e: id, s: "split", v: "equal" });
+    expect(session()?.step).toBe("summary");
+    expect(expenses()[0]).toMatchObject({ currency: "HKD", amount_thb: 540 });
+  });
+});
+
+describe("expense handler: images", () => {
+  it("a photo with no session starts a draft that asks for the amount", async () => {
+    const { ctx, reply } = makeCtx({ message: { id: "img1", type: "image" } });
     await handleImage(ctx);
-    expect(ctx.reply).toHaveBeenCalledWith([textMessage(NO_TRIP_TEXT)]);
-    expect(saveImage).not.toHaveBeenCalled();
+    expect(expenses()[0]).toMatchObject({ slip_photo_ids: ["photo-new"], payer: "เก่ง", pending: true });
+    expect(session()?.step).toBe("amount");
+    expect(out(reply)).toContain("ยอดเท่าไหร่");
+  });
+
+  it("a photo mid-flow attaches to a draft that has none", async () => {
+    await say("120 ข้าว");
+    const { ctx, reply } = makeCtx({ message: { id: "img1", type: "image" } });
+    await handleImage(ctx);
+    expect(expenses()).toHaveLength(1);
+    expect(expenses()[0].slip_photo_ids).toEqual(["photo-new"]);
+    expect(out(reply)).toContain("แนบรูป");
   });
 });
 
 describe("flowAnswerPredicate", () => {
-  it("accepts ordinary text while waiting for the name or note", async () => {
-    const ctx = makeCtx();
-    expect((await flowAnswerPredicate(ctx, session("awaiting_name")))("เก่ง")).toBe(true);
-    expect((await flowAnswerPredicate(ctx, session("awaiting_note")))("อะไรก็ได้ 120")).toBe(true);
-    expect((await flowAnswerPredicate(ctx, session("awaiting_note")))("ข้าม")).toBe(true);
-  });
-
-  it("lets view commands through instead of taking them as the answer", async () => {
-    const ctx = makeCtx();
-    const isAnswer = await flowAnswerPredicate(ctx, session("awaiting_name"));
-    for (const cmd of ["แพลน", "plan", "ต่อไป", "#2", "เมนู", "?", "ข้อมูล", "ข้อมูลด่วน", "โน้ต"]) {
-      expect(isAnswer(cmd)).toBe(false);
-    }
-  });
-
-  it("still takes collision words as the note", async () => {
-    const isAnswer = await flowAnswerPredicate(makeCtx(), session("awaiting_note"));
-    for (const note of ["ร้านนี้อร่อย", "กินข้าว", "จองโต๊ะไว้", "ตั๋วรถ", "เดินทางไปสนามบิน"]) {
-      expect(isAnswer(note)).toBe(true);
-    }
-  });
-
-  it("accepts nothing for other steps", async () => {
-    expect((await flowAnswerPredicate(makeCtx(), session("amount")))("120")).toBe(false);
-  });
-});
-
-describe("handleRoute flow_answer", () => {
-  it("awaiting_name: sets the payer, moves to awaiting_note, offers skip", async () => {
-    vi.mocked(readFlowSession).mockResolvedValue(session("awaiting_name"));
-    const ctx = makeCtx({}, " เก่ง ");
-    await handleRoute(ctx, { kind: "flow_answer" });
-
-    expect(readFlowSession).toHaveBeenCalledWith(KEY, NOW);
-    expect(updateRow).toHaveBeenCalledWith("expenses", "e1", expect.objectContaining({ payer: "เก่ง" }));
-    expect(writeFlowSession).toHaveBeenCalledWith({ id: KEY, trip_id: "t1", expense_id: "e1", step: "awaiting_note", data: {} }, NOW);
-    const [msg] = firstReply(ctx);
-    expect(msg.text).toBe('บันทึกคนบันทึกเป็น "เก่ง" แล้ว มีโน้ตอยากใส่ไหม? (พิมพ์ได้เลย หรือกดข้าม)');
-    expect(JSON.stringify(msg.quickReply)).toContain("ข้าม");
-  });
-
-  it("awaiting_note: saves the note, ends the session, replies the confirmation card", async () => {
-    vi.mocked(readFlowSession).mockResolvedValue(session("awaiting_note"));
-    vi.mocked(listRows).mockImplementation(async (entity: string) => (entity === "expenses" ? [pendingExpense({ payer: "เก่ง" })] : []) as never);
-    const ctx = makeCtx({}, "ค่าแท็กซี่");
-    await handleRoute(ctx, { kind: "flow_answer" });
-
-    expect(updateRow).toHaveBeenCalledWith("expenses", "e1", expect.objectContaining({ description: "ค่าแท็กซี่" }));
-    expect(deleteFlowSession).toHaveBeenCalledWith(KEY);
-    const [msg] = firstReply(ctx);
-    const json = JSON.stringify(msg);
-    expect(msg.type).toBe("flex");
-    expect(json).toContain("https://app.test/api/img/photo-1");
-    expect(json).toContain("เก่ง");
-    expect(json).toContain("ค่าแท็กซี่");
-    expect(json).toContain("https://app.test/trips/t1/money");
-  });
-
-  it("awaiting_note: 'ข้าม' saves an empty note", async () => {
-    vi.mocked(readFlowSession).mockResolvedValue(session("awaiting_note"));
-    const ctx = makeCtx({}, "ข้าม");
-    await handleRoute(ctx, { kind: "flow_answer" });
-    expect(updateRow).toHaveBeenCalledWith("expenses", "e1", expect.objectContaining({ description: "" }));
-  });
-
-  it("drops the session silently if its expense is gone", async () => {
-    vi.mocked(readFlowSession).mockResolvedValue(session("awaiting_name"));
-    vi.mocked(listRows).mockResolvedValue([] as never);
-    const ctx = makeCtx();
-    await handleRoute(ctx, { kind: "flow_answer" });
-    expect(deleteFlowSession).toHaveBeenCalledWith(KEY);
-    expect(ctx.reply).not.toHaveBeenCalled();
-  });
-
-  it("does nothing if the session expired in between", async () => {
-    vi.mocked(readFlowSession).mockResolvedValue(null);
-    const ctx = makeCtx();
-    await handleRoute(ctx, { kind: "flow_answer" });
-    expect(updateRow).not.toHaveBeenCalled();
-    expect(ctx.reply).not.toHaveBeenCalled();
-  });
-});
-
-describe("not-yet-built expense routes", () => {
-  it("stay silent in a group", async () => {
-    const ctx = makeCtx({ isGroup: true });
-    await handleRoute(ctx, { kind: "expense_new", text: "120 ข้าว" });
-    await handleRoute(ctx, { kind: "flow_conflict", text: "50" });
-    await handleRoute(ctx, { kind: "flow_reask" });
-    expect(ctx.reply).not.toHaveBeenCalled();
-  });
-
-  it("say 'in development' in 1:1", async () => {
-    const ctx = makeCtx({ isGroup: false });
-    await handleRoute(ctx, { kind: "expense_new", text: "120 ข้าว" });
-    expect(ctx.reply).toHaveBeenCalledWith([textMessage(WIP_TEXT)]);
-  });
-
-  it("postbacks say 'in development' in 1:1 and nothing in a group", async () => {
-    const solo = makeCtx({ isGroup: false });
-    await handlePostback(solo, { a: "x_payer" });
-    expect(solo.reply).toHaveBeenCalledWith([textMessage(WIP_TEXT)]);
-    const group = makeCtx({ isGroup: true });
-    await handlePostback(group, { a: "x_payer" });
-    expect(group.reply).not.toHaveBeenCalled();
+  it("accepts answers for the current step and the flow commands only", async () => {
+    const { ctx } = textCtx("");
+    const pred = await flowAnswerPredicate(ctx, { id: KEY, trip_id: "t1", expense_id: "e1", step: "payer", updated_at: "", data: {} });
+    expect(pred("โอ")).toBe(true);
+    expect(pred("ยกเลิก")).toBe(true);
+    expect(pred("สวัสดี")).toBe(false);
   });
 });
