@@ -1,28 +1,34 @@
-import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
-import { ensureTabs, listRows, updateRow, deleteRow, saveImage } from "@/lib/store";
-import { buildPendingExpense } from "@/lib/pending-expense";
-import {
-  verifyLineSignature,
-  fetchLineImageContent,
-  replyLineMessage,
-  replyLineMessages,
-  sourceKey,
-  buildNameQuickReply,
-  buildSkipQuickReply,
-  buildConfirmationFlex,
-  type LineEvent,
-} from "@/lib/line";
-import type { Trip, Member, Expense, LineSession } from "@/lib/models/types";
+import { ensureTabs, listRows } from "@/lib/store";
+import { verifyLineSignature, replyLineMessages, userKey, isGroupChat, type LineEvent } from "@/lib/line";
+import { dispatchEventWithTrip, isHandledEvent, type BaseCtx } from "@/lib/line-dispatch";
+import type { FlexNode } from "@/lib/line-flex";
+import type { Trip } from "@/lib/models/types";
 
-const SKIP_LABEL = "ข้าม";
+const MAX_REPLY_MESSAGES = 5;
+const TRIPS_CACHE_MS = 30_000;
 
 let tabsReady: Promise<void> | null = null;
 const ready = () => (tabsReady ??= ensureTabs());
 
+// Per-instance cache of the ACTIVE trip only: a busy chat shouldn't re-read
+// the trips tab on every message. "No active trip" is never cached, so
+// switching a trip to "กำลังเที่ยว" in the app works on the very next
+// message; other edits to the active trip show up within 30 seconds.
+let activeTripCache: { at: number; trip: Trip } | null = null;
+
+async function loadActiveTrip(now: Date): Promise<Trip | null> {
+  const nowMs = now.getTime();
+  if (activeTripCache && nowMs - activeTripCache.at <= TRIPS_CACHE_MS) return activeTripCache.trip;
+  const trip = (await listRows<Trip>("trips")).find((t) => t.status === "active") ?? null;
+  activeTripCache = trip ? { at: nowMs, trip } : null;
+  return trip;
+}
+
 // No auth guard, matching every other route here (see middleware.ts) --
 // LINE's signature check (verifyLineSignature) is what actually gates this
-// one, since the URL itself is public.
+// one, since the URL itself is public. Everything past verification lives
+// in lib/line-dispatch.ts.
 export async function POST(req: NextRequest) {
   const rawBody = await req.text();
   const signature = req.headers.get("x-line-signature");
@@ -40,121 +46,42 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "bad request" }, { status: 400 });
   }
 
-  await ready();
-  const origin = req.nextUrl.origin;
+  // From here on LINE always gets a 200: it retries non-2xx responses, which
+  // would replay the whole batch (including events that already saved).
+  try {
+    // No replyToken = nothing we can answer (reply-only bot). isHandledEvent
+    // also drops events whose source has no id at all.
+    const events = (body.events ?? []).filter((e) => isHandledEvent(e) && !!e.replyToken);
+    if (events.length === 0) return NextResponse.json({ ok: true });
 
-  // LINE expects a fast 200 and retries on non-2xx -- handle events in
-  // parallel and never let one failing event turn into a 500 that gets the
-  // whole batch retried (including the ones that already saved fine).
-  await Promise.all(
-    (body.events ?? [])
-      .filter((e) => e.type === "message" && (e.message?.type === "image" || e.message?.type === "text"))
-      .map((e) => handleEvent(e, accessToken, origin).catch((err) => console.error("LINE event handling failed", err))),
-  );
+    await ready();
+    const origin = req.nextUrl.origin;
+    const now = new Date();
+
+    // Handle events in parallel; one failing event never fails the batch.
+    await Promise.all(
+      events.map(async (event) => {
+        try {
+          const replyToken = event.replyToken as string;
+          const base: BaseCtx = {
+            event,
+            replyToken,
+            accessToken,
+            origin,
+            now,
+            userKey: userKey(event.source),
+            isGroup: isGroupChat(event.source),
+            reply: (messages: FlexNode[]) => replyLineMessages(replyToken, messages.slice(0, MAX_REPLY_MESSAGES), accessToken),
+          };
+          await dispatchEventWithTrip(base, () => loadActiveTrip(now));
+        } catch (err) {
+          console.error("LINE event handling failed", err);
+        }
+      }),
+    );
+  } catch (err) {
+    console.error("LINE webhook failed", err);
+  }
 
   return NextResponse.json({ ok: true });
-}
-
-async function handleEvent(event: LineEvent, accessToken: string, origin: string): Promise<void> {
-  if (event.message?.type === "image") return handleImageMessage(event, accessToken);
-  if (event.message?.type === "text") return handleTextMessage(event, accessToken, origin);
-}
-
-function writeSession(id: string, tripId: string, expenseId: string, step: string): Promise<void> {
-  const session: LineSession = { id, trip_id: tripId, expense_id: expenseId, step, updated_at: new Date().toISOString(), data: {} };
-  return updateRow<LineSession>("line_sessions", id, session);
-}
-
-// Step 1: a photo arrives. Save it as a pending expense right away (same
-// draft-first idea as the in-app FAB -- the photo is never lost even if the
-// rest of the conversation goes nowhere), then ask who it belongs to.
-async function handleImageMessage(event: LineEvent, accessToken: string): Promise<void> {
-  const trips = await listRows<Trip>("trips");
-  const trip = trips.find((t) => t.status === "active");
-  if (!trip) {
-    if (event.replyToken) {
-      await replyLineMessage(
-        event.replyToken,
-        'ยังไม่มีทริปที่สถานะ "กำลังเที่ยว" อยู่ตอนนี้ เปลี่ยนสถานะทริปในแอปก่อนแล้วส่งรูปมาใหม่นะ',
-        accessToken,
-      );
-    }
-    return;
-  }
-
-  const { buf, mime } = await fetchLineImageContent(event.message!.id, accessToken);
-  const photoId = await saveImage(buf, mime, trip.name, "slips", `line-${Date.now()}.jpg`);
-
-  const expenseId = randomUUID();
-  const exp = buildPendingExpense({
-    id: expenseId,
-    tripId: trip.id,
-    photoId,
-    currency: trip.trip_currency,
-    now: new Date().toISOString(),
-  });
-  await Promise.all([
-    updateRow<Expense>("expenses", expenseId, exp), // self-heals to an append since expenseId is new
-    writeSession(sourceKey(event.source), trip.id, expenseId, "awaiting_name"),
-  ]);
-
-  if (event.replyToken) {
-    const members = await listRows<Member>("members", trip.id);
-    await replyLineMessages(
-      event.replyToken,
-      [{ type: "text", text: "รับสลิปแล้ว 📸 ใครเป็นคนบันทึกรายการนี้?", quickReply: buildNameQuickReply(members) }],
-      accessToken,
-    );
-  }
-}
-
-// Steps 2 and 3: whatever the chat says next is either the name or the
-// note, depending on where its session says it's at. A stray text message
-// with no session (e.g. small talk) is silently ignored -- no flow to
-// attach it to.
-async function handleTextMessage(event: LineEvent, accessToken: string, origin: string): Promise<void> {
-  const key = sourceKey(event.source);
-  const sessions = await listRows<LineSession>("line_sessions");
-  const session = sessions.find((s) => s.id === key);
-  if (!session) return;
-
-  const text = (event.message!.text ?? "").trim();
-  const expenses = await listRows<Expense>("expenses", session.trip_id);
-  const exp = expenses.find((e) => e.id === session.expense_id);
-  if (!exp) {
-    await deleteRow("line_sessions", key);
-    return;
-  }
-
-  if (session.step === "awaiting_name") {
-    await Promise.all([
-      updateRow<Expense>("expenses", exp.id, { ...exp, payer: text }),
-      writeSession(key, session.trip_id, session.expense_id, "awaiting_note"),
-    ]);
-    if (event.replyToken) {
-      await replyLineMessages(
-        event.replyToken,
-        [{ type: "text", text: `บันทึกคนบันทึกเป็น "${text}" แล้ว มีโน้ตอยากใส่ไหม? (พิมพ์ได้เลย หรือกดข้าม)`, quickReply: buildSkipQuickReply(SKIP_LABEL) }],
-        accessToken,
-      );
-    }
-    return;
-  }
-
-  if (session.step === "awaiting_note") {
-    const note = text === SKIP_LABEL ? "" : text;
-    await Promise.all([
-      updateRow<Expense>("expenses", exp.id, { ...exp, description: note }),
-      deleteRow("line_sessions", key),
-    ]);
-    if (event.replyToken) {
-      const flex = buildConfirmationFlex({
-        photoUrl: `${origin}/api/img/${encodeURIComponent(exp.slip_photo_ids[0])}`,
-        payer: exp.payer,
-        note,
-        moneyUrl: `${origin}/trips/${exp.trip_id}/money`,
-      });
-      await replyLineMessages(event.replyToken, [flex], accessToken);
-    }
-  }
 }
