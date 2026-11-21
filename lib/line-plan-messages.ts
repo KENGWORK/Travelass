@@ -1,18 +1,21 @@
 // lib/line-plan-messages.ts
-import type { DayPlan, ItineraryItem } from "@/lib/models/types";
+import type { Booking, DayPlan, ItineraryItem, Transport } from "@/lib/models/types";
 import {
   CLAY,
   txt,
   compact,
   postbackAction,
   uriAction,
+  imageUrl,
   flexMessage,
   textMessage,
   quickReply,
   buildPhotoAlbum,
   type FlexNode,
 } from "@/lib/line-flex";
+import { mapButtons } from "@/lib/line-maps";
 import { thaiDateLabel, tripDayIndex, addDays } from "@/lib/line-date";
+import { formatDuration } from "@/lib/time";
 
 export const PAGE_SIZE = 15;
 export const MAIN_PLAN_NAME = "แผนหลัก";
@@ -235,4 +238,150 @@ export function buildPlanOverview(input: OverviewInput): FlexNode {
       : {}),
   };
   return flexMessage(trunc(`แพลน ${thaiDateLabel(p.date)}`, 400), bubble);
+}
+
+export interface DetailInput {
+  origin: string;
+  item: ItineraryItem;
+  index: number;               // 1-based position within its day plan
+  prevId: string | null;
+  nextId: string | null;
+  overviewPlanId?: string;     // set when the item belongs to a non-active (alt) plan
+  transport: Transport | null; // linked row, null when unlinked or deleted
+  booking: Booking | null;
+}
+
+function badgeFor(it: ItineraryItem): { text: string; bg: string; ink: string } {
+  switch (it.status) {
+    case "done":
+      return { text: "✓ เสร็จแล้ว", bg: CLAY.doneBg, ink: CLAY.doneInk };
+    case "skipped":
+      return { text: "⏭ ข้าม", bg: CLAY.cream, ink: CLAY.grayInk };
+    case "moved":
+      return { text: it.moved_to_date ? `➡️ ย้ายไป ${dm(it.moved_to_date)}` : "➡️ ย้ายแล้ว", bg: CLAY.cream, ink: CLAY.grayInk };
+    default:
+      return { text: "ตามแผน", bg: CLAY.cream, ink: CLAY.muted };
+  }
+}
+
+// Hero = the photo itself; tapping it opens the full-size image, with a small
+// "แตะเพื่อขยาย" chip overlaid bottom-right.
+export function heroImage(origin: string, photoId: string): FlexNode {
+  const url = imageUrl(origin, photoId);
+  return {
+    type: "box",
+    layout: "vertical",
+    paddingAll: "0px",
+    action: uriAction("ดูรูปเต็ม", url),
+    contents: [
+      { type: "image", url, size: "full", aspectRatio: "20:13", aspectMode: "cover" },
+      {
+        type: "box",
+        layout: "vertical",
+        position: "absolute",
+        offsetBottom: "8px",
+        offsetEnd: "8px",
+        paddingAll: "4px",
+        cornerRadius: "8px",
+        backgroundColor: "#00000080",
+        contents: [{ type: "text", text: "แตะเพื่อขยาย", size: "xxs", color: "#FFFFFF" }],
+      },
+    ],
+  };
+}
+
+export function buildPlanDetail(p: DetailInput): FlexNode {
+  const it = p.item;
+  const range = it.time && it.end_time ? `${it.time}–${it.end_time}` : it.time;
+  const badge = badgeFor(it);
+  const t = p.transport;
+  const b = p.booking;
+
+  const transportSection = t
+    ? section(
+        compact<FlexNode>([
+          txt("🚇 การเดินทาง", { size: "xs", color: CLAY.muted }),
+          txt([t.mode, `${t.from} → ${t.to}`].filter(Boolean).join(" · "), { size: "sm", color: CLAY.ink, wrap: true }),
+          txt(
+            [
+              t.depart_time ? `ออก ${t.depart_time}` : "",
+              formatDuration(t.duration_min),
+              t.price_amount > 0 ? `${t.price_amount} ${t.price_currency}` : "",
+            ]
+              .filter(Boolean)
+              .join(" · "),
+            { size: "xs", color: CLAY.muted, wrap: true },
+          ),
+        ]),
+        postbackAction("การเดินทาง", { a: "tr_detail", id: t.id }),
+      )
+    : null;
+
+  const bookingSection = b
+    ? section(
+        compact<FlexNode>([
+          txt("🎫 การจอง", { size: "xs", color: CLAY.muted }),
+          txt(b.vendor, { size: "sm", color: CLAY.ink, wrap: true }),
+          txt(b.ref_no, { size: "xl", weight: "bold", color: CLAY.ink, wrap: true }),
+        ]),
+        postbackAction("การจอง", { a: "bk_detail", b: b.id }),
+      )
+    : null;
+
+  const body = compact<FlexNode>([
+    {
+      type: "box",
+      layout: "horizontal",
+      contents: compact<FlexNode>([
+        txt(range ? `${p.index} · ${range}` : String(p.index), { size: "sm", color: CLAY.muted, flex: 1, gravity: "center" }),
+        {
+          type: "box",
+          layout: "vertical",
+          flex: 0,
+          paddingAll: "4px",
+          cornerRadius: "8px",
+          backgroundColor: badge.bg,
+          contents: [{ type: "text", text: badge.text, size: "xxs", color: badge.ink }],
+        },
+      ]),
+    },
+    txt(it.title || "(ไม่มีชื่อ)", { weight: "bold", size: "lg", color: CLAY.ink, wrap: true }),
+    txt(it.place ? `📍 ${it.place}` : null, { size: "sm", color: CLAY.muted, wrap: true }),
+    txt(it.notes, { size: "sm", color: CLAY.ink, wrap: true, maxLines: 3, margin: "md" }),
+    it.notes && needsReadMore(it.notes) ? btn(postbackAction("อ่านต่อ", { a: "plan_note", i: it.id }), "link") : null,
+    transportSection,
+    bookingSection,
+  ]);
+
+  // Query = place only: no place but a maps_link -> empty query -> mapButtons
+  // returns just the Google button (an Amap search by title is useless);
+  // neither -> no buttons at all.
+  const maps = mapButtons({ query: it.place, mapsLink: it.maps_link || undefined });
+  const photoCount = it.photo_ids.length;
+  const doneBtn =
+    it.status === "planned"
+      ? btn(postbackAction("✓ เสร็จ", { a: "plan_done", i: it.id }), "primary")
+      : it.status === "done"
+        ? btn(postbackAction("↩ ยังไม่เสร็จ", { a: "plan_undone", i: it.id }))
+        : null;
+  const nav = compact<FlexNode>([
+    p.prevId ? btn(postbackAction("◀ ก่อนหน้า", { a: "plan_detail", i: p.prevId, d: it.day_date })) : null,
+    btn(postbackAction("ภาพรวม", { a: "plan_overview", d: it.day_date, p: p.overviewPlanId })),
+    p.nextId ? btn(postbackAction("ถัดไป ▶", { a: "plan_detail", i: p.nextId, d: it.day_date })) : null,
+  ]);
+  const footer = compact<FlexNode>([
+    btnRow(maps),
+    photoCount > 0 ? btn(postbackAction(`📷 ดูรูปทั้งหมด (${photoCount})`, { a: "plan_photos", i: it.id })) : null,
+    doneBtn,
+    btnRow(nav),
+  ]);
+
+  const bubble: FlexNode = {
+    type: "bubble",
+    size: "mega",
+    ...(photoCount > 0 ? { hero: heroImage(p.origin, it.photo_ids[0]) } : {}),
+    body: { type: "box", layout: "vertical", spacing: "sm", paddingAll: "16px", backgroundColor: CLAY.card, contents: body },
+    footer: { type: "box", layout: "vertical", spacing: "sm", paddingAll: "12px", backgroundColor: CLAY.cream, contents: footer },
+  };
+  return flexMessage(trunc(`${p.index}. ${it.title || "รายการ"}`, 400), bubble);
 }

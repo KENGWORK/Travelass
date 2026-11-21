@@ -1,10 +1,11 @@
 // lib/line-plan-messages.test.ts
 import { describe, it, expect } from "vitest";
-import type { DayPlan, ItineraryItem } from "@/lib/models/types";
-import { CLAY } from "@/lib/line-flex";
+import type { Booking, DayPlan, ItineraryItem, Transport } from "@/lib/models/types";
+import { CLAY, imageUrl } from "@/lib/line-flex";
 import { thaiDateLabel } from "@/lib/line-date";
 import {
   buildPlanOverview,
+  buildPlanDetail,
   buildDayPicker,
   buildAltPicker,
   albumMessage,
@@ -13,6 +14,7 @@ import {
   needsReadMore,
   tripRangeText,
   type OverviewInput,
+  type DetailInput,
 } from "./line-plan-messages";
 import { texts, actions, labels, findNode, hasEmptyText, type Node } from "./line-test-helpers";
 
@@ -217,5 +219,119 @@ describe("buildAltPicker", () => {
     expect(acts.map((a) => a.label)).toEqual(["แผนหลัก (หลัก)", "ฝนตก"]);
     expect(acts[0].data).toEqual({ a: "plan_overview", d: "2026-11-20" });
     expect(acts[1].data).toEqual({ a: "plan_overview", d: "2026-11-20", p: "p2" });
+  });
+});
+
+describe("buildPlanDetail", () => {
+  const IT = item({
+    id: "b", time: "09:00", end_time: "10:30", title: "Peak Tram", place: "Peak Tower",
+    notes: "short", photo_ids: ["ph1", "ph2"],
+  });
+  const BASE_D: DetailInput = {
+    origin: "https://app.test", item: IT, index: 2, prevId: "a", nextId: "c", transport: null, booking: null,
+  };
+  const TR: Transport = {
+    id: "tr1", trip_id: "t1", day_date: "2026-11-20", from: "Central", to: "Peak", mode: "MTR", pickup_point: "",
+    pickup_photo_ids: [], departure_times: [], depart_time: "09:00", arrive_time: "", duration_min: 45, alt_option: "",
+    price_amount: 15, price_currency: "HKD", fx_rate: 4.5, price_thb: 67.5, payer: "", pay_timing: "prepaid",
+    paid: false, slip_photo_ids: [], notes: "",
+  };
+  const BK: Booking = {
+    id: "bk1", trip_id: "t1", type: "activity", vendor: "Klook", ref_no: "ABC123", date_from: "2026-11-20",
+    date_to: "", time_from: "", detail: "", amount: 0, currency: "HKD", fx_rate: 0, amount_thb: 0, payer: "",
+    pay_timing: "prepaid", paid: false, slip_photo_ids: [], notes: "",
+  };
+  const bubbleOf = (msg: unknown) => (msg as Node).contents as Node;
+
+  it("header: index · time range, status badge, title, place, notes", () => {
+    const t = texts(buildPlanDetail(BASE_D));
+    expect(t).toEqual(expect.arrayContaining(["2 · 09:00–10:30", "ตามแผน", "Peak Tram", "📍 Peak Tower", "short"]));
+  });
+
+  it("hero = first photo, tap opens the full image, with a hint", () => {
+    const hero = bubbleOf(buildPlanDetail(BASE_D)).hero;
+    const url = imageUrl("https://app.test", "ph1");
+    expect(findNode(hero, (n) => n.type === "image")?.url).toBe(url);
+    expect(actions(hero)[0].uri).toBe(url);
+    expect(texts(hero)).toContain("แตะเพื่อขยาย");
+  });
+
+  it("photo album button shows the count", () => {
+    const acts = actions(buildPlanDetail(BASE_D));
+    expect(acts.find((a) => a.label === "📷 ดูรูปทั้งหมด (2)")?.data).toEqual({ a: "plan_photos", i: "b" });
+  });
+
+  it("no photos → no hero and no album button", () => {
+    const msg = buildPlanDetail({ ...BASE_D, item: { ...IT, photo_ids: [] } });
+    expect(bubbleOf(msg).hero).toBeUndefined();
+    expect(labels(msg).some((l) => l.startsWith("📷"))).toBe(false);
+  });
+
+  it("notes are clamped to 3 lines; long notes get อ่านต่อ", () => {
+    expect(findNode(buildPlanDetail(BASE_D), (n) => n.text === "short")?.maxLines).toBe(3);
+    expect(labels(buildPlanDetail(BASE_D))).not.toContain("อ่านต่อ");
+    const long = buildPlanDetail({ ...BASE_D, item: { ...IT, notes: "x".repeat(200) } });
+    expect(actions(long).find((a) => a.label === "อ่านต่อ")?.data).toEqual({ a: "plan_note", i: "b" });
+  });
+
+  it("done toggle follows status; skipped/moved have none", () => {
+    expect(actions(buildPlanDetail(BASE_D)).find((a) => a.label === "✓ เสร็จ")?.data).toEqual({ a: "plan_done", i: "b" });
+    const done = buildPlanDetail({ ...BASE_D, item: { ...IT, status: "done" } });
+    expect(actions(done).find((a) => a.label === "↩ ยังไม่เสร็จ")?.data).toEqual({ a: "plan_undone", i: "b" });
+    expect(texts(done)).toContain("✓ เสร็จแล้ว");
+    for (const status of ["skipped", "moved"] as const) {
+      const l = labels(buildPlanDetail({ ...BASE_D, item: { ...IT, status, moved_to_date: "2026-11-21" } }));
+      expect(l).not.toContain("✓ เสร็จ");
+      expect(l).not.toContain("↩ ยังไม่เสร็จ");
+    }
+    expect(texts(buildPlanDetail({ ...BASE_D, item: { ...IT, status: "moved", moved_to_date: "2026-11-21" } }))).toContain(
+      "➡️ ย้ายไป 21/11",
+    );
+  });
+
+  it("linked transport section taps through to the transport card", () => {
+    const msg = buildPlanDetail({ ...BASE_D, transport: TR });
+    expect(texts(msg)).toEqual(expect.arrayContaining(["MTR · Central → Peak", "ออก 09:00 · 45 นาที · 15 HKD"]));
+    expect(actions(msg).some((a) => a.data.a === "tr_detail" && a.data.id === "tr1")).toBe(true);
+  });
+
+  it("linked booking section shows the ref big and taps through", () => {
+    const msg = buildPlanDetail({ ...BASE_D, booking: BK });
+    expect(texts(msg)).toEqual(expect.arrayContaining(["Klook", "ABC123"]));
+    expect(findNode(msg, (n) => n.text === "ABC123")?.size).toBe("xl");
+    expect(actions(msg).some((a) => a.data.a === "bk_detail" && a.data.b === "bk1")).toBe(true);
+  });
+
+  it("missing linked rows (null) hide their sections", () => {
+    const acts = actions(buildPlanDetail(BASE_D));
+    expect(acts.some((a) => a.data.a === "tr_detail" || a.data.a === "bk_detail")).toBe(false);
+  });
+
+  it("map buttons: shown with a place, maps_link wins, hidden with neither", () => {
+    const uris = (m: unknown) => actions(m).filter((a) => a.type === "uri").map((a) => a.uri);
+    expect(uris(buildPlanDetail(BASE_D)).some((u) => u.startsWith("https://uri.amap.com/search"))).toBe(true);
+    const linkOnly = buildPlanDetail({ ...BASE_D, item: { ...IT, place: "", maps_link: "https://maps.app.goo.gl/x" } });
+    expect(uris(linkOnly)).toContain("https://maps.app.goo.gl/x");
+    expect(uris(linkOnly).some((u) => u.startsWith("https://uri.amap.com/"))).toBe(false);
+    const none = buildPlanDetail({ ...BASE_D, item: { ...IT, place: "", maps_link: "", photo_ids: [] } });
+    expect(uris(none)).toHaveLength(0);
+  });
+
+  it("prev / overview / next navigation", () => {
+    const acts = actions(buildPlanDetail(BASE_D));
+    expect(acts.find((a) => a.label === "◀ ก่อนหน้า")?.data).toEqual({ a: "plan_detail", i: "a", d: "2026-11-20" });
+    expect(acts.find((a) => a.label === "ภาพรวม")?.data).toEqual({ a: "plan_overview", d: "2026-11-20" });
+    expect(acts.find((a) => a.label === "ถัดไป ▶")?.data).toEqual({ a: "plan_detail", i: "c", d: "2026-11-20" });
+    const edge = labels(buildPlanDetail({ ...BASE_D, prevId: null, nextId: null }));
+    expect(edge).not.toContain("◀ ก่อนหน้า");
+    expect(edge).not.toContain("ถัดไป ▶");
+    const alt = actions(buildPlanDetail({ ...BASE_D, overviewPlanId: "p2" }));
+    expect(alt.find((a) => a.label === "ภาพรวม")?.data).toEqual({ a: "plan_overview", d: "2026-11-20", p: "p2" });
+  });
+
+  it("a bare item never emits an empty text node", () => {
+    const bare = buildPlanDetail({ ...BASE_D, item: item({ id: "z", title: "X" }), index: 1, prevId: null, nextId: null });
+    expect(hasEmptyText(bare)).toBe(false);
+    expect(texts(bare)).toContain("1");
   });
 });
