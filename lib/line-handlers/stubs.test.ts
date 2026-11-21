@@ -1,5 +1,4 @@
 import { describe, it, expect, vi } from "vitest";
-import * as booking from "./booking";
 import * as places from "./places";
 import * as info from "./info";
 import type { HandlerCtx } from "./types";
@@ -21,7 +20,6 @@ function makeCtx(isGroup = false): HandlerCtx {
 }
 
 describe.each([
-  ["booking", booking],
   ["places", places],
   ["info", info],
 ])("%s stub", (_name, mod) => {
