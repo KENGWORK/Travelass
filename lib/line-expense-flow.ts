@@ -1,8 +1,20 @@
 // lib/line-expense-flow.ts
-import type { Expense, ExpenseSplit } from "@/lib/models/types";
-import { convertToTHB } from "@/lib/fx";
+import type { Category, Expense, ExpenseSplit } from "@/lib/models/types";
+import { convertToTHB, SUPPORTED_CURRENCIES } from "@/lib/fx";
 import { buildPendingExpense } from "@/lib/pending-expense";
-import type { ParsedExpense, SplitMode } from "@/lib/line-expense-parse";
+import { CATS } from "@/lib/categories";
+import { isViewCommand } from "@/lib/line-router";
+import {
+  expenseCommand,
+  guessCategory,
+  parseExpenseText,
+  parseNumber,
+  parseSplitWord,
+  removeNumberToken,
+  resolveCurrency,
+  type ParsedExpense,
+  type SplitMode,
+} from "@/lib/line-expense-parse";
 
 export type { SplitMode } from "@/lib/line-expense-parse";
 
@@ -201,4 +213,271 @@ export function enterConflict(st: FlowState, p: { text?: string; photoId?: strin
 
 export function attachPhoto(st: FlowState, photoId: string): FlowState {
   return { ...st, expense: { ...st.expense, slip_photo_ids: [photoId] } };
+}
+
+// ---------------------------------------------------------------------------
+// Answers (typed text and postbacks) and the reducer
+// ---------------------------------------------------------------------------
+
+export type Answer =
+  | { k: "cancel" } | { k: "back" } | { k: "resume" }
+  | { k: "payer"; name: string }
+  | { k: "amount"; amount: number; note?: string }   // note: leftover text typed with it at the payer step
+  | { k: "currency"; code: string }
+  | { k: "split"; mode: SplitMode }
+  | { k: "partner"; name: string }
+  | { k: "owed"; amount: number }
+  | { k: "owed_none" } | { k: "owed_retry" }
+  | { k: "category"; category: Category }
+  | { k: "note"; text: string }
+  | { k: "confirm" } | { k: "edit" }
+  | { k: "editfield"; field: EditField }
+  | { k: "cancel_delete" } | { k: "cancel_keep" }
+  | { k: "conflict_resume" } | { k: "conflict_park" } | { k: "conflict_drop" };
+
+export type Outcome =
+  | { k: "ask"; state: FlowState; notice?: string }
+  | { k: "confirm"; expense: Expense }
+  | { k: "delete" }
+  | { k: "keep" }
+  | { k: "park"; pendingText?: string; pendingPhotoId?: string }
+  | { k: "drop"; pendingText?: string; pendingPhotoId?: string };
+
+const CATEGORY_NAMES: Category[] = CATS.map((c) => c.name);
+const EDIT_FIELDS: readonly string[] = ["amount", "currency", "payer", "split", "category", "note"];
+const EDIT_LABELS: Record<string, EditField> = {
+  "ยอด": "amount", "สกุลเงิน": "currency", "คนจ่าย": "payer", "หาร": "split", "หมวด": "category", "โน้ต": "note",
+};
+const PROMPT_STEPS: readonly FlowStep[] = ["conflict", "confirm_cancel"];
+
+function matchName(text: string, names: string[]): string | null {
+  const t = text.trim().toLowerCase();
+  return names.find((n) => n.trim().toLowerCase() === t) ?? null;
+}
+
+// Typed text → answer for the given step, or null when it is not an answer
+// (the router then treats it as a new entry / off-topic). Used both for the
+// router predicate and for applying the answer, so the two always agree.
+// amountKnown = the expense already has an amount > 0. At the payer step a
+// bare number fills a missing amount (the payer is asked again) instead of
+// being read as a new entry.
+export function interpretAnswer(step: FlowStep, data: FlowData, text: string, members: string[], amountKnown = false): Answer | null {
+  const t = text.trim();
+  if (!t) return null;
+  const cmd = expenseCommand(t);
+  if (cmd === "cancel") return { k: "cancel" };
+  if (cmd === "back") return { k: "back" };
+  if (cmd === "resume") return { k: "resume" };
+
+  switch (step) {
+    case "payer": {
+      const n = parseNumber(t);
+      const name = members.length === 0 ? (n == null ? t : null) : matchName(t, members);
+      if (name) return { k: "payer", name };
+      if (!amountKnown && n != null && n > 0) {
+        // "50 กาแฟ" → amount 50, with "กาแฟ" kept to seed an empty note.
+        const parsed = parseExpenseText(t);
+        return { k: "amount", amount: parsed.amount ?? n, note: (parsed.amount ? parsed.note : "") || undefined };
+      }
+      return null;
+    }
+    case "amount": {
+      const n = parseNumber(t);
+      return n == null ? null : { k: "amount", amount: n };
+    }
+    case "currency": {
+      const code = resolveCurrency(t);
+      return code ? { k: "currency", code } : null;
+    }
+    case "split": {
+      const mode = parseSplitWord(t);
+      return mode ? { k: "split", mode } : null;
+    }
+    case "partner": {
+      const name = matchName(t, members);
+      return name ? { k: "partner", name } : null;
+    }
+    case "owed": {
+      if (data.owedZero) {
+        if (t === "เปลี่ยนเป็นไม่หาร") return { k: "owed_none" };
+        if (t === "ใส่ใหม่" || t === "↩ ใส่ใหม่") return { k: "owed_retry" };
+      }
+      const n = parseNumber(t);
+      return n == null ? null : { k: "owed", amount: n };
+    }
+    case "category": {
+      const category = CATEGORY_NAMES.find((c) => c === t);
+      return category ? { k: "category", category } : null;
+    }
+    case "note":
+      if (isViewCommand(t)) return null;
+      return { k: "note", text: t === "-" ? "" : t };
+    case "summary":
+      if (t === "ยืนยัน") return { k: "confirm" };
+      if (t === "แก้") return { k: "edit" };
+      return null;
+    case "edit": {
+      const field = EDIT_LABELS[t];
+      return field ? { k: "editfield", field } : null;
+    }
+    case "confirm_cancel":
+      if (t === "ลบทิ้ง" || t === "ลบรายการนี้") return { k: "cancel_delete" };
+      if (t === "เก็บไว้กรอกทีหลัง" || t === "เก็บไว้" || t === "ไม่ลบ") return { k: "cancel_keep" };
+      return null;
+    case "conflict":
+      if (t === "ทำต่ออันเก่า") return { k: "conflict_resume" };
+      if (t === "เก็บไว้ เริ่มใหม่" || t === "เก็บไว้ก่อน") return { k: "conflict_park" };
+      if (t === "ทิ้งอันเก่า") return { k: "conflict_drop" };
+      return null;
+  }
+}
+
+export function postbackToAnswer(d: Record<string, string>): Answer | null {
+  const v = d.v ?? "";
+  switch (d.a) {
+    case "x_payer": return v ? { k: "payer", name: v } : null;
+    case "x_amount": {
+      const n = Number(v);
+      return v !== "" && Number.isFinite(n) ? { k: "amount", amount: n } : null;
+    }
+    case "x_currency": return v ? { k: "currency", code: v } : null;
+    case "x_split": return v === "none" || v === "equal" || v === "unequal" ? { k: "split", mode: v } : null;
+    case "x_partner": return v ? { k: "partner", name: v } : null;
+    case "x_owed_zero": return v === "none" ? { k: "owed_none" } : v === "retry" ? { k: "owed_retry" } : null;
+    case "x_category": {
+      const category = CATEGORY_NAMES.find((c) => c === v);
+      return category ? { k: "category", category } : null;
+    }
+    case "x_back": return { k: "back" };
+    case "x_confirm": return { k: "confirm" };
+    case "x_edit": return { k: "edit" };
+    case "x_editfield": return EDIT_FIELDS.includes(v) ? { k: "editfield", field: v as EditField } : null;
+    case "x_cancel": return { k: "cancel" };
+    case "x_cancel_delete": return { k: "cancel_delete" };
+    case "x_cancel_keep": return { k: "cancel_keep" };
+    case "x_conflict_resume": return { k: "conflict_resume" };
+    case "x_conflict_park": return { k: "conflict_park" };
+    case "x_conflict_drop": return { k: "conflict_drop" };
+    default: return null;
+  }
+}
+
+function patch(st: FlowState, e: Partial<Expense>, d: Partial<FlowData> = {}): FlowState {
+  return { ...st, expense: { ...st.expense, ...e }, data: { ...st.data, ...d } };
+}
+
+function goTo(st: FlowState, step: FlowStep): FlowState {
+  const prev = st.data.prevSteps ?? [];
+  const push = step !== st.step && !PROMPT_STEPS.includes(st.step) && !PROMPT_STEPS.includes(step);
+  return { ...st, step, data: { ...st.data, prevSteps: push ? [...prev, st.step].slice(-10) : prev } };
+}
+
+function auto(st: FlowState, members: string[]): FlowState {
+  return goTo(st, nextMissingStep(st.expense, st.data, members));
+}
+
+function leave(st: FlowState, members: string[]): FlowState {
+  const step = st.data.resumeStep ?? nextMissingStep(st.expense, st.data, members);
+  return { ...st, step, data: { ...st.data, resumeStep: undefined, pendingText: undefined, pendingPhotoId: undefined } };
+}
+
+const ask = (state: FlowState, notice?: string): Outcome => (notice ? { k: "ask", state, notice } : { k: "ask", state });
+
+export function applyAnswer(st: FlowState, ans: Answer, env: FlowEnv): Outcome {
+  const { members } = env;
+  const e = st.expense;
+  const d = st.data;
+  const inPrompt = PROMPT_STEPS.includes(st.step);
+
+  switch (ans.k) {
+    case "cancel":
+      // 🗑 on a draft's summary deletes at once. A confirmed expense (opened
+      // via แก้ล่าสุด, maybe with paid splits) always asks first.
+      if (st.step === "summary" && e.pending) return { k: "delete" };
+      if (inPrompt) return ask(st);
+      return ask({ ...st, step: "confirm_cancel", data: { ...d, resumeStep: st.step } });
+
+    case "back":
+    case "resume": {
+      if (inPrompt) return ask(leave(st, members));
+      if (ans.k === "resume") return ask(st);
+      const prev = [...(d.prevSteps ?? [])];
+      const target = prev.pop();
+      if (!target) return ask(st);
+      return ask({ ...st, step: target, data: { ...d, prevSteps: prev, owedZero: undefined } });
+    }
+
+    case "payer":
+      if (members.length > 0 && !members.includes(ans.name)) return ask(st);
+      return ask(auto(patch(st, { payer: ans.name }, d.partner === ans.name ? { partner: undefined } : {}), members));
+
+    case "amount": {
+      if (!(ans.amount > 0)) return ask(st, "ยอดต้องมากกว่า 0 นะ");
+      if (ans.note && !e.description) {
+        // Typed at the payer step with words: seed the empty note and re-guess the category from it.
+        return ask(auto(patch(st, { amount: ans.amount, description: ans.note, category: guessCategory(ans.note) }, { amountCandidates: undefined }), members));
+      }
+      const description = d.amountCandidates?.includes(ans.amount) ? removeNumberToken(e.description, ans.amount) : e.description;
+      return ask(auto(patch(st, { amount: ans.amount, description }, { amountCandidates: undefined }), members));
+    }
+
+    case "currency":
+      if (!SUPPORTED_CURRENCIES.includes(ans.code)) return ask(st);
+      return ask(auto(patch(st, { currency: ans.code }, { currencyConfirmed: true }), members));
+
+    case "split":
+      if (ans.mode !== "none" && otherMembers(e.payer, members).length === 0) return ask(st, "ทริปนี้ไม่มีสมาชิกคนอื่นให้หาร");
+      return ask(auto(patch(st, {}, { splitMode: ans.mode, owedAmount: undefined, owedZero: undefined, lockedSplits: undefined }), members));
+
+    case "partner":
+      if (!otherMembers(e.payer, members).includes(ans.name)) return ask(st);
+      return ask(auto(patch(st, {}, { partner: ans.name }), members));
+
+    case "owed": {
+      const check = validateOwed(ans.amount, e.amount);
+      if (check === "zero") return ask(patch(st, {}, { owedZero: true }));
+      if (check === "over") return ask(st, `เกินยอดรวม ${fmtNum(e.amount)} ใส่ใหม่นะ`);
+      return ask(auto(patch(st, {}, { owedAmount: ans.amount, owedZero: undefined }), members));
+    }
+
+    case "owed_none":
+      return ask(auto(patch(st, {}, { splitMode: "none", owedAmount: undefined, owedZero: undefined }), members));
+
+    case "owed_retry":
+      return ask(patch(st, {}, { owedZero: undefined }));
+
+    case "category":
+      return ask(auto(patch(st, { category: ans.category }), members));
+
+    case "note":
+      return ask(auto(patch(st, { description: ans.text }), members));
+
+    case "confirm": {
+      if (st.step !== "summary") return ask(st);
+      const missing = nextMissingStep(e, d, members);
+      if (missing !== "summary") return ask(goTo(st, missing));
+      return { k: "confirm", expense: { ...e, pending: false } };
+    }
+
+    case "edit":
+      return ask(goTo(patch(st, {}, { editing: true }), "edit"));
+
+    case "editfield":
+      return ask(goTo(st, ans.field));
+
+    case "cancel_delete":
+      return { k: "delete" };
+
+    case "cancel_keep":
+      return { k: "keep" };
+
+    case "conflict_resume":
+      return ask(leave(st, members));
+
+    case "conflict_park":
+      return { k: "park", pendingText: d.pendingText, pendingPhotoId: d.pendingPhotoId };
+
+    case "conflict_drop":
+      return { k: "drop", pendingText: d.pendingText, pendingPhotoId: d.pendingPhotoId };
+  }
 }
