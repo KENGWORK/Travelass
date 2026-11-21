@@ -2,7 +2,6 @@ import { describe, it, expect, vi } from "vitest";
 import * as booking from "./booking";
 import * as places from "./places";
 import * as info from "./info";
-import * as transport from "./transport";
 import type { HandlerCtx } from "./types";
 import { textMessage } from "@/lib/line-flex";
 import { WIP_TEXT } from "@/lib/line-menu";
@@ -25,7 +24,6 @@ describe.each([
   ["booking", booking],
   ["places", places],
   ["info", info],
-  ["transport", transport],
 ])("%s stub", (_name, mod) => {
   it("handleRoute replies 'in development'", async () => {
     const ctx = makeCtx();
