@@ -8,6 +8,8 @@ import {
   guessCategory,
   removeNumberToken,
   expenseCommand,
+  matchDeposit,
+  parseWholeNumber,
 } from "./line-expense-parse";
 
 describe("parseExpenseText", () => {
@@ -164,5 +166,38 @@ describe("expenseCommand", () => {
     expect(expenseCommand("ย้อน")).toBe("back");
     expect(expenseCommand("↩ ย้อน")).toBe("back");
     expect(expenseCommand("ยกเลิกนัด")).toBeNull();
+  });
+});
+
+describe("matchDeposit", () => {
+  it("finds ฝาก N and where it sits, so the caller can cut it out", () => {
+    const t = "500 บาท เซเว่น ฝาก 20";
+    const m = matchDeposit(t);
+    expect(m?.owed).toBe(20);
+    expect(t.slice(m!.index, m!.index + m!.length)).toBe("ฝาก 20");
+  });
+
+  it("accepts ฝากให้ and thousands commas", () => {
+    expect(matchDeposit("ฝากให้ 1,200")?.owed).toBe(1200);
+  });
+
+  it("ignores ของฝาก (souvenir) and text without a deposit", () => {
+    expect(matchDeposit("ของฝาก 20")).toBeNull();
+    expect(matchDeposit("120 ข้าว")).toBeNull();
+  });
+});
+
+describe("parseWholeNumber", () => {
+  it("accepts a token that is only a number", () => {
+    expect(parseWholeNumber("120")).toBe(120);
+    expect(parseWholeNumber("1,200")).toBe(1200);
+    expect(parseWholeNumber("12.5")).toBe(12.5);
+  });
+
+  it("rejects tokens with anything else in them", () => {
+    expect(parseWholeNumber("120บาท")).toBeNull();
+    expect(parseWholeNumber("7-11")).toBeNull();
+    expect(parseWholeNumber("HKD")).toBeNull();
+    expect(parseWholeNumber("")).toBeNull();
   });
 });

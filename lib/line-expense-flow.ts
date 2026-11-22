@@ -33,6 +33,24 @@ export function isFlowStep(s: string): s is FlowStep {
 
 export type EditField = "amount" | "currency" | "payer" | "split" | "category" | "note";
 
+// The fields the one-card flow collects, in card order. Every name is also a
+// FlowStep (an edit of a saved expense asks one field at a time).
+export type Field = "amount" | "currency" | "payer" | "split" | "partner" | "owed";
+
+// Everything one typed message / one button can say. seedNote only fills an
+// empty note (words typed beside a first amount); note replaces it.
+export interface Bundle {
+  amount?: number;
+  currency?: string;
+  payer?: string;
+  split?: SplitMode;
+  partner?: string;
+  owed?: number;
+  category?: Category;
+  note?: string;
+  seedNote?: string;
+}
+
 // State that lives in LineSession.data while the expense row carries the
 // rest. currencyConfirmed exists because buildPendingExpense always fills in
 // trip_currency, so the row alone can't tell "chosen" from "default".
@@ -42,6 +60,7 @@ export interface FlowData {
   currencyConfirmed?: boolean;
   rateCurrency?: string;          // currency fx_rate was fetched for
   fxFailed?: boolean;
+  rev?: number;                   // bumps on every data change; buttons carry it
   splitMode?: SplitMode;
   lockedSplits?: boolean;         // splits shared by >1 person (made in the app); left alone
   partner?: string;               // the other member, when the trip doesn't have exactly 2
@@ -99,6 +118,24 @@ export function nextMissingStep(expense: Expense, data: FlowData, members: strin
   if (data.splitMode !== "none" && !partnerFor(expense.payer, data, members)) return "partner";
   if (data.splitMode === "unequal" && (data.owedAmount == null || validateOwed(data.owedAmount, expense.amount) !== "ok")) return "owed";
   return "summary";
+}
+
+// What the card still has to ask. members.length === 0 → the payer cannot be
+// chosen, so it is not asked. Owed counts as missing while it is absent or
+// invalid for the CURRENT amount (so it also stays missing while the amount is unknown).
+export function missingFields(expense: Expense, data: FlowData, members: string[]): Field[] {
+  const out: Field[] = [];
+  if (!(expense.amount > 0)) out.push("amount");
+  if (!data.currencyConfirmed) out.push("currency");
+  if (!expense.payer && members.length > 0) out.push("payer");
+  if (data.lockedSplits) return out;
+  if (!data.splitMode) {
+    out.push("split");
+    return out;
+  }
+  if (data.splitMode !== "none" && expense.payer && !partnerFor(expense.payer, data, members)) out.push("partner");
+  if (data.splitMode === "unequal" && (data.owedAmount == null || validateOwed(data.owedAmount, expense.amount) !== "ok")) out.push("owed");
+  return out;
 }
 
 export function initialState(

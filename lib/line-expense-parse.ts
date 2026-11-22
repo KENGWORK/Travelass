@@ -32,6 +32,20 @@ const collapse = (s: string) => s.replace(/\s+/g, " ").trim();
 // "ฝาก 20" / "ฝากให้ 20". "ของฝาก" (souvenir) is not a deposit.
 const DEPOSIT_RE = new RegExp(String.raw`(?<!ของ)ฝาก(?:ให้)?\s*(${NUM_SRC})`);
 
+// "ฝาก 20" anywhere in a typed answer: the owed amount plus where it sits, so
+// the caller can cut it out of the text before reading the other tokens.
+export function matchDeposit(text: string): { owed: number; index: number; length: number } | null {
+  const m = DEPOSIT_RE.exec(text);
+  return m ? { owed: toNumber(m[1]), index: m.index, length: m[0].length } : null;
+}
+
+// A token that is nothing but a number ("120", "1,200", "12.5").
+const WHOLE_NUM_RE = new RegExp(`^${NUM_SRC}$`);
+
+export function parseWholeNumber(token: string): number | null {
+  return WHOLE_NUM_RE.test(token) ? toNumber(token) : null;
+}
+
 // Dates and times ("21/11", "14:30", "21/11/2026") are never amounts. They stay in the note.
 const DATE_TIME_RE = /\d{1,4}[/:]\d{1,4}(?:[/:]\d{1,4})?/g;
 

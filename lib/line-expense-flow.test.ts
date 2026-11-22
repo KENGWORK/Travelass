@@ -11,6 +11,7 @@ import {
   fmtNum,
   initialState,
   isFlowStep,
+  missingFields,
   needsRate,
   nextMissingStep,
   partnerFor,
@@ -243,5 +244,45 @@ describe("enterConflict / attachPhoto", () => {
 
   it("attaches a photo", () => {
     expect(attachPhoto(s, "p1").expense.slip_photo_ids).toEqual(["p1"]);
+  });
+});
+
+describe("missingFields", () => {
+  const d = (over: FlowData = {}): FlowData => ({ currencyConfirmed: true, splitMode: "none", ...over });
+  const e = (over: Partial<Expense> = {}) => exp({ payer: "เก่ง", amount: 120, ...over });
+
+  it("lists every missing field in card order", () => {
+    expect(missingFields(exp(), {}, M)).toEqual(["amount", "currency", "payer", "split"]);
+  });
+
+  it("is empty once everything is known", () => {
+    expect(missingFields(e(), d(), M)).toEqual([]);
+    expect(missingFields(e(), d({ splitMode: "equal" }), M)).toEqual([]);
+  });
+
+  it("does not ask the payer when the trip has no members", () => {
+    expect(missingFields(exp({ amount: 120 }), d(), [])).toEqual([]);
+  });
+
+  it("asks who to split with only for 3+ members and only once the payer is known", () => {
+    const three = ["เก่ง", "โอ", "ต้น"];
+    expect(missingFields(e(), d({ splitMode: "equal" }), three)).toEqual(["partner"]);
+    expect(missingFields(e({ payer: "" }), d({ splitMode: "equal" }), three)).toEqual(["payer"]);
+    expect(missingFields(e(), d({ splitMode: "equal", partner: "ต้น" }), three)).toEqual([]);
+  });
+
+  it("needs a valid owed amount for หารไม่เท่า", () => {
+    const x = e({ amount: 500 });
+    expect(missingFields(x, d({ splitMode: "unequal" }), M)).toEqual(["owed"]);
+    expect(missingFields(x, d({ splitMode: "unequal", owedAmount: 600 }), M)).toEqual(["owed"]);
+    expect(missingFields(x, d({ splitMode: "unequal", owedAmount: 20 }), M)).toEqual([]);
+  });
+
+  it("cannot accept an owed amount while the total is unknown", () => {
+    expect(missingFields(e({ amount: 0 }), d({ splitMode: "unequal", owedAmount: 20 }), M)).toEqual(["amount", "owed"]);
+  });
+
+  it("never asks split, partner or owed for splits made in the app", () => {
+    expect(missingFields(e(), d({ lockedSplits: true, splitMode: undefined }), M)).toEqual([]);
   });
 });
