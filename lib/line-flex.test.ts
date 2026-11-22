@@ -14,6 +14,7 @@ import {
   textMessage,
   quickReply,
   type FlexNode,
+  messageAction,
 } from "./line-flex";
 
 describe("txt / compact", () => {
@@ -174,5 +175,12 @@ describe("quickReply", () => {
     expect(actions[1]).toEqual({ type: "message", label: "ข้าม", text: "ข้าม" });
     expect(actions[2]).toEqual({ type: "message", label: "เก่ง", text: "ชื่อ เก่ง" });
     expect((qr.items as FlexNode[]).every((i) => i.type === "action")).toBe(true);
+  });
+});
+
+describe("messageAction", () => {
+  it("is a message action that sends the text, with the label clipped to 20 characters", () => {
+    expect(messageAction("ลอง แพลน", "แพลน")).toEqual({ type: "message", label: "ลอง แพลน", text: "แพลน" });
+    expect((messageAction("ก".repeat(30), "x").label as string).length).toBe(20);
   });
 });

@@ -88,6 +88,11 @@ export function clipboardAction(label: string, text: string): FlexNode {
   return { type: "clipboard", label, clipboardText: clip(text, CLIPBOARD_MAX) };
 }
 
+// Sends `text` as if the user typed it. Only for commands with no side effects.
+export function messageAction(label: string, text: string): FlexNode {
+  return { type: "message", label: clip(label, QUICK_REPLY_LABEL_MAX), text };
+}
+
 export function imageUrl(origin: string, photoId: string): string {
   return `${origin}/api/img/${encodeURIComponent(photoId)}`;
 }
