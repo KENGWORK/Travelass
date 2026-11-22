@@ -13,7 +13,8 @@ import {
   isFlowStep,
   missingFields,
   needsRate,
-  nextMissingStep,
+  normalizeStep,
+  settle,
   partnerFor,
   stateFromExpense,
   validateOwed,
@@ -44,7 +45,19 @@ describe("rounding and formatting", () => {
 
   it("isFlowStep recognises only flow steps", () => {
     expect(isFlowStep("owed")).toBe(true);
+    expect(isFlowStep("missing")).toBe(true);
+    expect(isFlowStep("summary")).toBe(false);
     expect(isFlowStep("awaiting_name")).toBe(false);
+  });
+
+  it("normalizeStep maps rows left by the old flow onto the new steps", () => {
+    expect(normalizeStep("summary", true)).toBe("missing");
+    expect(normalizeStep("payer", true)).toBe("missing");
+    expect(normalizeStep("conflict", true)).toBe("conflict");
+    expect(normalizeStep("confirm_cancel", false)).toBe("confirm_cancel");
+    expect(normalizeStep("summary", false)).toBe("edit");
+    expect(normalizeStep("category", false)).toBe("category");
+    expect(normalizeStep("awaiting_name", false)).toBe("edit");
   });
 });
 
@@ -85,115 +98,105 @@ describe("partnerFor", () => {
   });
 });
 
-describe("nextMissingStep", () => {
-  const d = (over: FlowData = {}): FlowData => ({ currencyConfirmed: true, ...over });
-
-  it("asks in order payer → amount → currency → split", () => {
-    expect(nextMissingStep(exp(), {}, M)).toBe("payer");
-    expect(nextMissingStep(exp({ payer: "เก่ง" }), {}, M)).toBe("amount");
-    expect(nextMissingStep(exp({ payer: "เก่ง", amount: 120 }), {}, M)).toBe("currency");
-    expect(nextMissingStep(exp({ payer: "เก่ง", amount: 120 }), d(), M)).toBe("split");
-  });
-
-  it("is complete once the split is known", () => {
-    expect(nextMissingStep(exp({ payer: "เก่ง", amount: 120 }), d({ splitMode: "none" }), M)).toBe("summary");
-    expect(nextMissingStep(exp({ payer: "เก่ง", amount: 120 }), d({ splitMode: "equal" }), M)).toBe("summary");
-  });
-
-  it("asks who to split with when the trip does not have exactly 2 members", () => {
-    expect(nextMissingStep(exp({ payer: "เก่ง", amount: 120 }), d({ splitMode: "equal" }), ["เก่ง", "โอ", "ต้น"])).toBe("partner");
-  });
-
-  it("needs a valid owed amount for หารไม่เท่า", () => {
-    const e = exp({ payer: "เก่ง", amount: 500 });
-    expect(nextMissingStep(e, d({ splitMode: "unequal" }), M)).toBe("owed");
-    expect(nextMissingStep(e, d({ splitMode: "unequal", owedAmount: 600 }), M)).toBe("owed");
-    expect(nextMissingStep(e, d({ splitMode: "unequal", owedAmount: 20 }), M)).toBe("summary");
-  });
-
-  it("treats splits it cannot edit (more than one person) as done", () => {
-    expect(nextMissingStep(exp({ payer: "เก่ง", amount: 120 }), d({ lockedSplits: true }), M)).toBe("summary");
-  });
-});
-
 describe("initialState", () => {
   const base = { id: "e1", tripId: "t1", now: "2026-11-21T03:00:00.000Z", tripCurrency: "HKD" };
 
-  it("goes straight to the summary when the text says everything", () => {
-    const st = initialState({ ...base, parsed: parseExpenseText("120 HKD ข้าว หาร"), payer: "เก่ง" }, M);
-    expect(st.step).toBe("summary");
+  it("starts at the missing card with rev 1 and remembers what the text said", () => {
+    const st = initialState({ ...base, parsed: parseExpenseText("120 HKD ข้าว หาร"), payer: "เก่ง" });
+    expect(st.step).toBe("missing");
     expect(st.expense).toEqual(exp({ payer: "เก่ง", amount: 120, currency: "HKD", category: "อาหาร", description: "ข้าว" }));
-    expect(st.data).toEqual({ prevSteps: [], currencyConfirmed: true, splitMode: "equal" });
+    expect(st.data).toEqual({ rev: 1, currencyConfirmed: true, splitMode: "equal" });
+    expect(missingFields(st.expense, st.data, M)).toEqual([]);
   });
 
-  it("starts a photo-only draft by asking who paid when the name did not match", () => {
-    const st = initialState({ ...base, parsed: parseExpenseText(""), payer: "", photoId: "p1", asker: "Kengz" }, M);
-    expect(st.step).toBe("payer");
+  it("a photo-only draft with an unmatched name misses amount, currency, payer and split", () => {
+    const st = initialState({ ...base, parsed: parseExpenseText(""), payer: "", photoId: "p1", asker: "Kengz" });
     expect(st.expense.slip_photo_ids).toEqual(["p1"]);
-    expect(st.expense.currency).toBe("HKD");
-    expect(st.data).toEqual({ prevSteps: [], asker: "Kengz" });
+    expect(st.data).toEqual({ rev: 1, asker: "Kengz" });
+    expect(missingFields(st.expense, st.data, M)).toEqual(["amount", "currency", "payer", "split"]);
   });
 
   it("keeps amount candidates for the picker", () => {
-    const st = initialState({ ...base, parsed: parseExpenseText("50 ข้าว 30 น้ำ"), payer: "เก่ง" }, M);
-    expect(st.step).toBe("amount");
+    const st = initialState({ ...base, parsed: parseExpenseText("50 ข้าว 30 น้ำ"), payer: "เก่ง" });
+    expect(st.expense.amount).toBe(0);
     expect(st.data.amountCandidates).toEqual([50, 30]);
   });
 
-  it("turns a typed ฝาก 0 into the zero-owed prompt", () => {
-    const st = initialState({ ...base, parsed: parseExpenseText("500 บาท ฝาก 0"), payer: "เก่ง" }, M);
-    expect(st.step).toBe("owed");
+  it("turns a typed ฝาก 0 into the zero-owed state", () => {
+    const st = initialState({ ...base, parsed: parseExpenseText("500 บาท ฝาก 0"), payer: "เก่ง" });
     expect(st.data.owedZero).toBe(true);
     expect(st.data.owedAmount).toBeUndefined();
+    expect(missingFields(st.expense, st.data, M)).toEqual(["owed"]);
+  });
+});
+
+describe("settle", () => {
+  it("saves a complete draft (pending off) and asks again otherwise", () => {
+    const done: FlowState = { expense: exp({ payer: "เก่ง", amount: 120 }), step: "missing", data: { rev: 1, currencyConfirmed: true, splitMode: "none" } };
+    expect(settle(done, M)).toEqual({ k: "saved", state: { ...done, expense: { ...done.expense, pending: false } } });
+    const open = settle({ ...done, data: { rev: 1 } }, M);
+    expect(open).toMatchObject({ k: "ask", state: { step: "missing" } });
+  });
+
+  it("for a saved expense, asks the first missing field's step", () => {
+    const st: FlowState = { expense: exp({ payer: "เก่ง", amount: 120, pending: false }), step: "split", data: { rev: 1, currencyConfirmed: true, splitMode: "unequal" } };
+    expect(settle(st, M)).toMatchObject({ k: "ask", state: { step: "owed" } });
+  });
+
+  it("a notice keeps an edit step open instead of saving", () => {
+    const st: FlowState = { expense: exp({ payer: "เก่ง", amount: 120, pending: false }), step: "amount", data: { rev: 1, currencyConfirmed: true, splitMode: "none" } };
+    expect(settle(st, M, "ยอดต้องมากกว่า 0 นะ")).toMatchObject({ k: "ask", state: { step: "amount" }, notice: "ยอดต้องมากกว่า 0 นะ" });
   });
 });
 
 describe("stateFromExpense", () => {
   const done = (over: Partial<Expense>) => exp({ payer: "เก่ง", amount: 120, fx_rate: 4.5, amount_thb: 540, pending: false, ...over });
 
-  it("recognises an equal split on a confirmed expense", () => {
-    const st = stateFromExpense(done({ splits: [split("โอ", 270)] }), M, "HKD", "เก่ง");
-    expect(st.step).toBe("summary");
-    expect(st.data).toEqual({ prevSteps: [], asker: "เก่ง", currencyConfirmed: true, rateCurrency: "HKD", splitMode: "equal", partner: "โอ" });
+  it("opens a confirmed expense at the edit step and recognises an equal split", () => {
+    const st = stateFromExpense(done({ splits: [split("โอ", 270)] }), "HKD", "เก่ง");
+    expect(st.step).toBe("edit");
+    expect(st.data).toEqual({ rev: 1, asker: "เก่ง", currencyConfirmed: true, rateCurrency: "HKD", splitMode: "equal", partner: "โอ" });
+    expect(missingFields(st.expense, st.data, M)).toEqual([]);
   });
 
   it("recovers the owed amount in the expense currency for an unequal split", () => {
-    const st = stateFromExpense(done({ amount: 500, amount_thb: 2250, splits: [split("โอ", 90)] }), M, "HKD");
+    const st = stateFromExpense(done({ amount: 500, amount_thb: 2250, splits: [split("โอ", 90)] }), "HKD");
     expect(st.data.splitMode).toBe("unequal");
     expect(st.data.owedAmount).toBe(20);
   });
 
   it("recognises no split, and locks splits shared by more than one person", () => {
-    expect(stateFromExpense(done({}), M, "HKD").data.splitMode).toBe("none");
-    expect(stateFromExpense(done({ splits: [split("โอ", 100), split("ต้น", 100)] }), M, "HKD").data.lockedSplits).toBe(true);
+    expect(stateFromExpense(done({}), "HKD").data.splitMode).toBe("none");
+    expect(stateFromExpense(done({ splits: [split("โอ", 100), split("ต้น", 100)] }), "HKD").data.lockedSplits).toBe(true);
   });
 
-  it("resumes an untouched pending draft at the first missing step", () => {
-    const st = stateFromExpense(exp({ payer: "เก่ง" }), M, "HKD");
-    expect(st.step).toBe("amount");
+  it("opens a pending draft at the missing card", () => {
+    const st = stateFromExpense(exp({ payer: "เก่ง" }), "HKD");
+    expect(st.step).toBe("missing");
     expect(st.data.currencyConfirmed).toBeUndefined();
+    expect(missingFields(st.expense, st.data, M)).toEqual(["amount", "currency", "split"]);
   });
 
   it("treats a parked draft's currency as chosen when the row shows it", () => {
     // HKD chosen in a HKD trip: the fetched rate gives it away.
-    const fetched = stateFromExpense(exp({ payer: "เก่ง", amount: 120, fx_rate: 4.5, amount_thb: 540 }), M, "HKD");
-    expect(fetched.step).toBe("split");
+    const fetched = stateFromExpense(exp({ payer: "เก่ง", amount: 120, fx_rate: 4.5, amount_thb: 540 }), "HKD");
     expect(fetched.data).toMatchObject({ currencyConfirmed: true, rateCurrency: "HKD" });
     // THB chosen in a HKD trip: the currency differs from the trip default.
-    expect(stateFromExpense(exp({ payer: "เก่ง", amount: 120, currency: "THB" }), M, "HKD").step).toBe("split");
+    expect(stateFromExpense(exp({ payer: "เก่ง", amount: 120, currency: "THB" }), "HKD").data.currencyConfirmed).toBe(true);
     // Rate fetch failed (rate 1) but amount_thb was filled: confirmed, and the rate is fetched again.
-    const failed = stateFromExpense(exp({ payer: "เก่ง", amount: 120, amount_thb: 120 }), M, "HKD");
+    const failed = stateFromExpense(exp({ payer: "เก่ง", amount: 120, amount_thb: 120 }), "HKD");
     expect(failed.data.currencyConfirmed).toBe(true);
     expect(failed.data.rateCurrency).toBeUndefined();
   });
 
   it("still asks the currency when the draft only has the trip default", () => {
-    expect(stateFromExpense(exp({ payer: "เก่ง", amount: 120 }), M, "HKD").step).toBe("currency");
+    const st = stateFromExpense(exp({ payer: "เก่ง", amount: 120 }), "HKD");
+    expect(missingFields(st.expense, st.data, M)).toEqual(["currency", "split"]);
   });
 });
 
 describe("rate and finalize", () => {
-  const st = (e: Partial<Expense>, d: FlowData): FlowState => ({ expense: exp({ payer: "เก่ง", ...e }), step: "summary", data: d });
+  const st = (e: Partial<Expense>, d: FlowData): FlowState => ({ expense: exp({ payer: "เก่ง", ...e }), step: "missing", data: d });
 
   it("needs a rate once amount and currency are both known, until fetched", () => {
     expect(needsRate(st({ amount: 120 }, { currencyConfirmed: true }))).toBe(true);
@@ -232,18 +235,23 @@ describe("rate and finalize", () => {
 });
 
 describe("enterConflict / attachPhoto", () => {
-  const s: FlowState = { expense: exp({ payer: "เก่ง", amount: 120 }), step: "split", data: { prevSteps: ["currency"] } };
+  const s: FlowState = { expense: exp({ payer: "เก่ง", amount: 120 }), step: "missing", data: { rev: 3 } };
 
-  it("remembers where to resume and what to start next", () => {
+  it("remembers where to resume, what to start next, and bumps the rev", () => {
     const c = enterConflict(s, { text: "50 กาแฟ" });
     expect(c.step).toBe("conflict");
-    expect(c.data.resumeStep).toBe("split");
+    expect(c.data.resumeStep).toBe("missing");
     expect(c.data.pendingText).toBe("50 กาแฟ");
-    expect(enterConflict(c, { photoId: "p2" }).data.resumeStep).toBe("split");
+    expect(c.data.rev).toBe(4);
+    const again = enterConflict(c, { photoId: "p2" });
+    expect(again.data.resumeStep).toBe("missing");
+    expect(again.data.rev).toBe(5);
   });
 
-  it("attaches a photo", () => {
-    expect(attachPhoto(s, "p1").expense.slip_photo_ids).toEqual(["p1"]);
+  it("attaches a photo and bumps the rev", () => {
+    const a = attachPhoto(s, "p1");
+    expect(a.expense.slip_photo_ids).toEqual(["p1"]);
+    expect(a.data.rev).toBe(4);
   });
 });
 

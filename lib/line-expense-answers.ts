@@ -1,8 +1,10 @@
 // lib/line-expense-answers.ts
 // Typed text / postback data → answers for the expense flow. Pure.
-import type { Expense } from "@/lib/models/types";
-import { matchDeposit, parseSplitWord, parseWholeNumber, resolveCurrency } from "@/lib/line-expense-parse";
-import { otherMembers, validateOwed, type Bundle, type FlowData } from "@/lib/line-expense-flow";
+import type { Category, Expense } from "@/lib/models/types";
+import { CATS } from "@/lib/categories";
+import { isViewCommand } from "@/lib/line-router";
+import { expenseCommand, matchDeposit, parseNumber, parseSplitWord, parseWholeNumber, resolveCurrency } from "@/lib/line-expense-parse";
+import { otherMembers, validateOwed, type Answer, type Bundle, type EditField, type Field, type FlowData, type FlowState } from "@/lib/line-expense-flow";
 
 export interface BundleCtx {
   expense: Expense;
@@ -126,4 +128,129 @@ export function interpretBundle(text: string, ctx: BundleCtx): Bundle | null {
   if (understood === 0) return null;
   if (b.amount !== undefined && !e.description && unknown.length > 0) b.seedNote = unknown.join(" ");
   return b;
+}
+
+const CATEGORY_NAMES: Category[] = CATS.map((c) => c.name);
+const EDIT_FIELDS: readonly string[] = ["amount", "currency", "payer", "split", "category", "note"];
+const EDIT_LABELS: Record<string, EditField> = {
+  "ยอด": "amount", "สกุลเงิน": "currency", "คนจ่าย": "payer", "หาร": "split", "หมวด": "category", "โน้ต": "note",
+};
+const CLEARABLE: readonly string[] = ["amount", "currency", "payer", "split", "partner", "owed"];
+
+const set = (bundle: Bundle): Answer => ({ k: "set", bundle });
+
+// Typed text → answer for the current step, or null when it is not an answer
+// (the router then treats it as a new entry / off-topic). Used both for the
+// router predicate and for applying the answer, so the two always agree.
+// The missing card reads a whole bundle; the edit steps read one field each.
+// View commands (แพลน, คู่มือ, ...) are never answers, so they leave the draft alone.
+export function interpretAnswer(st: Pick<FlowState, "step" | "data" | "expense">, text: string, members: string[]): Answer | null {
+  const t = text.trim();
+  if (!t) return null;
+  const cmd = expenseCommand(t);
+  if (cmd === "cancel") return { k: "cancel" };
+  if (cmd === "resume") return { k: "resume" };
+  if (isViewCommand(t)) return null;
+  const { step, data, expense } = st;
+
+  switch (step) {
+    case "missing": {
+      if (data.owedZero) {
+        if (t === "เปลี่ยนเป็นไม่หาร") return { k: "owed_none" };
+        if (t === "ใส่ใหม่" || t === "↩ ใส่ใหม่") return { k: "owed_retry" };
+      }
+      const bundle = interpretBundle(t, { expense, data, members });
+      return bundle ? set(bundle) : null;
+    }
+    case "amount": {
+      const n = parseNumber(t);
+      return n == null ? null : set({ amount: n });
+    }
+    case "currency": {
+      const code = resolveCurrency(t);
+      return code ? set({ currency: code }) : null;
+    }
+    case "payer": {
+      const name = members.length === 0 ? (parseNumber(t) == null ? t : null) : matchName(t, members);
+      return name ? set({ payer: name }) : null;
+    }
+    case "split": {
+      const mode = parseSplitWord(t);
+      return mode ? set({ split: mode }) : null;
+    }
+    case "partner": {
+      const name = matchName(t, members);
+      return name ? set({ partner: name }) : null;
+    }
+    case "owed": {
+      if (data.owedZero) {
+        if (t === "เปลี่ยนเป็นไม่หาร") return { k: "owed_none" };
+        if (t === "ใส่ใหม่" || t === "↩ ใส่ใหม่") return { k: "owed_retry" };
+      }
+      const n = parseNumber(t);
+      return n == null ? null : set({ owed: n });
+    }
+    case "category": {
+      const category = CATEGORY_NAMES.find((c) => c === t);
+      return category ? set({ category }) : null;
+    }
+    case "note":
+      return set({ note: t === "-" ? "" : t });
+    case "edit": {
+      const field = EDIT_LABELS[t];
+      return field ? { k: "editfield", field } : null;
+    }
+    case "confirm_cancel":
+      if (t === "ลบทิ้ง" || t === "ลบรายการนี้") return { k: "cancel_delete" };
+      if (t === "เก็บไว้กรอกทีหลัง" || t === "เก็บไว้" || t === "ไม่ลบ") return { k: "cancel_keep" };
+      return null;
+    case "conflict":
+      if (t === "ทำต่ออันเก่า") return { k: "conflict_resume" };
+      if (t === "เก็บไว้ เริ่มใหม่" || t === "เก็บไว้ก่อน") return { k: "conflict_park" };
+      if (t === "ทิ้งอันเก่า") return { k: "conflict_drop" };
+      return null;
+  }
+}
+
+// Postback data: a=<action>&f=<field>&w=<value>&e=<expense id>&v=<rev>.
+// e / v are checked by the handler, not here.
+function fieldBundle(f: string, w: string): Bundle | null {
+  switch (f) {
+    case "amount": {
+      const n = Number(w);
+      return w !== "" && Number.isFinite(n) ? { amount: n } : null;
+    }
+    case "currency": return w ? { currency: w } : null;
+    case "payer": return w ? { payer: w } : null;
+    case "split": return w === "none" || w === "equal" || w === "unequal" ? { split: w } : null;
+    case "partner": return w ? { partner: w } : null;
+    case "category": {
+      const category = CATEGORY_NAMES.find((c) => c === w);
+      return category ? { category } : null;
+    }
+    default: return null;
+  }
+}
+
+export function postbackToAnswer(d: Record<string, string>): Answer | null {
+  const f = d.f ?? "";
+  const w = d.w ?? "";
+  switch (d.a) {
+    case "x_set": {
+      const bundle = fieldBundle(f, w);
+      return bundle ? set(bundle) : null;
+    }
+    case "x_clear": return CLEARABLE.includes(f) ? { k: "clear", field: f as Field } : null;
+    case "x_owed_zero": return w === "none" ? { k: "owed_none" } : w === "retry" ? { k: "owed_retry" } : null;
+    case "x_editfield": return EDIT_FIELDS.includes(w) ? { k: "editfield", field: w as EditField } : null;
+    case "x_edit": return { k: "edit" };
+    case "x_del": return { k: "ask_delete" };
+    case "x_cancel": return { k: "cancel" };
+    case "x_cancel_delete": return { k: "cancel_delete" };
+    case "x_cancel_keep": return { k: "cancel_keep" };
+    case "x_conflict_resume": return { k: "conflict_resume" };
+    case "x_conflict_park": return { k: "conflict_park" };
+    case "x_conflict_drop": return { k: "conflict_drop" };
+    default: return null;
+  }
 }

@@ -16,49 +16,66 @@ import {
 } from "@/lib/line-flex";
 import {
   fmtNum,
+  missingFields,
   otherMembers,
   partnerFor,
   round2,
   type EditField,
+  type Field,
   type FlowData,
   type FlowEnv,
   type FlowState,
+  type FlowStep,
+  type SplitMode,
 } from "@/lib/line-expense-flow";
+
+// What the cards need besides the flow state: where images live and which trip this is.
+export interface CardCtx {
+  origin: string;
+  tripName: string;
+}
 
 export const MSG = {
   noTrip: NO_TRIP_TEXT,
   goneExpense: "รายการนี้ถูกลบไปแล้ว",
   expiredButton: "ปุ่มนี้หมดอายุแล้ว พิมพ์ ทำต่อ เพื่อกรอกรายการที่ค้าง",
+  staleButton: "ปุ่มนี้หมดอายุแล้ว",
   deleted: "ลบรายการแล้ว 🗑",
   kept: 'เก็บไว้ในคิว "รอกรอก" ในแอปแล้ว พิมพ์ ทำต่อ เพื่อกรอกต่อ',
   parked: 'เก็บอันเก่าไว้ในคิว "รอกรอก" แล้ว เริ่มอันใหม่เลย',
   dropped: "ทิ้งอันเก่าแล้ว เริ่มอันใหม่เลย",
+  droppedEdit: "ยกเลิกการแก้ไขแล้ว รายการเดิมยังอยู่ เริ่มอันใหม่เลย",
   keptConfirmed: "ไม่ลบ รายการยังอยู่เหมือนเดิม",
-  reask: "ยังรอคำตอบข้อนี้อยู่นะ",
+  reask: "ไม่เข้าใจ ลองกดปุ่ม หรือพิมพ์ เช่น HKD เก่ง หารเท่า",
+  reaskPrompt: "ยังรอคำตอบข้อนี้อยู่นะ",
+  busy: "มีรายการอื่นค้างอยู่ ตอบหรือ ยกเลิก อันนั้นก่อนนะ",
   photoAttached: "แนบรูปเข้ารายการที่ค้างแล้ว 📎",
   nothingPending: "ไม่มีรายการค้าง",
   noLatest: "ยังไม่มีรายการที่บันทึกในชื่อเรา",
   unknownMember: "ชื่อ LINE ไม่ตรงกับสมาชิกในทริป ตั้งชื่อสมาชิกในแอปให้ตรงก่อนนะ",
 } as const;
 
+// The card is the question for a draft; every other step is a prompt.
+export const reaskFor = (step: FlowStep): string => (step === "missing" ? MSG.reask : MSG.reaskPrompt);
+
 export const CATEGORY_EMOJI: Record<Category, string> = {
   "อาหาร": "🍜", "เดินทาง": "🚕", "ที่พัก": "🏨", "ช้อป": "🛍️", "ตั๋ว": "🎫", "อื่นๆ": "📦",
 };
 
-type Item = { label: string; data?: Record<string, string | number | undefined>; text?: string };
+type Data = Record<string, string | number | undefined>;
+type Item = { label: string; data?: Data; text?: string };
 
 const EDIT_BUTTONS: [string, EditField][] = [
   ["ยอด", "amount"], ["สกุลเงิน", "currency"], ["คนจ่าย", "payer"], ["หาร", "split"], ["หมวด", "category"], ["โน้ต", "note"],
 ];
 
-function pb(st: FlowState, a: string, v?: string | number): Record<string, string | number | undefined> {
-  return { a, e: st.expense.id, s: st.step, v };
-}
+const SPLIT_LABEL: Record<SplitMode, string> = { none: "ไม่หาร", equal: "หารเท่า", unequal: "หารไม่เท่า" };
 
-function backItem(st: FlowState): Item[] {
-  if (st.step === "conflict" || st.step === "confirm_cancel") return [];
-  return (st.data.prevSteps ?? []).length > 0 ? [{ label: "↩ ย้อน", data: pb(st, "x_back") }] : [];
+// Every card button carries the expense id and the revision it was drawn for.
+function pb(st: FlowState, a: string, extra: Data = {}): Data {
+  return { a, e: st.expense.id, v: st.data.rev ?? 0, ...extra };
 }
+const setPb = (st: FlowState, f: Field | "category", w: string | number): Data => pb(st, "x_set", { f, w });
 
 export function amountLine(e: Expense): string {
   if (e.currency === "THB") return `${fmtNum(e.amount)}฿`;
@@ -75,10 +92,15 @@ export function splitLine(e: Expense, d: FlowData): string {
   return `⚖️ หารไม่เท่า: ${e.payer} ${fmtNum(round2(e.amount - owed))} · ${partner} ${fmtNum(owed)} → ${partner}คืน ${fmtNum(owedThb)}฿`;
 }
 
+// ---------------------------------------------------------------------------
+// One question at a time: only for editing a saved expense and the two prompts
+// ---------------------------------------------------------------------------
+
 function questionText(st: FlowState, env: FlowEnv): string {
   const e = st.expense;
   const d = st.data;
   switch (st.step) {
+    case "missing": return "เหลือบางอย่างที่ต้องกรอก";
     case "payer": return "ใครจ่าย?";
     case "amount": return d.amountCandidates?.length ? "ยอดคือ?" : "ยอดเท่าไหร่? พิมพ์ตัวเลขมาได้เลย";
     case "currency": return `${fmtNum(e.amount)} สกุลเงินอะไร?`;
@@ -103,9 +125,8 @@ function questionText(st: FlowState, env: FlowEnv): string {
       const what = e.amount > 0
         ? `${fmtNum(e.amount)}${cur}${e.description ? ` ${e.description}` : ""}`
         : e.description || "ยังไม่มียอด";
-      return `มีรายการค้างอยู่ (${what}) จะทำยังไงดี?`;
+      return e.pending ? `มีรายการค้างอยู่ (${what}) จะทำยังไงดี?` : `กำลังแก้รายการ (${what}) อยู่ จะทำยังไงดี?`;
     }
-    case "summary": return "สรุปรายการ";
   }
 }
 
@@ -114,35 +135,32 @@ function questionItems(st: FlowState, env: FlowEnv): Item[] {
   const d = st.data;
   const others = otherMembers(e.payer, env.members);
   switch (st.step) {
+    case "missing":
+      return [];
     case "payer":
-      return env.members.slice(0, 12).map((m) => ({ label: m, data: pb(st, "x_payer", m) }));
+      return env.members.slice(0, 12).map((m) => ({ label: m, data: setPb(st, "payer", m) }));
     case "amount":
-      return (d.amountCandidates ?? []).slice(0, 4).map((n) => ({ label: fmtNum(n), data: pb(st, "x_amount", n) }));
+      return (d.amountCandidates ?? []).slice(0, 4).map((n) => ({ label: fmtNum(n), data: setPb(st, "amount", n) }));
     case "currency":
-      return [...new Set([env.tripCurrency, env.homeCurrency].filter(Boolean))].map((c) => ({ label: c, data: pb(st, "x_currency", c) }));
+      return [...new Set([env.tripCurrency, env.homeCurrency].filter(Boolean))].map((c) => ({ label: c, data: setPb(st, "currency", c) }));
     case "split":
-      return others.length > 0
-        ? [
-            { label: "ไม่หาร", data: pb(st, "x_split", "none") },
-            { label: "หารเท่า", data: pb(st, "x_split", "equal") },
-            { label: "หารไม่เท่า", data: pb(st, "x_split", "unequal") },
-          ]
-        : [{ label: "ไม่หาร", data: pb(st, "x_split", "none") }];
+      return (others.length > 0 ? (["none", "equal", "unequal"] as SplitMode[]) : (["none"] as SplitMode[]))
+        .map((m) => ({ label: SPLIT_LABEL[m], data: setPb(st, "split", m) }));
     case "partner":
-      return others.slice(0, 12).map((m) => ({ label: m, data: pb(st, "x_partner", m) }));
+      return others.slice(0, 12).map((m) => ({ label: m, data: setPb(st, "partner", m) }));
     case "owed":
       return d.owedZero
         ? [
-            { label: "เปลี่ยนเป็นไม่หาร", data: pb(st, "x_owed_zero", "none") },
-            { label: "↩ ใส่ใหม่", data: pb(st, "x_owed_zero", "retry") },
+            { label: "เปลี่ยนเป็นไม่หาร", data: pb(st, "x_owed_zero", { w: "none" }) },
+            { label: "↩ ใส่ใหม่", data: pb(st, "x_owed_zero", { w: "retry" }) },
           ]
         : [];
     case "category":
-      return CATS.map((c) => ({ label: c.name, data: pb(st, "x_category", c.name) }));
+      return CATS.map((c) => ({ label: c.name, data: setPb(st, "category", c.name) }));
     case "note":
       return [{ label: "ไม่มีโน้ต", text: "-" }];
     case "edit":
-      return EDIT_BUTTONS.map(([label, field]) => ({ label, data: pb(st, "x_editfield", field) }));
+      return EDIT_BUTTONS.map(([label, field]) => ({ label, data: pb(st, "x_editfield", { w: field }) }));
     case "confirm_cancel":
       return e.pending
         ? [
@@ -159,17 +177,19 @@ function questionItems(st: FlowState, env: FlowEnv): Item[] {
         { label: "เก็บไว้ เริ่มใหม่", data: pb(st, "x_conflict_park") },
         { label: "ทิ้งอันเก่า", data: pb(st, "x_conflict_drop") },
       ];
-    case "summary":
-      return [];
   }
 }
 
 export function questionMessage(st: FlowState, env: FlowEnv, notice?: string): FlexNode {
   const prefix = st.data.asker ? `@${st.data.asker} ` : "";
   const text = `${prefix}${notice ? `${notice}\n` : ""}${questionText(st, env)}`;
-  const items = [...questionItems(st, env), ...backItem(st)].slice(0, 13);
+  const items = questionItems(st, env).slice(0, 13);
   return textMessage(text, items.length > 0 ? quickReply(items) : undefined);
 }
+
+// ---------------------------------------------------------------------------
+// Cards
+// ---------------------------------------------------------------------------
 
 function infoLines(e: Expense, d: FlowData): FlexNode[] {
   const catLine = `${CATEGORY_EMOJI[e.category] ?? "📦"} ${e.category}${e.description ? ` · 📝 ${e.description}` : ""}`;
@@ -182,8 +202,8 @@ function infoLines(e: Expense, d: FlowData): FlexNode[] {
   ]);
 }
 
-// Same clay look as the old buildConfirmationFlex: cream frame, white inner card.
-function card(e: Expense, origin: string, title: string, titleColor: string, lines: FlexNode[], footer: FlexNode[]): FlexNode {
+// Same clay look as the old cards: cream frame, white inner card, optional slip hero.
+function shell(e: Expense, origin: string, inner: FlexNode[], footer: FlexNode[]): FlexNode {
   const photo = e.slip_photo_ids[0];
   return {
     type: "bubble",
@@ -197,44 +217,175 @@ function card(e: Expense, origin: string, title: string, titleColor: string, lin
       backgroundColor: CLAY.cream,
       paddingAll: "16px",
       contents: [
-        {
-          type: "box",
-          layout: "vertical",
-          backgroundColor: CLAY.card,
-          cornerRadius: "18px",
-          paddingAll: "16px",
-          spacing: "sm",
-          contents: compact([txt(title, { weight: "bold", size: "md", color: titleColor }), ...lines]),
-        },
+        { type: "box", layout: "vertical", backgroundColor: CLAY.card, cornerRadius: "18px", paddingAll: "16px", spacing: "sm", contents: inner },
       ],
     },
-    footer: { type: "box", layout: "horizontal", spacing: "sm", paddingAll: "12px", contents: footer },
+    footer: { type: "box", layout: "vertical", spacing: "sm", paddingAll: "12px", contents: footer },
   };
 }
 
-export function summaryCard(st: FlowState, origin: string): FlexNode {
+const tripLine = (tripName: string): FlexNode | null => (tripName ? txt(`ทริป ${tripName}`, { size: "xs", color: CLAY.muted, align: "center" }) : null);
+
+export function savedCard(e: Expense, d: FlowData, origin: string, tripName: string): FlexNode {
+  const footer = compact<FlexNode>([
+    {
+      type: "box",
+      layout: "horizontal",
+      spacing: "sm",
+      contents: [
+        { type: "button", style: "secondary", height: "sm", action: postbackAction("✏️ แก้", { a: "x_edit", e: e.id }) },
+        { type: "button", style: "secondary", height: "sm", action: postbackAction("🗑 ลบ", { a: "x_del", e: e.id }) },
+      ],
+    },
+    { type: "button", style: "link", height: "sm", action: uriAction("เปิดในแอป", `${origin}/trips/${e.trip_id}/money`) },
+    tripLine(tripName),
+  ]);
+  const inner = compact<FlexNode>([txt("✅ บันทึกแล้ว", { weight: "bold", size: "md", color: CLAY.doneInk }), ...infoLines(e, d)]);
+  return flexMessage(`บันทึกแล้ว: ${amountLine(e)}`.slice(0, 400), shell(e, origin, inner, footer));
+}
+
+const FIELD_LABEL: Record<Field, string> = {
+  amount: "ยอด", currency: "สกุลเงิน", payer: "คนจ่าย", split: "หาร", partner: "หารกับ", owed: "ฝากจ่าย",
+};
+
+function visibleFields(st: FlowState, env: FlowEnv): Field[] {
+  const d = st.data;
+  const out: Field[] = ["amount", "currency"];
+  if (env.members.length > 0) out.push("payer");
+  if (d.lockedSplits) return out;
+  out.push("split");
+  if (d.splitMode && d.splitMode !== "none" && st.expense.payer && otherMembers(st.expense.payer, env.members).length > 1) out.push("partner");
+  if (d.splitMode === "unequal") out.push("owed");
+  return out;
+}
+
+function buttonRows(items: Item[]): FlexNode[] {
+  const rows: FlexNode[] = [];
+  for (let i = 0; i < items.length; i += 3) {
+    rows.push({
+      type: "box",
+      layout: "horizontal",
+      spacing: "sm",
+      contents: items.slice(i, i + 3).map((it) => ({
+        type: "button", style: "secondary", height: "sm", flex: 1, action: postbackAction(it.label, it.data ?? {}),
+      })),
+    });
+  }
+  return rows;
+}
+
+function doneValue(field: Field, st: FlowState, env: FlowEnv): string {
   const e = st.expense;
-  const footer: FlexNode[] = [
-    { type: "button", style: "primary", color: CLAY.coral, height: "sm", action: postbackAction("✅ ยืนยัน", pb(st, "x_confirm")) },
-    { type: "button", style: "secondary", height: "sm", action: postbackAction("✏️ แก้", pb(st, "x_edit")) },
+  const d = st.data;
+  switch (field) {
+    case "amount": return fmtNum(e.amount);
+    case "currency": return e.currency;
+    case "payer": return e.payer;
+    case "split": return SPLIT_LABEL[d.splitMode ?? "none"];
+    case "partner": return partnerFor(e.payer, d, env.members) ?? "-";
+    case "owed": return `${fmtNum(d.owedAmount ?? 0)} ${e.currency}`;
+  }
+}
+
+// Answered: a tappable row; tapping clears the field and asks it again.
+function doneRow(st: FlowState, env: FlowEnv, field: Field): FlexNode {
+  const label = FIELD_LABEL[field];
+  return {
+    type: "box",
+    layout: "horizontal",
+    spacing: "sm",
+    action: postbackAction(`แก้${label}`, pb(st, "x_clear", { f: field })),
+    contents: compact<FlexNode>([
+      txt(`✓ ${label}`, { size: "sm", color: CLAY.doneInk, flex: 3 }),
+      txt(doneValue(field, st, env), { size: "sm", weight: "bold", color: CLAY.ink, flex: 4, align: "end" }),
+    ]),
+  };
+}
+
+function todoBody(field: Field, st: FlowState, env: FlowEnv): FlexNode[] {
+  const e = st.expense;
+  const d = st.data;
+  switch (field) {
+    case "amount":
+      return compact<FlexNode>([
+        txt("พิมพ์ตัวเลข เช่น 120", { size: "sm", color: CLAY.ink }),
+        ...buttonRows((d.amountCandidates ?? []).slice(0, 4).map((n) => ({ label: fmtNum(n), data: setPb(st, "amount", n) }))),
+      ]);
+    case "currency":
+      return buttonRows([...new Set([env.tripCurrency, env.homeCurrency].filter(Boolean))].map((c) => ({ label: c, data: setPb(st, "currency", c) })));
+    case "payer":
+      return buttonRows(env.members.slice(0, 9).map((m) => ({ label: m, data: setPb(st, "payer", m) })));
+    case "split": {
+      const modes: SplitMode[] = env.members.length > 1 ? ["none", "equal", "unequal"] : ["none"];
+      return buttonRows(modes.map((m) => ({ label: SPLIT_LABEL[m], data: setPb(st, "split", m) })));
+    }
+    case "partner":
+      return buttonRows(otherMembers(e.payer, env.members).slice(0, 9).map((m) => ({ label: m, data: setPb(st, "partner", m) })));
+    case "owed": {
+      if (d.owedZero) {
+        return compact<FlexNode>([
+          txt("ฝากจ่าย 0 — เปลี่ยนเป็นไม่หารไหม?", { size: "sm", color: CLAY.coral }),
+          ...buttonRows([
+            { label: "เปลี่ยนเป็นไม่หาร", data: pb(st, "x_owed_zero", { w: "none" }) },
+            { label: "ใส่ใหม่", data: pb(st, "x_owed_zero", { w: "retry" }) },
+          ]),
+        ]);
+      }
+      if (!(e.amount > 0)) return compact<FlexNode>([txt("ใส่ยอดรวมก่อน", { size: "sm", color: CLAY.ink })]);
+      const owed = d.owedAmount;
+      const over = owed != null && owed > e.amount;
+      return compact<FlexNode>([
+        over ? txt(`ฝากจ่าย ${fmtNum(owed)} เกินยอดรวม ${fmtNum(e.amount)} ใส่ใหม่นะ`, { size: "sm", color: CLAY.coral }) : null,
+        txt("ยอดที่ฝากจ่าย — พิมพ์ตัวเลข เช่น ฝาก 20", { size: "sm", color: CLAY.ink }),
+      ]);
+    }
+  }
+}
+
+function todoRow(field: Field, st: FlowState, env: FlowEnv): FlexNode {
+  const label = field === "partner" ? "หารกับใคร" : FIELD_LABEL[field];
+  return {
+    type: "box",
+    layout: "vertical",
+    spacing: "xs",
+    contents: compact<FlexNode>([txt(label, { size: "sm", color: CLAY.muted }), ...todoBody(field, st, env)]),
+  };
+}
+
+function cardTitle(st: FlowState): string {
+  const e = st.expense;
+  const parts: string[] = [];
+  if (e.amount > 0) parts.push(`${fmtNum(e.amount)}${st.data.currencyConfirmed ? ` ${e.currency}` : ""}`);
+  if (e.description) parts.push(e.description);
+  if (parts.length > 0) return `💸 ${parts.join(" · ")}`;
+  return e.slip_photo_ids.length > 0 ? "💸 รับสลิปแล้ว 📸" : "💸 รายการใหม่";
+}
+
+// The one card of a draft: everything known as ✓ rows, everything missing as
+// buttons or a typing hint. A notice goes in a plain text message above it.
+export function missingCard(st: FlowState, env: FlowEnv, cc: CardCtx, notice?: string): FlexNode[] {
+  const e = st.expense;
+  const d = st.data;
+  const missing = missingFields(e, d, env.members);
+  const rows = visibleFields(st, env).map((f) => (missing.includes(f) ? todoRow(f, st, env) : doneRow(st, env, f)));
+  const title = cardTitle(st);
+  const inner = compact<FlexNode>([
+    d.asker ? txt(`@${d.asker}`, { size: "xs", color: CLAY.muted }) : null,
+    txt(title, { weight: "bold", size: "md", color: CLAY.coral }),
+    txt(`เหลืออีก ${missing.length} อย่าง`, { size: "xs", color: CLAY.muted }),
+    ...rows,
+    d.lockedSplits ? txt(splitLine(e, d), { size: "sm", color: CLAY.ink }) : null,
+    txt('พิมพ์ตอบทีเดียวก็ได้ เช่น "HKD เก่ง หารเท่า"', { size: "xs", color: CLAY.muted }),
+  ]);
+  const footer = compact<FlexNode>([
     { type: "button", style: "secondary", height: "sm", action: postbackAction("🗑 ยกเลิก", pb(st, "x_cancel")) },
-  ];
-  const back = backItem(st);
-  return flexMessage(
-    `สรุป: ${amountLine(e)}`.slice(0, 400),
-    card(e, origin, "สรุปรายการ", CLAY.coral, infoLines(e, st.data), footer),
-    back.length > 0 ? quickReply(back) : undefined,
-  );
+    tripLine(cc.tripName),
+  ]);
+  const card = flexMessage(`${title} · เหลืออีก ${missing.length} อย่าง`.slice(0, 400), shell(e, cc.origin, inner, footer));
+  return notice ? [textMessage(notice), card] : [card];
 }
 
-export function savedCard(e: Expense, d: FlowData, origin: string): FlexNode {
-  const footer: FlexNode[] = [
-    { type: "button", style: "primary", color: CLAY.peach, height: "sm", action: uriAction("เปิดในแอป", `${origin}/trips/${e.trip_id}/money`) },
-  ];
-  return flexMessage(`บันทึกแล้ว: ${amountLine(e)}`.slice(0, 400), card(e, origin, "✅ บันทึกแล้ว", CLAY.doneInk, infoLines(e, d), footer));
-}
-
-export function stepMessages(st: FlowState, env: FlowEnv, origin: string, notice?: string): FlexNode[] {
-  if (st.step === "summary") return notice ? [textMessage(notice), summaryCard(st, origin)] : [summaryCard(st, origin)];
+export function stepMessages(st: FlowState, env: FlowEnv, cc: CardCtx, notice?: string): FlexNode[] {
+  if (st.step === "missing") return missingCard(st, env, cc, notice);
   return [questionMessage(st, env, notice)];
 }

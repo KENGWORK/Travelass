@@ -2,40 +2,37 @@
 import type { Category, Expense, ExpenseSplit } from "@/lib/models/types";
 import { convertToTHB, SUPPORTED_CURRENCIES } from "@/lib/fx";
 import { buildPendingExpense } from "@/lib/pending-expense";
-import { CATS } from "@/lib/categories";
-import { isViewCommand } from "@/lib/line-router";
-import {
-  expenseCommand,
-  guessCategory,
-  parseExpenseText,
-  parseNumber,
-  parseSplitWord,
-  removeNumberToken,
-  resolveCurrency,
-  type ParsedExpense,
-  type SplitMode,
-} from "@/lib/line-expense-parse";
+import { guessCategory, removeNumberToken, type ParsedExpense, type SplitMode } from "@/lib/line-expense-parse";
 
 export type { SplitMode } from "@/lib/line-expense-parse";
 
+// "missing" = a draft showing the one card. The per-field steps exist only for
+// editing a SAVED expense ("edit" = which field?), plus the two prompts.
 export type FlowStep =
-  | "payer" | "amount" | "currency" | "split" | "partner" | "owed"
-  | "category" | "note" | "summary" | "edit" | "confirm_cancel" | "conflict";
+  | "missing" | "edit"
+  | "amount" | "currency" | "payer" | "split" | "partner" | "owed" | "category" | "note"
+  | "confirm_cancel" | "conflict";
 
 const FLOW_STEPS: readonly string[] = [
-  "payer", "amount", "currency", "split", "partner", "owed",
-  "category", "note", "summary", "edit", "confirm_cancel", "conflict",
+  "missing", "edit", "amount", "currency", "payer", "split", "partner", "owed", "category", "note", "confirm_cancel", "conflict",
 ];
 
 export function isFlowStep(s: string): s is FlowStep {
   return FLOW_STEPS.includes(s);
 }
 
-export type EditField = "amount" | "currency" | "payer" | "split" | "category" | "note";
+// Rows written by the old one-question flow ("summary", or "payer" on a draft…)
+// are mapped onto the new steps: drafts always sit on the card.
+export function normalizeStep(raw: string, pending: boolean): FlowStep {
+  if (raw === "confirm_cancel" || raw === "conflict") return raw;
+  if (pending) return "missing";
+  return isFlowStep(raw) && raw !== "missing" ? raw : "edit";
+}
 
 // The fields the one-card flow collects, in card order. Every name is also a
 // FlowStep (an edit of a saved expense asks one field at a time).
 export type Field = "amount" | "currency" | "payer" | "split" | "partner" | "owed";
+export type EditField = "amount" | "currency" | "payer" | "split" | "category" | "note";
 
 // Everything one typed message / one button can say. seedNote only fills an
 // empty note (words typed beside a first amount); note replaces it.
@@ -66,8 +63,6 @@ export interface FlowData {
   partner?: string;               // the other member, when the trip doesn't have exactly 2
   owedAmount?: number;            // หารไม่เท่า, in the expense's own currency
   owedZero?: boolean;             // user typed 0 → asking "change to ไม่หาร?"
-  prevSteps?: FlowStep[];         // ↩ ย้อน stack
-  editing?: boolean;
   resumeStep?: FlowStep;          // where confirm_cancel / conflict return to
   pendingText?: string;           // conflict: the new text waiting to start
   pendingPhotoId?: string;        // conflict: the new photo waiting to start
@@ -109,17 +104,6 @@ export function buildSplits(mode: SplitMode, amountThb: number, owedThb: number,
   return [{ name: partner, amount_thb, paid: false, paid_slip_photo_ids: [] }];
 }
 
-export function nextMissingStep(expense: Expense, data: FlowData, members: string[]): FlowStep {
-  if (!expense.payer) return "payer";
-  if (!(expense.amount > 0)) return "amount";
-  if (!data.currencyConfirmed) return "currency";
-  if (data.lockedSplits) return "summary";
-  if (!data.splitMode) return "split";
-  if (data.splitMode !== "none" && !partnerFor(expense.payer, data, members)) return "partner";
-  if (data.splitMode === "unequal" && (data.owedAmount == null || validateOwed(data.owedAmount, expense.amount) !== "ok")) return "owed";
-  return "summary";
-}
-
 // What the card still has to ask. members.length === 0 → the payer cannot be
 // chosen, so it is not asked. Owed counts as missing while it is absent or
 // invalid for the CURRENT amount (so it also stays missing while the amount is unknown).
@@ -138,10 +122,9 @@ export function missingFields(expense: Expense, data: FlowData, members: string[
   return out;
 }
 
-export function initialState(
-  p: { id: string; tripId: string; now: string; tripCurrency: string; parsed: ParsedExpense; payer: string; photoId?: string; asker?: string },
-  members: string[],
-): FlowState {
+export function initialState(p: {
+  id: string; tripId: string; now: string; tripCurrency: string; parsed: ParsedExpense; payer: string; photoId?: string; asker?: string;
+}): FlowState {
   const base = buildPendingExpense({
     id: p.id,
     tripId: p.tripId,
@@ -157,7 +140,7 @@ export function initialState(
     category: p.parsed.category,
     amount: p.parsed.amount ?? 0,
   };
-  const data: FlowData = { prevSteps: [] };
+  const data: FlowData = { rev: 1 };
   if (p.asker) data.asker = p.asker;
   if (p.parsed.amountCandidates.length > 0) data.amountCandidates = p.parsed.amountCandidates;
   if (p.parsed.currency) data.currencyConfirmed = true;
@@ -169,16 +152,18 @@ export function initialState(
       else data.owedZero = true;
     }
   }
-  return { expense, step: nextMissingStep(expense, data, members), data };
+  return { expense, step: "missing", data };
 }
 
-// Rebuilds session state for an expense that already exists (ทำต่อ / แก้ล่าสุด).
-// A confirmed expense is trusted as complete. A pending draft only trusts
-// what the row can prove. The currency counts as chosen when the row shows
-// a sign of it: currency ≠ trip default, a fetched rate (fx_rate ≠ 1), or
-// amount_thb > 0. finalize only fills amount_thb once the currency is confirmed.
-export function stateFromExpense(expense: Expense, members: string[], tripCurrency: string, asker?: string): FlowState {
-  const data: FlowData = { prevSteps: [] };
+// Rebuilds session state for an expense that already exists (ทำต่อ / ✏️ แก้).
+// A confirmed expense is trusted as complete and opens at the edit picker. A
+// pending draft only trusts what the row can prove: the currency counts as
+// chosen when the row shows a sign of it (currency ≠ trip default, a fetched
+// rate ≠ 1, or amount_thb > 0). finalize only fills amount_thb once the
+// currency is confirmed. rev starts at 1: a stale card of the same expense
+// with rev 1 is harmless because it asks the same question.
+export function stateFromExpense(expense: Expense, tripCurrency: string, asker?: string): FlowState {
+  const data: FlowData = { rev: 1 };
   if (asker) data.asker = asker;
   const confirmed = !expense.pending;
   const currencyShown = expense.currency !== tripCurrency || expense.fx_rate !== 1 || expense.amount_thb > 0;
@@ -200,7 +185,7 @@ export function stateFromExpense(expense: Expense, members: string[], tripCurren
       }
     }
   }
-  return { expense, step: nextMissingStep(expense, data, members), data };
+  return { expense, step: confirmed ? "edit" : "missing", data };
 }
 
 export function needsRate(st: FlowState): boolean {
@@ -239,188 +224,125 @@ export function finalize(st: FlowState, members: string[]): FlowState {
   return { ...st, expense: { ...e, amount_thb, splits } };
 }
 
+const nextRev = (d: FlowData): number => (d.rev ?? 0) + 1;
+
 export function enterConflict(st: FlowState, p: { text?: string; photoId?: string }): FlowState {
   const inPrompt = st.step === "conflict" || st.step === "confirm_cancel";
   return {
     ...st,
     step: "conflict",
-    data: { ...st.data, resumeStep: inPrompt ? st.data.resumeStep : st.step, pendingText: p.text, pendingPhotoId: p.photoId },
+    data: { ...st.data, rev: nextRev(st.data), resumeStep: inPrompt ? st.data.resumeStep : st.step, pendingText: p.text, pendingPhotoId: p.photoId },
   };
 }
 
 export function attachPhoto(st: FlowState, photoId: string): FlowState {
-  return { ...st, expense: { ...st.expense, slip_photo_ids: [photoId] } };
+  return { ...st, expense: { ...st.expense, slip_photo_ids: [photoId] }, data: { ...st.data, rev: nextRev(st.data) } };
 }
 
 // ---------------------------------------------------------------------------
-// Answers (typed text and postbacks) and the reducer
+// Answers and the reducer
 // ---------------------------------------------------------------------------
 
 export type Answer =
-  | { k: "cancel" } | { k: "back" } | { k: "resume" }
-  | { k: "payer"; name: string }
-  | { k: "amount"; amount: number; note?: string }   // note: leftover text typed with it at the payer step
-  | { k: "currency"; code: string }
-  | { k: "split"; mode: SplitMode }
-  | { k: "partner"; name: string }
-  | { k: "owed"; amount: number }
+  | { k: "cancel" } | { k: "resume" }
+  | { k: "set"; bundle: Bundle }
+  | { k: "clear"; field: Field }
   | { k: "owed_none" } | { k: "owed_retry" }
-  | { k: "category"; category: Category }
-  | { k: "note"; text: string }
-  | { k: "confirm" } | { k: "edit" }
-  | { k: "editfield"; field: EditField }
+  | { k: "edit" } | { k: "editfield"; field: EditField }
+  | { k: "ask_delete" }
   | { k: "cancel_delete" } | { k: "cancel_keep" }
   | { k: "conflict_resume" } | { k: "conflict_park" } | { k: "conflict_drop" };
 
 export type Outcome =
   | { k: "ask"; state: FlowState; notice?: string }
-  | { k: "confirm"; expense: Expense }
+  | { k: "saved"; state: FlowState }   // post-answer state, expense.pending already false
   | { k: "delete" }
   | { k: "keep" }
   | { k: "park"; pendingText?: string; pendingPhotoId?: string }
   | { k: "drop"; pendingText?: string; pendingPhotoId?: string };
 
-const CATEGORY_NAMES: Category[] = CATS.map((c) => c.name);
-const EDIT_FIELDS: readonly string[] = ["amount", "currency", "payer", "split", "category", "note"];
-const EDIT_LABELS: Record<string, EditField> = {
-  "ยอด": "amount", "สกุลเงิน": "currency", "คนจ่าย": "payer", "หาร": "split", "หมวด": "category", "โน้ต": "note",
-};
 const PROMPT_STEPS: readonly FlowStep[] = ["conflict", "confirm_cancel"];
-
-function matchName(text: string, names: string[]): string | null {
-  const t = text.trim().toLowerCase();
-  return names.find((n) => n.trim().toLowerCase() === t) ?? null;
-}
-
-// Typed text → answer for the given step, or null when it is not an answer
-// (the router then treats it as a new entry / off-topic). Used both for the
-// router predicate and for applying the answer, so the two always agree.
-// amountKnown = the expense already has an amount > 0. At the payer step a
-// bare number fills a missing amount (the payer is asked again) instead of
-// being read as a new entry.
-export function interpretAnswer(step: FlowStep, data: FlowData, text: string, members: string[], amountKnown = false): Answer | null {
-  const t = text.trim();
-  if (!t) return null;
-  const cmd = expenseCommand(t);
-  if (cmd === "cancel") return { k: "cancel" };
-  if (cmd === "back") return { k: "back" };
-  if (cmd === "resume") return { k: "resume" };
-
-  switch (step) {
-    case "payer": {
-      const n = parseNumber(t);
-      const name = members.length === 0 ? (n == null ? t : null) : matchName(t, members);
-      if (name) return { k: "payer", name };
-      if (!amountKnown && n != null && n > 0) {
-        // "50 กาแฟ" → amount 50, with "กาแฟ" kept to seed an empty note.
-        const parsed = parseExpenseText(t);
-        return { k: "amount", amount: parsed.amount ?? n, note: (parsed.amount ? parsed.note : "") || undefined };
-      }
-      return null;
-    }
-    case "amount": {
-      const n = parseNumber(t);
-      return n == null ? null : { k: "amount", amount: n };
-    }
-    case "currency": {
-      const code = resolveCurrency(t);
-      return code ? { k: "currency", code } : null;
-    }
-    case "split": {
-      const mode = parseSplitWord(t);
-      return mode ? { k: "split", mode } : null;
-    }
-    case "partner": {
-      const name = matchName(t, members);
-      return name ? { k: "partner", name } : null;
-    }
-    case "owed": {
-      if (data.owedZero) {
-        if (t === "เปลี่ยนเป็นไม่หาร") return { k: "owed_none" };
-        if (t === "ใส่ใหม่" || t === "↩ ใส่ใหม่") return { k: "owed_retry" };
-      }
-      const n = parseNumber(t);
-      return n == null ? null : { k: "owed", amount: n };
-    }
-    case "category": {
-      const category = CATEGORY_NAMES.find((c) => c === t);
-      return category ? { k: "category", category } : null;
-    }
-    case "note":
-      if (isViewCommand(t)) return null;
-      return { k: "note", text: t === "-" ? "" : t };
-    case "summary":
-      if (t === "ยืนยัน") return { k: "confirm" };
-      if (t === "แก้") return { k: "edit" };
-      return null;
-    case "edit": {
-      const field = EDIT_LABELS[t];
-      return field ? { k: "editfield", field } : null;
-    }
-    case "confirm_cancel":
-      if (t === "ลบทิ้ง" || t === "ลบรายการนี้") return { k: "cancel_delete" };
-      if (t === "เก็บไว้กรอกทีหลัง" || t === "เก็บไว้" || t === "ไม่ลบ") return { k: "cancel_keep" };
-      return null;
-    case "conflict":
-      if (t === "ทำต่ออันเก่า") return { k: "conflict_resume" };
-      if (t === "เก็บไว้ เริ่มใหม่" || t === "เก็บไว้ก่อน") return { k: "conflict_park" };
-      if (t === "ทิ้งอันเก่า") return { k: "conflict_drop" };
-      return null;
-  }
-}
-
-export function postbackToAnswer(d: Record<string, string>): Answer | null {
-  const v = d.v ?? "";
-  switch (d.a) {
-    case "x_payer": return v ? { k: "payer", name: v } : null;
-    case "x_amount": {
-      const n = Number(v);
-      return v !== "" && Number.isFinite(n) ? { k: "amount", amount: n } : null;
-    }
-    case "x_currency": return v ? { k: "currency", code: v } : null;
-    case "x_split": return v === "none" || v === "equal" || v === "unequal" ? { k: "split", mode: v } : null;
-    case "x_partner": return v ? { k: "partner", name: v } : null;
-    case "x_owed_zero": return v === "none" ? { k: "owed_none" } : v === "retry" ? { k: "owed_retry" } : null;
-    case "x_category": {
-      const category = CATEGORY_NAMES.find((c) => c === v);
-      return category ? { k: "category", category } : null;
-    }
-    case "x_back": return { k: "back" };
-    case "x_confirm": return { k: "confirm" };
-    case "x_edit": return { k: "edit" };
-    case "x_editfield": return EDIT_FIELDS.includes(v) ? { k: "editfield", field: v as EditField } : null;
-    case "x_cancel": return { k: "cancel" };
-    case "x_cancel_delete": return { k: "cancel_delete" };
-    case "x_cancel_keep": return { k: "cancel_keep" };
-    case "x_conflict_resume": return { k: "conflict_resume" };
-    case "x_conflict_park": return { k: "conflict_park" };
-    case "x_conflict_drop": return { k: "conflict_drop" };
-    default: return null;
-  }
-}
 
 function patch(st: FlowState, e: Partial<Expense>, d: Partial<FlowData> = {}): FlowState {
   return { ...st, expense: { ...st.expense, ...e }, data: { ...st.data, ...d } };
 }
 
-function goTo(st: FlowState, step: FlowStep): FlowState {
-  const prev = st.data.prevSteps ?? [];
-  const push = step !== st.step && !PROMPT_STEPS.includes(st.step) && !PROMPT_STEPS.includes(step);
-  return { ...st, step, data: { ...st.data, prevSteps: push ? [...prev, st.step].slice(-10) : prev } };
-}
-
-function auto(st: FlowState, members: string[]): FlowState {
-  return goTo(st, nextMissingStep(st.expense, st.data, members));
-}
-
-function leave(st: FlowState, members: string[]): FlowState {
-  const step = st.data.resumeStep ?? nextMissingStep(st.expense, st.data, members);
+function leave(st: FlowState): FlowState {
+  // A resumeStep written by the old flow ("summary", "payer"...) is mapped onto a valid step.
+  const raw = st.data.resumeStep;
+  const step: FlowStep = raw ? normalizeStep(raw, st.expense.pending) : st.expense.pending ? "missing" : "edit";
   return { ...st, step, data: { ...st.data, resumeStep: undefined, pendingText: undefined, pendingPhotoId: undefined } };
 }
 
 const ask = (state: FlowState, notice?: string): Outcome => (notice ? { k: "ask", state, notice } : { k: "ask", state });
 
-export function applyAnswer(st: FlowState, ans: Answer, env: FlowEnv): Outcome {
+// After every change: nothing missing → save (a draft stops being pending; a
+// saved expense stays saved). Otherwise ask again: a draft on the card, a
+// saved expense on the first missing field. A notice keeps an EDIT step open
+// (so a rejected value is asked again instead of silently saving).
+export function settle(st: FlowState, members: string[], notice?: string): Outcome {
+  const missing = missingFields(st.expense, st.data, members);
+  if (missing.length === 0 && (!notice || st.step === "missing")) {
+    return { k: "saved", state: { ...st, expense: { ...st.expense, pending: false } } };
+  }
+  const step: FlowStep = missing.length === 0 ? st.step : st.expense.pending ? "missing" : missing[0];
+  return ask({ ...st, step, data: { ...st.data, resumeStep: undefined } }, notice);
+}
+
+function applyBundle(st: FlowState, b: Bundle, members: string[]): { st: FlowState; notices: string[] } {
+  let cur = st;
+  const notices: string[] = [];
+  if (b.amount !== undefined) {
+    if (!(b.amount > 0)) {
+      notices.push("ยอดต้องมากกว่า 0 นะ");
+    } else {
+      const e = cur.expense;
+      const description = cur.data.amountCandidates?.includes(b.amount) ? removeNumberToken(e.description, b.amount) : e.description;
+      cur = patch(cur, { amount: b.amount, description }, { amountCandidates: undefined });
+    }
+  }
+  if (b.seedNote && !cur.expense.description) cur = patch(cur, { description: b.seedNote, category: guessCategory(b.seedNote) });
+  if (b.currency && SUPPORTED_CURRENCIES.includes(b.currency)) cur = patch(cur, { currency: b.currency }, { currencyConfirmed: true });
+  if (b.payer && (members.length === 0 || members.includes(b.payer))) {
+    cur = patch(cur, { payer: b.payer }, cur.data.partner === b.payer ? { partner: undefined } : {});
+  }
+  if (b.split) {
+    if (b.split !== "none" && (members.length < 2 || otherMembers(cur.expense.payer, members).length === 0)) {
+      notices.push("ทริปนี้ไม่มีสมาชิกคนอื่นให้หาร");
+    } else {
+      cur = patch(cur, {}, { splitMode: b.split, owedAmount: undefined, owedZero: undefined, lockedSplits: undefined });
+    }
+  }
+  if (b.partner && otherMembers(cur.expense.payer, members).includes(b.partner)) cur = patch(cur, {}, { partner: b.partner });
+  if (b.owed !== undefined) {
+    const amount = cur.expense.amount;
+    if (amount > 0) {
+      const check = validateOwed(b.owed, amount);
+      if (check === "zero") cur = patch(cur, {}, { owedZero: true, owedAmount: undefined });
+      else if (check === "over") notices.push(`เกินยอดรวม ${fmtNum(amount)} ใส่ใหม่นะ`);
+      else cur = patch(cur, {}, { owedAmount: b.owed, owedZero: undefined });
+    } else {
+      // The total is typed later; missingFields re-checks the owed amount against it.
+      cur = patch(cur, {}, { owedAmount: b.owed });
+    }
+  }
+  if (b.category) cur = patch(cur, { category: b.category });
+  if (b.note !== undefined) cur = patch(cur, { description: b.note });
+  return { st: cur, notices };
+}
+
+function clearField(st: FlowState, f: Field): FlowState {
+  switch (f) {
+    case "amount": return patch(st, { amount: 0 });
+    case "currency": return patch(st, {}, { currencyConfirmed: undefined, rateCurrency: undefined, fxFailed: undefined });
+    case "payer": return patch(st, { payer: "" }, { partner: undefined });
+    case "split": return patch(st, {}, { splitMode: undefined, owedAmount: undefined, owedZero: undefined, partner: undefined });
+    case "partner": return patch(st, {}, { partner: undefined });
+    case "owed": return patch(st, {}, { owedAmount: undefined, owedZero: undefined });
+  }
+}
+
+function reduce(st: FlowState, ans: Answer, env: FlowEnv): Outcome {
   const { members } = env;
   const e = st.expense;
   const d = st.data;
@@ -428,93 +350,63 @@ export function applyAnswer(st: FlowState, ans: Answer, env: FlowEnv): Outcome {
 
   switch (ans.k) {
     case "cancel":
-      // 🗑 on a draft's summary deletes at once. A confirmed expense (opened
-      // via แก้ล่าสุด, maybe with paid splits) always asks first.
-      if (st.step === "summary" && e.pending) return { k: "delete" };
       if (inPrompt) return ask(st);
       return ask({ ...st, step: "confirm_cancel", data: { ...d, resumeStep: st.step } });
 
-    case "back":
-    case "resume": {
-      if (inPrompt) return ask(leave(st, members));
-      if (ans.k === "resume") return ask(st);
-      const prev = [...(d.prevSteps ?? [])];
-      const target = prev.pop();
-      if (!target) return ask(st);
-      return ask({ ...st, step: target, data: { ...d, prevSteps: prev, owedZero: undefined } });
+    case "resume":
+      // Out of a delete prompt of a SAVED expense there is nothing to resume: ask again.
+      return inPrompt && e.pending ? ask(leave(st)) : ask(st);
+
+    case "set": {
+      if (inPrompt || st.step === "edit") return ask(st);
+      const { st: next, notices } = applyBundle(st, ans.bundle, members);
+      return settle(next, members, notices.length > 0 ? notices.join("\n") : undefined);
     }
 
-    case "payer":
-      if (members.length > 0 && !members.includes(ans.name)) return ask(st);
-      return ask(auto(patch(st, { payer: ans.name }, d.partner === ans.name ? { partner: undefined } : {}), members));
-
-    case "amount": {
-      if (!(ans.amount > 0)) return ask(st, "ยอดต้องมากกว่า 0 นะ");
-      if (ans.note && !e.description) {
-        // Typed at the payer step with words: seed the empty note and re-guess the category from it.
-        return ask(auto(patch(st, { amount: ans.amount, description: ans.note, category: guessCategory(ans.note) }, { amountCandidates: undefined }), members));
-      }
-      const description = d.amountCandidates?.includes(ans.amount) ? removeNumberToken(e.description, ans.amount) : e.description;
-      return ask(auto(patch(st, { amount: ans.amount, description }, { amountCandidates: undefined }), members));
-    }
-
-    case "currency":
-      if (!SUPPORTED_CURRENCIES.includes(ans.code)) return ask(st);
-      return ask(auto(patch(st, { currency: ans.code }, { currencyConfirmed: true }), members));
-
-    case "split":
-      if (ans.mode !== "none" && otherMembers(e.payer, members).length === 0) return ask(st, "ทริปนี้ไม่มีสมาชิกคนอื่นให้หาร");
-      return ask(auto(patch(st, {}, { splitMode: ans.mode, owedAmount: undefined, owedZero: undefined, lockedSplits: undefined }), members));
-
-    case "partner":
-      if (!otherMembers(e.payer, members).includes(ans.name)) return ask(st);
-      return ask(auto(patch(st, {}, { partner: ans.name }), members));
-
-    case "owed": {
-      const check = validateOwed(ans.amount, e.amount);
-      if (check === "zero") return ask(patch(st, {}, { owedZero: true }));
-      if (check === "over") return ask(st, `เกินยอดรวม ${fmtNum(e.amount)} ใส่ใหม่นะ`);
-      return ask(auto(patch(st, {}, { owedAmount: ans.amount, owedZero: undefined }), members));
-    }
+    case "clear":
+      if (st.step !== "missing") return ask(st);
+      return settle(clearField(st, ans.field), members);
 
     case "owed_none":
-      return ask(auto(patch(st, {}, { splitMode: "none", owedAmount: undefined, owedZero: undefined }), members));
+      return settle(patch(st, {}, { splitMode: "none", owedAmount: undefined, owedZero: undefined }), members);
 
     case "owed_retry":
       return ask(patch(st, {}, { owedZero: undefined }));
 
-    case "category":
-      return ask(auto(patch(st, { category: ans.category }), members));
-
-    case "note":
-      return ask(auto(patch(st, { description: ans.text }), members));
-
-    case "confirm": {
-      if (st.step !== "summary") return ask(st);
-      const missing = nextMissingStep(e, d, members);
-      if (missing !== "summary") return ask(goTo(st, missing));
-      return { k: "confirm", expense: { ...e, pending: false } };
-    }
-
     case "edit":
-      return ask(goTo(patch(st, {}, { editing: true }), "edit"));
+      return e.pending ? ask(st) : ask({ ...st, step: "edit", data: { ...d, resumeStep: undefined } });
 
     case "editfield":
-      return ask(goTo(st, ans.field));
+      return st.step === "edit" ? ask({ ...st, step: ans.field }) : ask(st);
+
+    case "ask_delete":
+      return e.pending ? ask(st) : ask({ ...st, step: "confirm_cancel", data: { ...d, resumeStep: undefined } });
 
     case "cancel_delete":
-      return { k: "delete" };
+      return st.step === "confirm_cancel" ? { k: "delete" } : ask(st);
 
     case "cancel_keep":
-      return { k: "keep" };
+      return st.step === "confirm_cancel" ? { k: "keep" } : ask(st);
 
     case "conflict_resume":
-      return ask(leave(st, members));
+      return st.step === "conflict" ? ask(leave(st)) : ask(st);
 
     case "conflict_park":
-      return { k: "park", pendingText: d.pendingText, pendingPhotoId: d.pendingPhotoId };
+      return st.step === "conflict" ? { k: "park", pendingText: d.pendingText, pendingPhotoId: d.pendingPhotoId } : ask(st);
 
     case "conflict_drop":
-      return { k: "drop", pendingText: d.pendingText, pendingPhotoId: d.pendingPhotoId };
+      return st.step === "conflict" ? { k: "drop", pendingText: d.pendingText, pendingPhotoId: d.pendingPhotoId } : ask(st);
   }
+}
+
+// The rev goes up by one whenever the step, the expense or the data changed,
+// so buttons of any older card stop working. An unchanged re-ask keeps it.
+const comparable = (st: FlowState): string => JSON.stringify([st.step, st.expense, { ...st.data, rev: 0 }]);
+
+export function applyAnswer(st: FlowState, ans: Answer, env: FlowEnv): Outcome {
+  const out = reduce(st, ans, env);
+  if (out.k !== "ask") return out;
+  const rev = st.data.rev ?? 0;
+  const changed = comparable(st) !== comparable(out.state);
+  return { ...out, state: { ...out.state, data: { ...out.state.data, rev: changed ? rev + 1 : rev } } };
 }
