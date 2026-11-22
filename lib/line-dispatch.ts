@@ -8,6 +8,7 @@ import { readFlowSession } from "@/lib/line-session";
 import { classifyText, commandRoute, type Route } from "@/lib/line-router";
 import { decodePostback, textMessage } from "@/lib/line-flex";
 import { buildMenuMessage, buildAmbiguityMessage, menuGoRoute, HINT_TEXT, NO_TRIP_TEXT } from "@/lib/line-menu";
+import { buildGuideMessage } from "@/lib/line-guide";
 import type { LineEvent } from "@/lib/line";
 import type { HandlerCtx, PostbackData } from "@/lib/line-handlers/types";
 import type { Trip } from "@/lib/models/types";
@@ -122,6 +123,10 @@ async function routeTo(base: BaseCtx, withTrip: WithTrip, route: Route): Promise
   // Routes that work without an active trip -- and never load it.
   if (route.kind === "menu") {
     await base.reply([buildMenuMessage()]);
+    return;
+  }
+  if (route.kind === "guide") {
+    await base.reply([buildGuideMessage(route.topic)]);
     return;
   }
   if (route.kind === "hint") {

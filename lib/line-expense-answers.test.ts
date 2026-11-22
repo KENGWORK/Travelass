@@ -107,6 +107,14 @@ describe("interpretAnswer", () => {
     expect(interpretAnswer(st("missing"), "สวัสดี", M)).toBeNull();
   });
 
+  it("คู่มือ (a view command now) is never an answer, so it leaves a pending draft alone", () => {
+    for (const step of ["missing", "note", "payer", "owed"] as FlowStep[]) {
+      expect(interpretAnswer(st(step), "คู่มือ", M)).toBeNull();
+      expect(interpretAnswer(st(step), "คู่มือ จอง", M)).toBeNull();
+    }
+    expect(interpretAnswer(st("missing"), "คู่มือ HKD", M)).toBeNull();
+  });
+
   it("missing card: the zero-owed prompt answers", () => {
     const d: FlowData = { owedZero: true, splitMode: "unequal" };
     expect(interpretAnswer(st("missing", {}, d), "เปลี่ยนเป็นไม่หาร", M)).toEqual({ k: "owed_none" });

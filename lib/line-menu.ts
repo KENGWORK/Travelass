@@ -1,9 +1,10 @@
 import { CLAY, txt, compact, flexMessage, textMessage, quickReply, postbackAction, type FlexNode } from "@/lib/line-flex";
 import type { Route } from "@/lib/line-router";
+import { topicFromId } from "@/lib/line-guide";
 
 // Menu / how-to card plus the bot's shared one-line replies. Pure.
 
-export const HINT_TEXT = "ไม่เข้าใจ ลองพิมพ์ เช่น 120 บาท ข้าว หรือพิมพ์ เมนู";
+export const HINT_TEXT = "ไม่เข้าใจ ลองพิมพ์ เช่น 120 บาท ข้าว หรือพิมพ์ คู่มือการใช้งาน";
 export const NO_TRIP_TEXT = 'ยังไม่มีทริปที่สถานะ "กำลังเที่ยว" อยู่ตอนนี้ เปลี่ยนสถานะทริปในแอปก่อนนะ';
 export const WIP_TEXT = "ฟีเจอร์นี้กำลังพัฒนา";
 
@@ -47,6 +48,14 @@ function expenseBubble(): FlexNode {
         txt("คำสั่ง: ทำต่อ · แก้ล่าสุด · ยกเลิก", { size: "sm", color: CLAY.muted, margin: "md" }),
       ]),
     },
+    footer: {
+      type: "box",
+      layout: "vertical",
+      paddingAll: "12px",
+      contents: [
+        { type: "button", style: "secondary", height: "sm", color: CLAY.card, action: postbackAction("📖 คู่มือการใช้งาน", { a: "menu_go", t: "guide" }) },
+      ],
+    },
   };
 }
 
@@ -86,6 +95,7 @@ export function menuGoRoute(data: Record<string, string>): Route | null {
     case "info": return { kind: "info", rest: q };
     case "notes": return { kind: "notes", rest: q };
     case "transport": return { kind: "transport", rest: q, next: false };
+    case "guide": return { kind: "guide", topic: topicFromId(q) };
     default: return null;
   }
 }

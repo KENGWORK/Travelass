@@ -41,12 +41,26 @@ describe("step 2: view commands", () => {
     ["ข้อมูลด่วน", { kind: "info", rest: "" }],
     ["โน้ต วีซ่า", { kind: "notes", rest: "วีซ่า" }],
     ["โน๊ต", { kind: "notes", rest: "" }],
+    ["คู่มือการใช้งาน", { kind: "guide", topic: null }],
+    ["คู่มือ", { kind: "guide", topic: null }],
+    ["ขอดูคู่มือ", { kind: "guide", topic: null }],
+    ["คู่มือ แพลน", { kind: "guide", topic: "plan" }],
+    ["คู่มือ ตั๋ว", { kind: "guide", topic: "booking" }],
+    ["คู่มือ ค่าใช้จ่าย", { kind: "guide", topic: "expense" }],
+    ["คู่มือ 2", { kind: "guide", topic: null }],
   ])("%s", (text, route) => {
     expect(classifyText(text, ctx())).toEqual(route);
   });
 
-  it("a pending flow does not block view commands", () => {
+  it("a pending flow does not block view commands, including the guide", () => {
     expect(classifyText("แพลน", ctx({ flowStep: "amount", isFlowAnswer: never }))).toEqual({ kind: "plan", rest: "" });
+    expect(classifyText("คู่มือ", ctx({ flowStep: "missing", isFlowAnswer: never }))).toEqual({ kind: "guide", topic: null });
+    expect(classifyText("คู่มือ จอง", ctx({ flowStep: "missing", isFlowAnswer: never }))).toEqual({ kind: "guide", topic: "booking" });
+  });
+
+  it("the guide works in a group and in 1:1 alike", () => {
+    expect(classifyText("คู่มือ", ctx({ isGroup: true }))).toEqual({ kind: "guide", topic: null });
+    expect(classifyText("คู่มือ", ctx({ isGroup: false }))).toEqual({ kind: "guide", topic: null });
   });
 
   it("'planet' is not the plan command", () => {
@@ -61,12 +75,12 @@ describe("step 2: view commands", () => {
 });
 
 describe("isViewCommand", () => {
-  it.each(["แพลน", "plan 20/11", "ต่อไป", "next", "ตอนนี้", "now", "#2", "เมนู", "?", "ข้อมูล wifi", "ข้อมูลด่วน", "โน้ต", "โน๊ต", "ขอดูแพลน"])(
+  it.each(["แพลน", "plan 20/11", "ต่อไป", "next", "ตอนนี้", "now", "#2", "เมนู", "?", "ข้อมูล wifi", "ข้อมูลด่วน", "โน้ต", "โน๊ต", "ขอดูแพลน", "คู่มือ", "คู่มือการใช้งาน", "คู่มือ แพลน", "ขอดูคู่มือ"])(
     "%s is a view command",
     (text) => expect(isViewCommand(text)).toBe(true),
   );
 
-  it.each(["เก่ง", "ค่าแท็กซี่", "ข้าม", "120 ข้าว", "?ราคา", "ร้านนี้อร่อย", "กินข้าว", "จอง", "ตั๋วรถ 50", "เอกสาร", "ที่เที่ยว", "อยากไป", "สถานที่", "เดินทาง", "รอบต่อไป"])(
+  it.each(["เก่ง", "ค่าแท็กซี่", "ข้าม", "120 ข้าว", "?ราคา", "ร้านนี้อร่อย", "กินข้าว", "จอง", "ตั๋วรถ 50", "เอกสาร", "ที่เที่ยว", "อยากไป", "สถานที่", "เดินทาง", "รอบต่อไป", "ทำคู่มือ"])(
     "%s is not a view command",
     (text) => expect(isViewCommand(text)).toBe(false),
   );

@@ -22,6 +22,7 @@ import type { LineEvent } from "@/lib/line";
 import type { Trip, LineSession } from "@/lib/models/types";
 import { encodePostback, textMessage, type FlexNode } from "@/lib/line-flex";
 import { HINT_TEXT, NO_TRIP_TEXT } from "@/lib/line-menu";
+import { buildGuideMessage } from "@/lib/line-guide";
 
 const TRIP: Trip = {
   id: "t1", name: "ฮ่องกง", destination: "Hong Kong", start_date: "2026-11-19", end_date: "2026-11-24",
@@ -82,6 +83,7 @@ describe("dispatchEventWithTrip (lazy trip)", () => {
     await dispatchEventWithTrip(baseFor(textEvent("สวัสดี")), loadTrip);
     await dispatchEventWithTrip(baseFor(textEvent("สวัสดี"), { isGroup: false }), loadTrip);
     await dispatchEventWithTrip(baseFor(textEvent("เมนู")), loadTrip);
+    await dispatchEventWithTrip(baseFor(textEvent("คู่มือ")), loadTrip);
     await dispatchEventWithTrip(baseFor(postbackEvent({ a: "menu" })), loadTrip);
     expect(loadTrip).not.toHaveBeenCalled();
   });
@@ -147,6 +149,15 @@ describe("postbacks", () => {
     expect(places.handleRoute).toHaveBeenCalledWith(ctx, { kind: "places", placeKind: "w", rest: "" });
   });
 
+  it("menu_go with t=guide replies the guide without a trip; q picks a topic", async () => {
+    const all = ctxFor(postbackEvent({ a: "menu_go", t: "guide" }), { trip: null });
+    await dispatchEvent(all);
+    expect(all.reply).toHaveBeenCalledWith([buildGuideMessage(null)]);
+    const one = ctxFor(postbackEvent({ a: "menu_go", t: "guide", q: "booking" }), { trip: null });
+    await dispatchEvent(one);
+    expect(one.reply).toHaveBeenCalledWith([buildGuideMessage("booking")]);
+  });
+
   it("amb_expense starts a new expense when no flow is pending", async () => {
     const ctx = ctxFor(postbackEvent({ a: "amb_expense", q: "ตั๋วรถ 50" }));
     await dispatchEvent(ctx);
@@ -194,6 +205,28 @@ describe("text", () => {
     await dispatchEvent(ctx);
     expect(readFlowSession).toHaveBeenCalledWith(KEY, NOW);
     expect(plan.handleRoute).toHaveBeenCalledWith(ctx, { kind: "plan", rest: "พรุ่งนี้" });
+  });
+
+  it("answers คู่มือ without a trip and without loading one", async () => {
+    const ctx = ctxFor(textEvent("คู่มือการใช้งาน"), { trip: null });
+    await dispatchEvent(ctx);
+    expect(ctx.reply).toHaveBeenCalledWith([buildGuideMessage(null)]);
+    expect(plan.handleRoute).not.toHaveBeenCalled();
+  });
+
+  it("answers คู่มือ <topic> with that topic's bubble, even in a group", async () => {
+    const ctx = ctxFor(textEvent("คู่มือ แพลน"), { isGroup: true });
+    await dispatchEvent(ctx);
+    expect(ctx.reply).toHaveBeenCalledWith([buildGuideMessage("plan")]);
+  });
+
+  it("คู่มือ is a view command: it does not touch a pending expense flow", async () => {
+    vi.mocked(readFlowSession).mockResolvedValue({ ...SESSION, step: "missing" });
+    vi.mocked(expense.flowAnswerPredicate).mockResolvedValue(() => false);
+    const ctx = ctxFor(textEvent("คู่มือ"));
+    await dispatchEvent(ctx);
+    expect(ctx.reply).toHaveBeenCalledWith([buildGuideMessage(null)]);
+    expect(expense.handleRoute).not.toHaveBeenCalled();
   });
 
   it("asks the expense flow whether the text answers it", async () => {

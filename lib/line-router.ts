@@ -1,4 +1,5 @@
 import { stripPolitePrefix, matchKeyword, hasDigit } from "@/lib/line-text";
+import { matchGuide, type GuideTopic } from "@/lib/line-guide";
 import { extractDate, type TripDateCtx } from "@/lib/line-date";
 
 // Decides what an incoming LINE text message is. Pure -- the caller supplies
@@ -7,6 +8,7 @@ import { extractDate, type TripDateCtx } from "@/lib/line-date";
 export type Route =
   | { kind: "flow_answer" }
   | { kind: "menu" }
+  | { kind: "guide"; topic: GuideTopic | null }
   | { kind: "plan"; rest: string }
   | { kind: "info"; rest: string }
   | { kind: "notes"; rest: string }
@@ -57,6 +59,8 @@ const MENU_EXACT = "?";
 function matchViewCommand(text: string): Route | null {
   const s = stripPolitePrefix(text);
   if (s === MENU_EXACT) return { kind: "menu" };
+  const guide = matchGuide(s);
+  if (guide) return { kind: "guide", topic: guide.topic };
   if (/^#\s*\d+/.test(s)) return { kind: "plan", rest: s };
   const prefixMenu = MENU_KEYWORDS.filter((k) => k !== MENU_EXACT);
   const m = matchKeyword(s, [...prefixMenu, ...PLAN_KEYWORDS, ...PLAN_TOKEN_KEYWORDS, ...INFO_KEYWORDS, ...NOTES_KEYWORDS]);
@@ -98,7 +102,8 @@ function matchCollisionCommand(text: string): { target: AmbiguousTarget; rest: s
 }
 
 // True when the text is a step-2 VIEW command (แพลน/plan, ต่อไป/next,
-// ตอนนี้/now, #<n>, เมนู, exactly ?, ข้อมูล/ข้อมูลด่วน, โน้ต/โน๊ต). Collision
+// ตอนนี้/now, #<n>, เมนู, exactly ?, ข้อมูล/ข้อมูลด่วน, โน้ต/โน๊ต,
+// คู่มือ/คู่มือการใช้งาน [หัวข้อ]). Collision
 // words (ร้าน, กิน, จอง, ตั๋ว, เดินทาง, ...) are NOT included -- they show up
 // in ordinary notes ("ร้านนี้อร่อย"). Flows that take free text as an answer
 // use this to let view commands through.

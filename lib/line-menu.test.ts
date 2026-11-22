@@ -12,7 +12,7 @@ import { decodePostback, type FlexNode } from "./line-flex";
 
 describe("copy", () => {
   it("uses the exact spec wording", () => {
-    expect(HINT_TEXT).toBe("ไม่เข้าใจ ลองพิมพ์ เช่น 120 บาท ข้าว หรือพิมพ์ เมนู");
+    expect(HINT_TEXT).toBe("ไม่เข้าใจ ลองพิมพ์ เช่น 120 บาท ข้าว หรือพิมพ์ คู่มือการใช้งาน");
     expect(NO_TRIP_TEXT).toBe('ยังไม่มีทริปที่สถานะ "กำลังเที่ยว" อยู่ตอนนี้ เปลี่ยนสถานะทริปในแอปก่อนนะ');
     expect(WIP_TEXT).toBe("ฟีเจอร์นี้กำลังพัฒนา");
   });
@@ -35,6 +35,15 @@ describe("buildMenuMessage", () => {
     }
   });
 
+  it("bubble 1 has the คู่มือการใช้งาน button (menu_go → guide)", () => {
+    const bubble1 = (carousel.contents as FlexNode[])[0];
+    const footerButtons = ((bubble1.footer as FlexNode).contents as FlexNode[]).filter((n) => n.type === "button");
+    expect(footerButtons).toHaveLength(1);
+    const action = footerButtons[0].action as FlexNode;
+    expect(action.label).toBe("📖 คู่มือการใช้งาน");
+    expect(decodePostback(action.data as string)).toEqual({ a: "menu_go", t: "guide" });
+  });
+
   it("bubble 2 has one menu_go postback button per shortcut", () => {
     const bubble2 = (carousel.contents as FlexNode[])[1];
     const buttons = ((bubble2.body as FlexNode).contents as FlexNode[]).filter((n) => n.type === "button");
@@ -50,6 +59,12 @@ describe("buildMenuMessage", () => {
 });
 
 describe("menuGoRoute", () => {
+  it("maps the guide, with or without a topic", () => {
+    expect(menuGoRoute({ a: "menu_go", t: "guide" })).toEqual({ kind: "guide", topic: null });
+    expect(menuGoRoute({ a: "menu_go", t: "guide", q: "plan" })).toEqual({ kind: "guide", topic: "plan" });
+    expect(menuGoRoute({ a: "menu_go", t: "guide", q: "bogus" })).toEqual({ kind: "guide", topic: null });
+  });
+
   it("maps every shortcut to a route", () => {
     expect(MENU_SHORTCUTS.map((s) => menuGoRoute(s.data))).toEqual([
       { kind: "plan", rest: "" },
